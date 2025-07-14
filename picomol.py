@@ -96,6 +96,7 @@ class ProteinViewerApp(QMainWindow):
         super().__init__()
         self.setWindowTitle("Basic Protein Structure Viewer")
         self.setGeometry(100, 100, 1000, 800)
+        self.setAcceptDrops(True)
 
         # Show welcome screen if user wants it
         settings = QSettings("PicoMolApp", "PicoMol")
@@ -228,15 +229,23 @@ class ProteinViewerApp(QMainWindow):
 
 
     def init_ui(self):
-        # Menu bar with Undo/Redo
+        # Menu bar with File, Edit, Recent Files
         menubar = self.menuBar()
-        edit_menu = menubar.addMenu("Edit")
+        file_menu = menubar.addMenu("File")
 
+        save_as_action = QAction("Save Structure As...", self)
+        save_as_action.setShortcut("Ctrl+Shift+S")
+        save_as_action.triggered.connect(self.save_structure_as)
+        file_menu.addAction(save_as_action)
+
+        self.recent_files_menu = file_menu.addMenu("Recent Files")
+        self.update_recent_files_menu()
+
+        edit_menu = menubar.addMenu("Edit")
         undo_action = QAction("Undo", self)
         undo_action.setShortcut("Ctrl+Z")
         undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
-
         redo_action = QAction("Redo", self)
         redo_action.setShortcut("Ctrl+Y")
         redo_action.triggered.connect(self.redo)
@@ -245,6 +254,17 @@ class ProteinViewerApp(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
+
+        # Drag-and-drop overlay label (hidden by default)
+        self.drag_overlay = QLabel("\n\nDrop PDB or ENT files here to open", self)
+        self.drag_overlay.setAlignment(Qt.AlignCenter)
+        self.drag_overlay.setStyleSheet("background: rgba(30, 144, 255, 0.7); color: white; font-size: 28px; border: 3px dashed white; border-radius: 24px;")
+        self.drag_overlay.setVisible(False)
+        self.drag_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.drag_overlay.setGeometry(0, 0, self.width(), self.height())
+
+        # Ensure overlay resizes with window
+        self.resizeEvent = self._resizeEventWithOverlay
 
         # Status bar
         self.statusBar = self.statusBar()
@@ -435,28 +455,26 @@ class ProteinViewerApp(QMainWindow):
             self.statusBar.showMessage(f"Error fetching PDB ID {pdb_id}")
             QMessageBox.critical(self, "Error", f"Could not fetch PDB ID {pdb_id}:\n{e}")
 
-    def open_local_pdb(self):
-        file_path, _ = QFileDialog.getOpenFileName(
-            self, "Open Local PDB File", "", "PDB Files (*.pdb *.ent);;All Files (*)"
-        )
+    def open_local_pdb(self, file_path=None):
+        if not file_path:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self, "Open Local PDB File", "", "PDB Files (*.pdb *.ent);;All Files (*)"
+            )
         if not file_path:
             return
         try:
             self.statusBar.showMessage(f"Opening local PDB file: {os.path.basename(file_path)}...")
             structure_id = os.path.basename(file_path).split(".")[0]
-            # To display correctly, copy the file to the served directory
             pdb_filename = f"{structure_id}.pdb"
             target_path = os.path.join(self.pulled_structures_dir, pdb_filename)
-
-            # If the file is not already in the correct location, copy it.
             if os.path.abspath(file_path) != os.path.abspath(target_path):
                 import shutil
                 shutil.copy(file_path, target_path)
-
             self.statusBar.showMessage(f"Loading structure from {os.path.basename(file_path)}...")
             structure = self.pdb_parser.get_structure(structure_id, target_path)
             self.display_structure(structure)
             self.statusBar.showMessage(f"Displayed {structure_id}")
+            self.add_to_recent_files(file_path)
         except Exception as e:
             self.statusBar.showMessage(f"Error opening file: {os.path.basename(file_path)}")
             QMessageBox.critical(self, "Error", f"Could not open file:\n{e}")
@@ -601,6 +619,7 @@ class ProteinViewerApp(QMainWindow):
         # Save the screenshot
         if pixmap.save(file_path, 'PNG'):
             QMessageBox.information(self, "Screenshot Saved", f"Screenshot saved to: {file_path}")
+            self.add_to_recent_files(file_path)
         else:
             QMessageBox.warning(self, "Save Failed", "Could not save the screenshot.")
 
@@ -608,6 +627,83 @@ class ProteinViewerApp(QMainWindow):
         if hasattr(self, '_server_thread'):
             self._server_thread.shutdown()
         super().closeEvent(event)
+
+    # --- Recent Files Support ---
+    def add_to_recent_files(self, file_path):
+        settings = QSettings("PicoMolApp", "PicoMol")
+        recents = settings.value("recent_files", [], type=list)
+        if file_path in recents:
+            recents.remove(file_path)
+        recents.insert(0, file_path)
+        recents = recents[:10]
+        settings.setValue("recent_files", recents)
+        self.update_recent_files_menu()
+
+    def update_recent_files_menu(self):
+        self.recent_files_menu.clear()
+        settings = QSettings("PicoMolApp", "PicoMol")
+        recents = settings.value("recent_files", [], type=list)
+        for path in recents:
+            action = QAction(path, self)
+            action.triggered.connect(lambda checked, p=path: self.open_local_pdb(p))
+            self.recent_files_menu.addAction(action)
+
+    # --- Save Structure As... ---
+    def save_structure_as(self):
+        if not hasattr(self, 'current_structure_id') or not self.current_structure_id:
+            self.statusBar.showMessage("No structure loaded to save.")
+            return
+        pdb_path = os.path.join(self.pulled_structures_dir, f"{self.current_structure_id}.pdb")
+        if not os.path.exists(pdb_path):
+            self.statusBar.showMessage("Current structure file not found.")
+            return
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Structure As", f"{self.current_structure_id}.pdb", "PDB Files (*.pdb);;All Files (*)")
+        if not file_path:
+            return
+        if not (file_path.lower().endswith('.pdb')):
+            file_path += '.pdb'
+        try:
+            import shutil
+            shutil.copy(pdb_path, file_path)
+            self.statusBar.showMessage(f"Structure saved to: {file_path}")
+            self.add_to_recent_files(file_path)
+        except Exception as e:
+            self.statusBar.showMessage(f"Failed to save structure: {e}")
+
+    # --- Drag and Drop Support ---
+    def dragEnterEvent(self, event):
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                if url.toLocalFile().lower().endswith(('.pdb', '.ent')):
+                    self.drag_overlay.setVisible(True)
+                    event.acceptProposedAction()
+                    return
+        self.drag_overlay.setVisible(False)
+        event.ignore()
+
+    def dragLeaveEvent(self, event):
+        self.drag_overlay.setVisible(False)
+        event.accept()
+
+    def dropEvent(self, event):
+        self.drag_overlay.setVisible(False)
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                file_path = url.toLocalFile()
+                if file_path.lower().endswith(('.pdb', '.ent')):
+                    self.open_local_pdb(file_path)
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def setAcceptDrops(self, accept):
+        super().setAcceptDrops(accept)
+
+    def _resizeEventWithOverlay(self, event):
+        # Ensure drag overlay always covers the full window
+        self.drag_overlay.setGeometry(0, 0, self.width(), self.height())
+        if hasattr(super(), 'resizeEvent'):
+            super().resizeEvent(event)
 
 
 def main():
