@@ -1,4 +1,4 @@
-# PicoMol: Basic Protein Structure Viewer
+# PicoMol: The Miniature Molecular Visualisation System
 
 PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualizing protein structures. It allows users to fetch protein data from the PDB database or load local PDB files, and then display them with various representations and coloring schemes.
 
