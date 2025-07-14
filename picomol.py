@@ -12,7 +12,7 @@ import sys
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox
+    QComboBox, QCheckBox, QGroupBox, QTextEdit
 )
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import QUrl
@@ -167,9 +167,24 @@ class ProteinViewerApp(QMainWindow):
         control_panel_layout.addWidget(ngl_options_group)
         control_panel_layout.addStretch(1) # Push everything to the top
 
+        # Sequence Display
+        sequence_group = QGroupBox("Sequence Data")
+        sequence_layout = QVBoxLayout()
+        self.sequence_display = QTextEdit()
+        self.sequence_display.setReadOnly(True)
+        sequence_layout.addWidget(self.sequence_display)
+        sequence_group.setLayout(sequence_layout)
+        sequence_group.setMaximumHeight(100) # Set a maximum height for the sequence box
+
         self.web_view = QWebEngineView()
+
+        # Create a new vertical layout for sequence and web view
+        right_panel_layout = QVBoxLayout()
+        right_panel_layout.addWidget(sequence_group, 1) # Give sequence_group a smaller stretch factor
+        right_panel_layout.addWidget(self.web_view, 3) # Give web_view a larger stretch factor
+
         main_layout.addWidget(control_panel_widget)
-        main_layout.addWidget(self.web_view, 3) # Give web_view a stretch factor of 3
+        main_layout.addLayout(right_panel_layout, 3) # Give right_panel_layout a stretch factor of 3
 
     def update_custom_color(self):
         color = self.custom_color_entry.text()
@@ -261,6 +276,8 @@ class ProteinViewerApp(QMainWindow):
 
     def display_structure(self, structure):
         from pathlib import Path
+        from Bio import SeqIO
+        from io import StringIO
         io = PDBIO()
         io.set_structure(structure)
 
@@ -268,6 +285,24 @@ class ProteinViewerApp(QMainWindow):
         pdb_filename = f"{structure.id}.pdb"
         pdb_path = os.path.join(self.pulled_structures_dir, pdb_filename)
         io.save(pdb_path)
+
+        # Extract and display sequence
+        try:
+            # Read the PDB file content into a string buffer
+            with open(pdb_path, 'r') as f:
+                pdb_content = f.read()
+            pdb_buffer = StringIO(pdb_content)
+
+            # Parse the PDB file to extract sequence information
+            # Use the 'structure' object directly if possible, or re-parse from the saved file
+            # For simplicity, re-parsing from the saved file to get SeqRecord objects
+            sequences = []
+            for record in SeqIO.parse(pdb_buffer, "pdb-atom"): # Use "pdb-atom" for parsing PDB files
+                sequences.append(f">{record.id}\n{record.seq}")
+            self.sequence_display.setText("\n".join(sequences))
+        except Exception as e:
+            self.sequence_display.setText(f"Error extracting sequence: {e}")
+            print(f"Error extracting sequence: {e}")
 
         # Prepare HTML file path
         html_filename = f"{structure.id}.html"
