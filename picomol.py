@@ -13,7 +13,7 @@ import warnings
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox
+    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction
 )
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
@@ -88,20 +88,26 @@ class WelcomeDialog(QDialog):
 
 class ProteinViewerApp(QMainWindow):
     def __init__(self, port):
+        # Undo/redo stacks
+        self._undo_stack = []
+        self._redo_stack = []
+        self._is_restoring_state = False
+
         super().__init__()
         self.setWindowTitle("Basic Protein Structure Viewer")
         self.setGeometry(100, 100, 1000, 800)
 
-        # Show welcome screen if needed
-        # Force welcome dialog to show for debugging
-        self._welcome_dialog = WelcomeDialog(self)
-        self._welcome_dialog.setModal(True)  # Modal to guarantee visibility
-        self._welcome_dialog.show()
-        def handle_close():
-            settings = QSettings("PicoMolApp", "PicoMol")
-            settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
-            self._welcome_dialog.deleteLater()
-        self._welcome_dialog.accepted.connect(handle_close)
+        # Show welcome screen if user wants it
+        settings = QSettings("PicoMolApp", "PicoMol")
+        show_welcome = settings.value("show_welcome", False, type=bool)
+        if show_welcome:
+            self._welcome_dialog = WelcomeDialog(self)
+            self._welcome_dialog.setModal(True)
+            def handle_close():
+                settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
+                self._welcome_dialog.deleteLater()
+            self._welcome_dialog.finished.connect(handle_close)
+            self._welcome_dialog.show()
 
         # Create directories if not exist
         self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
@@ -139,7 +145,103 @@ class ProteinViewerApp(QMainWindow):
 
         self.init_ui()
 
+    def capture_state(self):
+        """Capture the current user-facing state for undo/redo."""
+        state = {
+            'representation': self.representation_combo.currentText() if hasattr(self, 'representation_combo') else None,
+            'color_scheme': self.color_combo.currentText() if hasattr(self, 'color_combo') else None,
+            'spin': self.spin_checkbox.isChecked() if hasattr(self, 'spin_checkbox') else None,
+    
+            'background_color': self.background_color_entry.text() if hasattr(self, 'background_color_entry') else None,
+            'custom_color': self.custom_color_entry.text() if hasattr(self, 'custom_color_entry') else None,
+            'structure_id': getattr(self, 'current_structure_id', None),
+        }
+        return state
+
+    def restore_state(self, state):
+        """Restore the viewer state from a snapshot."""
+        self._is_restoring_state = True
+        try:
+            if state.get('representation') and hasattr(self, 'representation_combo'):
+                self.representation_combo.setCurrentText(state['representation'])
+            if state.get('color_scheme') and hasattr(self, 'color_combo'):
+                self.color_combo.setCurrentText(state['color_scheme'])
+            if state.get('spin') is not None and hasattr(self, 'spin_checkbox'):
+                self.spin_checkbox.setChecked(state['spin'])
+                self.toggle_spin()
+
+            if state.get('background_color') and hasattr(self, 'background_color_entry'):
+                self.background_color_entry.setText(state['background_color'])
+                self.update_background_color()
+            if hasattr(self, 'custom_color_entry'):
+                val = state.get('custom_color') or ''
+                print(f"[UNDO] restore_state: setting custom_color to {val!r}")
+                self._is_restoring_state = True
+                try:
+                    self.custom_color_entry.blockSignals(True)
+                    self.custom_color_entry.setText(val)
+                    self._last_custom_color = val
+                finally:
+                    self.custom_color_entry.blockSignals(False)
+                    self._is_restoring_state = False
+                self.web_view.page().runJavaScript(f"setCustomColor('{val}');")
+            # Structure reload if needed
+            if state.get('structure_id') and hasattr(self, 'pulled_structures_dir'):
+                pdb_path = os.path.join(self.pulled_structures_dir, f"{state['structure_id']}.pdb")
+                if os.path.exists(pdb_path):
+                    structure = self.pdb_parser.get_structure(state['structure_id'], pdb_path)
+                    self.display_structure(structure)
+                    self.current_structure_id = state['structure_id']
+        finally:
+            self._is_restoring_state = False
+
+    def push_undo(self):
+        if self._is_restoring_state:
+            return
+        state = self.capture_state()
+        if self._undo_stack:
+            last_state = self._undo_stack[-1]
+            if state == last_state:
+                print("[UNDO] push_undo: No change, not pushing duplicate state.")
+                return
+        self._undo_stack.append(state)
+        self._redo_stack.clear()
+        print(f"[UNDO] push_undo: Stack size: {len(self._undo_stack)}")
+        print(f"[UNDO] Stack: {[s['custom_color'] for s in self._undo_stack]}")
+
+    def undo(self):
+        if len(self._undo_stack) > 1:
+            prev_state = self._undo_stack.pop()
+            self._redo_stack.append(prev_state)
+            print(f"[UNDO] undo: Stack size: {len(self._undo_stack)}")
+            print(f"[UNDO] Stack: {[s['custom_color'] for s in self._undo_stack]}")
+            state = self._undo_stack[-1]
+            self.restore_state(state)
+
+    def redo(self):
+        if self._redo_stack:
+            state = self._redo_stack.pop()
+            self._undo_stack.append(state)
+            print(f"[UNDO] redo: Stack size: {len(self._undo_stack)}")
+            print(f"[UNDO] Stack: {[s['custom_color'] for s in self._undo_stack]}")
+            self.restore_state(state)
+
+
     def init_ui(self):
+        # Menu bar with Undo/Redo
+        menubar = self.menuBar()
+        edit_menu = menubar.addMenu("Edit")
+
+        undo_action = QAction("Undo", self)
+        undo_action.setShortcut("Ctrl+Z")
+        undo_action.triggered.connect(self.undo)
+        edit_menu.addAction(undo_action)
+
+        redo_action = QAction("Redo", self)
+        redo_action.setShortcut("Ctrl+Y")
+        redo_action.triggered.connect(self.redo)
+        edit_menu.addAction(redo_action)
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
@@ -201,11 +303,7 @@ class ProteinViewerApp(QMainWindow):
         self.spin_checkbox.stateChanged.connect(self.toggle_spin)
         ngl_layout.addWidget(self.spin_checkbox)
 
-        self.remove_waters_checkbox = QCheckBox("Remove Waters")
-        self.remove_waters_checkbox.setToolTip("Hide or show water molecules in the visualization.")
-        self.remove_waters_checkbox.setChecked(False)
-        self.remove_waters_checkbox.stateChanged.connect(self.toggle_remove_waters)
-        ngl_layout.addWidget(self.remove_waters_checkbox)
+
 
         # Background Color Option
         background_color_label = QLabel("Background Color (hex or name):")
@@ -223,8 +321,15 @@ class ProteinViewerApp(QMainWindow):
         ngl_layout.addWidget(custom_color_label)
         self.custom_color_entry = QLineEdit()
         self.custom_color_entry.setToolTip("Enter a custom color (name or hex code) to apply to the protein structure.")
+        self._last_custom_color = self.custom_color_entry.text()
         ngl_layout.addWidget(self.custom_color_entry)
         apply_custom_color_button = QPushButton("Apply Custom Color")
+
+        # Initial undo stack state after UI setup
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._undo_stack.append(self.capture_state())
+        print(f"[UNDO] Initial stack: {[s['custom_color'] for s in self._undo_stack]}")
         apply_custom_color_button.setToolTip("Apply the custom color to the protein structure.")
         apply_custom_color_button.clicked.connect(self.update_custom_color)
         ngl_layout.addWidget(apply_custom_color_button)
@@ -253,15 +358,36 @@ class ProteinViewerApp(QMainWindow):
         main_layout.addWidget(control_panel_widget)
         main_layout.addLayout(right_panel_layout, 3) # Give right_panel_layout a stretch factor of 3
 
+        # Initialize undo stack with initial state
+        self._undo_stack.clear()
+        self._redo_stack.clear()
+        self._undo_stack.append(self.capture_state())
+
     def update_custom_color(self):
         color = self.custom_color_entry.text()
+        print(f"[UNDO] update_custom_color: Applying color {color}")
         self.web_view.page().runJavaScript(f"setCustomColor('{color}');")
+        if not self._is_restoring_state:
+            prev_color = None
+            if self._undo_stack:
+                prev_color = self._undo_stack[-1].get('custom_color', None)
+            if color != prev_color:
+                self.push_undo()
+                self._last_custom_color = color
 
     def update_background_color(self):
         color = self.background_color_entry.text()
+        print(f"[UNDO] update_background_color: Applying color {color}")
         self.web_view.page().runJavaScript(f"setBackgroundColor('{color}');")
+        if not self._is_restoring_state:
+            prev_color = None
+        if self._undo_stack:
+            prev_color = self._undo_stack[-1].get('background_color', None)
+        if color != prev_color:
+            self.push_undo()
 
     def update_representation(self):
+        self.push_undo()
         representation = self.representation_combo.currentText()
         # This will call a JavaScript function in the web view
         self.web_view.page().runJavaScript(f"setRepresentation('{representation}');")
@@ -270,22 +396,16 @@ class ProteinViewerApp(QMainWindow):
         self.web_view.page().runJavaScript("clearAllRepresentations();")
 
     def update_color_scheme(self):
+        self.push_undo()
         color_scheme = self.color_combo.currentText()
         # This will call a JavaScript function in the web view
         self.web_view.page().runJavaScript(f"setColorScheme('{color_scheme}');")
 
     def toggle_spin(self):
+        self.push_undo()
         spin_enabled = self.spin_checkbox.isChecked()
         # This will call a JavaScript function in the web view
         self.web_view.page().runJavaScript(f"setSpin({str(spin_enabled).lower()});")
-
-    def toggle_remove_waters(self):
-        remove_waters = self.remove_waters_checkbox.isChecked()
-        self.web_view.page().runJavaScript(f"setRemoveWaters({str(remove_waters).lower()});")
-
-    def update_background_color(self):
-        color = self.background_color_entry.text()
-        self.web_view.page().runJavaScript(f"setBackgroundColor('{color}');")
 
     def fetch_pdb_id(self):
         pdb_id = self.pdb_id_entry.text().strip().upper()

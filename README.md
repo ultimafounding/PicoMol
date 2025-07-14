@@ -16,7 +16,10 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 *   **Coloring Schemes:** Apply various coloring schemes based on atom properties, residue types, chain IDs, and more.
 *   **Spin Control:** Toggle automatic rotation of the protein structure.
 *   **Background Color Customization:** Change the background color of the viewer.
-*   **Water Molecule Removal:** Option to hide water molecules from the visualization.
+*   **Robust Undo/Redo:** Undo and redo any view-related change (including custom color and background color) with a minimal, smart stack that avoids redundant entries.
+    - **Note:** Undo/redo is still a work in progress. Minor issues may remain and feedback is welcome.
+*   **Welcome Screen:** Optional welcome dialog appears only if the user wants it, and respects user preference for future launches.
+*   **Minimal, User-Friendly Design:** PicoMol is designed to be as simple and non-intrusive as possible, with no unnecessary debug output or popups.
 
 ## Requirements
 
