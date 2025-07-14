@@ -13,10 +13,11 @@ import warnings
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox, QTextEdit
+    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox
 )
+from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PyQt5.QtCore import QUrl
+from PyQt5.QtCore import QUrl, Qt
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
@@ -50,11 +51,90 @@ class ServerThread(threading.Thread):
             print("Server stopped.")
 
 
+class WelcomeDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Welcome to PicoMol!")
+        self.setMinimumWidth(400)
+        self.setWindowFlags(
+            self.windowFlags() | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+        )
+        # self.setAttribute(Qt.WA_TranslucentBackground)  # Transparency removed
+        self.setStyleSheet("""
+            QDialog {
+                background: #222;
+                border-radius: 16px;
+                border: 2px solid #444;
+            }
+            QLabel, QCheckBox {
+                color: #f1f1f1;
+            }
+            QPushButton, QDialogButtonBox QPushButton {
+                border-radius: 8px;
+                padding: 6px 18px;
+            }
+        """)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        welcome_label = QLabel(
+            "<h2>Welcome to PicoMol!</h2>"
+            "<p>This is a simple molecular visualization tool for protein structures.</p>"
+            "<ul>"
+            "<li>Fetch PDB structures using their ID</li>"
+            "<li>Open local PDB files</li>"
+            "<li>Adjust visualization and color schemes</li>"
+            "<li>Take screenshots and more!</li>"
+            "</ul>"
+            "<p>Hover over any control for tooltips and inline help.</p>"
+        )
+        welcome_label.setWordWrap(True)
+        layout.addWidget(welcome_label)
+
+        self.checkbox = QCheckBox("Show this welcome screen on startup")
+        self.checkbox.setChecked(True)
+        layout.addWidget(self.checkbox)
+
+        # Custom close button (top-right)
+        close_btn = QPushButton("✕")
+        close_btn.setFixedSize(28, 28)
+        close_btn.setStyleSheet("background: transparent; color: #aaa; font-size: 18px; border: none;")
+        close_btn.clicked.connect(self.accept)
+        close_btn.setToolTip("Close this welcome screen")
+        close_btn.move(self.width() - 36, 8)
+        close_btn.setParent(self)
+        close_btn.raise_()
+
+    def should_show_next_time(self):
+        return self.checkbox.isChecked()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        # Center over parent if possible
+        if self.parent():
+            parent_geom = self.parent().geometry()
+            self.move(
+                parent_geom.center().x() - self.width() // 2,
+                parent_geom.top() + 60
+            )
+
+
 class ProteinViewerApp(QMainWindow):
     def __init__(self, port):
         super().__init__()
         self.setWindowTitle("Basic Protein Structure Viewer")
         self.setGeometry(100, 100, 1000, 800)
+
+        # Show welcome screen if needed
+        settings = QSettings("PicoMolApp", "PicoMol")
+        show_welcome = settings.value("show_welcome", True, type=bool)
+        if show_welcome:
+            self._welcome_dialog = WelcomeDialog(self)
+            self._welcome_dialog.setModal(False)
+            self._welcome_dialog.show()
+            def handle_close():
+                settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
+                self._welcome_dialog.deleteLater()
+            self._welcome_dialog.accepted.connect(handle_close)
 
         # Create directories if not exist
         self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
