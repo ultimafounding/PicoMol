@@ -1,0 +1,9 @@
+# Python
+__pycache__/
+*.pyc
+
+# NGL.js assets (downloaded)
+ngl_assets/ngl.min.js
+
+# Pulled structures and generated HTML
+pulled_structures/
