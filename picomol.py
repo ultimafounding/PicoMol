@@ -8,6 +8,7 @@ import time
 import shutil
 import subprocess
 import sys
+import warnings
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -18,6 +19,7 @@ from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import QUrl
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
+from Bio.SeqIO.PdbIO import BiopythonParserWarning
 
 
 class ServerThread(threading.Thread):
@@ -286,6 +288,8 @@ class ProteinViewerApp(QMainWindow):
         pdb_path = os.path.join(self.pulled_structures_dir, pdb_filename)
         io.save(pdb_path)
 
+        print(f"Structure ID for sequence extraction: {structure.id}")
+
         # Extract and display sequence
         try:
             # Read the PDB file content into a string buffer
@@ -294,11 +298,11 @@ class ProteinViewerApp(QMainWindow):
             pdb_buffer = StringIO(pdb_content)
 
             # Parse the PDB file to extract sequence information
-            # Use the 'structure' object directly if possible, or re-parse from the saved file
-            # For simplicity, re-parsing from the saved file to get SeqRecord objects
             sequences = []
-            for record in SeqIO.parse(pdb_buffer, "pdb-atom"): # Use "pdb-atom" for parsing PDB files
-                sequences.append(f">{record.id}\n{record.seq}")
+            for i, record in enumerate(SeqIO.parse(pdb_buffer, "pdb-atom")): # Use "pdb-atom" for parsing PDB files
+                # Construct a more informative ID using the structure.id and chain ID
+                display_id = f"{structure.id}:{record.id.split(':')[-1]}" if ':' in record.id else f"{structure.id}:{record.id}"
+                sequences.append(f">{display_id}\n{record.seq}")
             self.sequence_display.setText("\n".join(sequences))
         except Exception as e:
             self.sequence_display.setText(f"Error extracting sequence: {e}")
@@ -404,6 +408,9 @@ class ProteinViewerApp(QMainWindow):
 
 def main():
     os.environ["QTWEBENGINE_REMOTE_DEBUGGING"] = "9222"
+
+    # Suppress BiopythonParserWarning about missing HEADER line
+    warnings.filterwarnings("ignore", message="'HEADER' line not found; can't determine PDB ID.", category=BiopythonParserWarning)
 
     app = QApplication(sys.argv)
 
