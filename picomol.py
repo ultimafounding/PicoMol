@@ -56,24 +56,7 @@ class WelcomeDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Welcome to PicoMol!")
         self.setMinimumWidth(400)
-        self.setWindowFlags(
-            self.windowFlags() | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
-        )
-        # self.setAttribute(Qt.WA_TranslucentBackground)  # Transparency removed
-        self.setStyleSheet("""
-            QDialog {
-                background: #222;
-                border-radius: 16px;
-                border: 2px solid #444;
-            }
-            QLabel, QCheckBox {
-                color: #f1f1f1;
-            }
-            QPushButton, QDialogButtonBox QPushButton {
-                border-radius: 8px;
-                padding: 6px 18px;
-            }
-        """)
+
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 20, 20, 20)
         welcome_label = QLabel(
@@ -94,28 +77,13 @@ class WelcomeDialog(QDialog):
         self.checkbox.setChecked(True)
         layout.addWidget(self.checkbox)
 
-        # Custom close button (top-right)
-        close_btn = QPushButton("✕")
-        close_btn.setFixedSize(28, 28)
-        close_btn.setStyleSheet("background: transparent; color: #aaa; font-size: 18px; border: none;")
-        close_btn.clicked.connect(self.accept)
-        close_btn.setToolTip("Close this welcome screen")
-        close_btn.move(self.width() - 36, 8)
-        close_btn.setParent(self)
-        close_btn.raise_()
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
 
     def should_show_next_time(self):
         return self.checkbox.isChecked()
 
-    def showEvent(self, event):
-        super().showEvent(event)
-        # Center over parent if possible
-        if self.parent():
-            parent_geom = self.parent().geometry()
-            self.move(
-                parent_geom.center().x() - self.width() // 2,
-                parent_geom.top() + 60
-            )
 
 
 class ProteinViewerApp(QMainWindow):
@@ -125,16 +93,15 @@ class ProteinViewerApp(QMainWindow):
         self.setGeometry(100, 100, 1000, 800)
 
         # Show welcome screen if needed
-        settings = QSettings("PicoMolApp", "PicoMol")
-        show_welcome = settings.value("show_welcome", True, type=bool)
-        if show_welcome:
-            self._welcome_dialog = WelcomeDialog(self)
-            self._welcome_dialog.setModal(False)
-            self._welcome_dialog.show()
-            def handle_close():
-                settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
-                self._welcome_dialog.deleteLater()
-            self._welcome_dialog.accepted.connect(handle_close)
+        # Force welcome dialog to show for debugging
+        self._welcome_dialog = WelcomeDialog(self)
+        self._welcome_dialog.setModal(True)  # Modal to guarantee visibility
+        self._welcome_dialog.show()
+        def handle_close():
+            settings = QSettings("PicoMolApp", "PicoMol")
+            settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
+            self._welcome_dialog.deleteLater()
+        self._welcome_dialog.accepted.connect(handle_close)
 
         # Create directories if not exist
         self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
