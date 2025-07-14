@@ -108,18 +108,22 @@ class ProteinViewerApp(QMainWindow):
         control_panel_layout.addWidget(QLabel("Enter PDB ID:"))
 
         self.pdb_id_entry = QLineEdit()
+        self.pdb_id_entry.setToolTip("Enter a valid PDB ID (e.g., 1CRN, 4HHB) to fetch a protein structure from the PDB database.")
         control_panel_layout.addWidget(self.pdb_id_entry)
 
         fetch_button = QPushButton("Fetch PDB")
+        fetch_button.setToolTip("Download and visualize a protein structure using the entered PDB ID.")
         fetch_button.clicked.connect(self.fetch_pdb_id)
         control_panel_layout.addWidget(fetch_button)
 
         open_button = QPushButton("Open Local PDB File")
+        open_button.setToolTip("Open and visualize a local .pdb or .ent file from your computer.")
         open_button.clicked.connect(self.open_local_pdb)
         control_panel_layout.addWidget(open_button)
 
         # Screenshot Button
         screenshot_button = QPushButton("Save Screenshot")
+        screenshot_button.setToolTip("Save a screenshot of the current protein structure view as a PNG image.")
         screenshot_button.clicked.connect(self.save_screenshot)
         control_panel_layout.addWidget(screenshot_button)
 
@@ -130,6 +134,7 @@ class ProteinViewerApp(QMainWindow):
         representation_label = QLabel("Representation:")
         ngl_layout.addWidget(representation_label)
         self.representation_combo = QComboBox()
+        self.representation_combo.setToolTip("Select the 3D representation style for the protein structure (e.g., cartoon, surface, ball+stick, etc.).")
         self.representation_combo.addItems(["axes", "backbone", "ball+stick", "base", "cartoon", "contact", "distance", "helixorient", "hyperball", "label", "licorice", "line", "point", "ribbon", "rocket", "rope", "spacefill", "surface", "trace", "tube", "unitcell", "validation"])
         self.representation_combo.setCurrentText("cartoon") # Set default to cartoon
         self.representation_combo.currentIndexChanged.connect(self.update_representation)
@@ -138,16 +143,19 @@ class ProteinViewerApp(QMainWindow):
         color_label = QLabel("Color Scheme:")
         ngl_layout.addWidget(color_label)
         self.color_combo = QComboBox()
+        self.color_combo.setToolTip("Choose a color scheme for the structure (e.g., by atom, chain, residue, etc.).")
         self.color_combo.addItems(["atomindex", "bfactor", "chainid", "chainindex", "chainname", "densityfit", "electrostatic", "element", "entityindex", "entitytype", "geoquality", "hydrophobicity", "modelindex", "moleculetype", "occupancy", "random", "residueindex", "resname", "sstruc", "uniform", "value", "volume"])
         self.color_combo.currentIndexChanged.connect(self.update_color_scheme)
         ngl_layout.addWidget(self.color_combo)
 
         self.spin_checkbox = QCheckBox("Spin")
+        self.spin_checkbox.setToolTip("Toggle automatic rotation (spin) of the 3D protein structure.")
         self.spin_checkbox.setChecked(False)
         self.spin_checkbox.stateChanged.connect(self.toggle_spin)
         ngl_layout.addWidget(self.spin_checkbox)
 
         self.remove_waters_checkbox = QCheckBox("Remove Waters")
+        self.remove_waters_checkbox.setToolTip("Hide or show water molecules in the visualization.")
         self.remove_waters_checkbox.setChecked(False)
         self.remove_waters_checkbox.stateChanged.connect(self.toggle_remove_waters)
         ngl_layout.addWidget(self.remove_waters_checkbox)
@@ -156,8 +164,10 @@ class ProteinViewerApp(QMainWindow):
         background_color_label = QLabel("Background Color (hex or name):")
         ngl_layout.addWidget(background_color_label)
         self.background_color_entry = QLineEdit("black") # Default to black
+        self.background_color_entry.setToolTip("Enter a color name or hex code for the background (e.g., 'black', '#ffffff').")
         ngl_layout.addWidget(self.background_color_entry)
         apply_bg_color_button = QPushButton("Apply Background Color")
+        apply_bg_color_button.setToolTip("Apply the chosen background color to the viewer.")
         apply_bg_color_button.clicked.connect(self.update_background_color)
         ngl_layout.addWidget(apply_bg_color_button)
 
@@ -165,8 +175,10 @@ class ProteinViewerApp(QMainWindow):
         custom_color_label = QLabel("Custom Color (hex or name):")
         ngl_layout.addWidget(custom_color_label)
         self.custom_color_entry = QLineEdit()
+        self.custom_color_entry.setToolTip("Enter a custom color (name or hex code) to apply to the protein structure.")
         ngl_layout.addWidget(self.custom_color_entry)
         apply_custom_color_button = QPushButton("Apply Custom Color")
+        apply_custom_color_button.setToolTip("Apply the custom color to the protein structure.")
         apply_custom_color_button.clicked.connect(self.update_custom_color)
         ngl_layout.addWidget(apply_custom_color_button)
 
@@ -179,6 +191,7 @@ class ProteinViewerApp(QMainWindow):
         sequence_layout = QVBoxLayout()
         self.sequence_display = QTextEdit()
         self.sequence_display.setReadOnly(True)
+        self.sequence_display.setToolTip("Displays the amino acid sequence of the loaded protein structure.")
         sequence_layout.addWidget(self.sequence_display)
         sequence_group.setLayout(sequence_layout)
         sequence_group.setMaximumHeight(100) # Set a maximum height for the sequence box
