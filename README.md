@@ -7,6 +7,8 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 *   **Fetch PDB Structures:** Download protein data directly from the Protein Data Bank (PDB) using a PDB ID.
 *   **Open Local PDB Files:** Load and visualize protein structures from `.pdb` or `.ent` files stored on your local machine.
 
+*   **Sequence Data Display:** View the amino acid or nucleotide sequence extracted from the loaded PDB structure.
+
 *   **Improved User Interface:** Features a cleaner, more organized layout with controls in a sidebar and a larger viewing area for protein structures.
 *   **Interactive 3D Visualization:** Utilizes NGL.js for high-quality, interactive 3D rendering of protein structures.
 *   **Representation Options:** Switch between different molecular representations (e.g., cartoon, ball+stick, surface, licorice).
