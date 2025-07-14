@@ -7,7 +7,8 @@ This document tracks ongoing and potential future changes for the PicoMol projec
 1. **Add a screenshot feature** to capture the current view of the protein structure. ✅
 2. **Provide tooltips and inline help** for all controls and options. ✅
     - Tooltips have been added to all major controls in the UI, providing concise descriptions for each feature. Users now receive inline help by hovering over buttons, fields, and options.
-3. **Implement a welcome screen or onboarding tutorial** for first-time users.
+3. **Implement a welcome screen or onboarding tutorial** for first-time users. ✅
+    - A welcome dialog now appears on first launch, introducing PicoMol and offering a "Show this on startup" option. Uses a native dialog for best cross-platform compatibility.
 4. **Add undo/redo support** for user actions.
 5. **Make file loading and saving as simple as possible** (with clear dialogs and recent files list).
 6. **Improve error messages** to be actionable and user-friendly.

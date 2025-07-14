@@ -23,7 +23,7 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 *   Python 3.x
 *   `PyQt5`
 *   `PyQtWebEngine`
-*   `Bio.PDB` (part of Biopython)
+*   `biopython`
 *   `requests` (for downloading NGL.js)
 
 ## Installation
