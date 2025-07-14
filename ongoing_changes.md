@@ -4,7 +4,7 @@ This document tracks ongoing and potential future changes for the PicoMol projec
 
 ## Proposed Ongoing Changes (User-Friendly Focus)
 
-1. **Add a screenshot feature** to capture the current view of the protein structure.
+1. **Add a screenshot feature** to capture the current view of the protein structure. ✅
 2. **Provide tooltips and inline help** for all controls and options.
 3. **Implement a welcome screen or onboarding tutorial** for first-time users.
 4. **Add undo/redo support** for user actions.

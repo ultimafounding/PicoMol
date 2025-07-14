@@ -118,6 +118,11 @@ class ProteinViewerApp(QMainWindow):
         open_button.clicked.connect(self.open_local_pdb)
         control_panel_layout.addWidget(open_button)
 
+        # Screenshot Button
+        screenshot_button = QPushButton("Save Screenshot")
+        screenshot_button.clicked.connect(self.save_screenshot)
+        control_panel_layout.addWidget(screenshot_button)
+
         # NGL.js Options Group
         ngl_options_group = QGroupBox("NGL.js Display Options")
         ngl_layout = QVBoxLayout()
@@ -399,6 +404,25 @@ class ProteinViewerApp(QMainWindow):
         # Load the HTML in the QtWebEngineView
         self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/pulled_structures/{html_filename}"))
 
+
+    def save_screenshot(self):
+        # Grab the current view of the QWebEngineView
+        pixmap = self.web_view.grab()
+        if pixmap.isNull():
+            QMessageBox.warning(self, "Screenshot Failed", "Could not capture the current view.")
+            return
+        # Prompt for file location
+        file_path, _ = QFileDialog.getSaveFileName(self, "Save Screenshot", "screenshot.png", "PNG Files (*.png);;All Files (*)")
+        if not file_path:
+            return
+        # Ensure the file has a .png extension
+        if not (file_path.lower().endswith('.png')):
+            file_path += '.png'
+        # Save the screenshot
+        if pixmap.save(file_path, 'PNG'):
+            QMessageBox.information(self, "Screenshot Saved", f"Screenshot saved to: {file_path}")
+        else:
+            QMessageBox.warning(self, "Save Failed", "Could not save the screenshot.")
 
     def closeEvent(self, event):
         if hasattr(self, '_server_thread'):
