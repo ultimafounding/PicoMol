@@ -28,4 +28,19 @@
 
 ---
 
+## Bug Fixes
+
+- **Partially Resolved:** Loading a file after inputting a non-valid file no longer results in a white screen. The application now closes with an error message, with future improvements planned for better error recovery.
+- **Resolved:** The default color now correctly matches the color scheme box setting, as color scheme initialization has been moved to component load callbacks and representation changes.
+
+---
+
+## Known Issues
+
+- Undo/redo functionality is still being refined and may have minor issues
+- Some error states may still cause the application to close unexpectedly
+- Performance may degrade with very large structures
+
+---
+
 For a full list of changes, see the changelog or previous ongoing_changes.md.

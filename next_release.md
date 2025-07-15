@@ -66,11 +66,4 @@ This file tracks ongoing and planned changes for future releases of PicoMol.
 
 ---
 
-## Bug Fixes
-
-- **Partially Resolved:** Loading a file after inputting a non-valid file no longer results in a white screen. The application now closes with an error message, with future improvements planned for better error recovery.
-- **Resolved:** The default color now correctly matches the color scheme box setting, as color scheme initialization has been moved to component load callbacks and representation changes.
-
----
-
 Feel free to update this list as development progresses or new ideas arise.
