@@ -25,7 +25,9 @@ This document tracks ongoing and potential future changes for the PicoMol projec
 8. **Ensure accessibility** (keyboard navigation, colorblind-friendly palettes).
 9. **Allow users to reset the view or return to defaults easily.** ✅
     - Added a "Reset View to Defaults" action in the Edit menu (Ctrl+R). This resets all visible viewer settings (representation, color scheme, spin, background color, custom color) to their defaults, with undo support.
-10. **Add a “feedback” button** for users to quickly report issues or suggest improvements.
+10. **Add a “feedback” button** for users to quickly report issues or suggest improvements. ✅
+    - The feedback button now opens a dialog for user input. When submitted, it opens a pre-filled GitHub issue with the user's feedback in the body, making it easy for users to report bugs or suggestions directly to the developer. No local file is saved.
+    - **Usage:** Click "Send Feedback" in the control panel, enter your feedback, and submit. Your browser will open a new GitHub issue page with your feedback ready to send.
 11. **Provide a simple “about” dialog** with version info and credits. ✅
     - About dialog added under the Help menu. Shows version (0.0.2), credits (Jack Magson), license, and full NGL.js citations. Styled consistently with the rest of the app.
 

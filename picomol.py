@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import sys
 import warnings
+import webbrowser
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -525,6 +526,12 @@ class ProteinViewerApp(QMainWindow):
         control_panel_layout.addWidget(ngl_options_group)
         control_panel_layout.addStretch(1) # Push everything to the top
 
+        # Feedback Button
+        feedback_button = QPushButton("Send Feedback")
+        feedback_button.setToolTip("Report a bug or suggest an improvement.")
+        feedback_button.clicked.connect(self.show_feedback_dialog)
+        control_panel_layout.addWidget(feedback_button)
+
         # Sequence Display
         sequence_group = QGroupBox("Sequence Data")
         sequence_layout = QVBoxLayout()
@@ -569,6 +576,51 @@ class ProteinViewerApp(QMainWindow):
             self.custom_color_entry.setText("")
             self.update_custom_color()
         self.statusBar().showMessage("Viewer settings reset to defaults.")
+
+    class FeedbackDialog(QDialog):
+        def __init__(self, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle("Send Feedback")
+            self.setMinimumWidth(400)
+            layout = QVBoxLayout(self)
+            label = QLabel("<b>We value your feedback!</b><br>Describe any issues or suggestions below:")
+            label.setWordWrap(True)
+            layout.addWidget(label)
+            self.text_edit = QTextEdit()
+            self.text_edit.setPlaceholderText("Describe your bug, suggestion, or general feedback here...")
+            layout.addWidget(self.text_edit)
+
+            # GitHub Issues Button
+            github_button = QPushButton("Open GitHub Issues Page")
+            github_button.setToolTip("Report issues or suggestions directly on GitHub.")
+            github_button.clicked.connect(self.open_github_issues)
+            layout.addWidget(github_button)
+
+            btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            btn_box.accepted.connect(self.accept)
+            btn_box.rejected.connect(self.reject)
+            layout.addWidget(btn_box)
+
+        def get_feedback(self):
+            return self.text_edit.toPlainText().strip()
+        def open_github_issues(self):
+            webbrowser.open_new_tab("https://github.com/ultimafounding/PicoMol/issues")
+
+    def show_feedback_dialog(self):
+        import urllib.parse
+        dlg = self.FeedbackDialog(self)
+        if dlg.exec_() == QDialog.Accepted:
+            feedback = dlg.get_feedback()
+            if feedback:
+                # Prepare GitHub new issue URL
+                base_url = "https://github.com/ultimafounding/PicoMol/issues/new"
+                title = urllib.parse.quote("Feedback from PicoMol User")
+                body = urllib.parse.quote(feedback)
+                url = f"{base_url}?title={title}&body={body}"
+                webbrowser.open_new_tab(url)
+                self.statusBar().showMessage("Opening GitHub to submit your feedback...")
+            else:
+                self.statusBar().showMessage("No feedback entered.")
 
     def show_about_dialog(self):
         dlg = AboutDialog(self)
