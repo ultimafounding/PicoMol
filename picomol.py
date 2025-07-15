@@ -663,7 +663,17 @@ class ProteinViewerApp(QMainWindow):
         # Save structure PDB file
         pdb_filename = f"{structure.id}.pdb"
         pdb_path = os.path.join(self.pulled_structures_dir, pdb_filename)
-        io.save(pdb_path)
+        try:
+            io.save(pdb_path)
+        except Exception as e:
+            self.show_error_dialog(
+                "Error Writing PDB",
+                f"Could not write PDB file for structure {structure.id}.",
+                suggestion="Check directory permissions or disk space.",
+                details=str(e)
+            )
+            print(f"Error writing PDB file: {e}")
+            return
 
         print(f"Structure ID for sequence extraction: {structure.id}")
 
@@ -689,7 +699,6 @@ class ProteinViewerApp(QMainWindow):
         html_filename = f"{structure.id}.html"
         html_path = os.path.join(self.pulled_structures_dir, html_filename)
 
-        # Generate the HTML for NGL
         # Generate the HTML for NGL
         html_content = f'''
 <!DOCTYPE html>
@@ -770,8 +779,19 @@ class ProteinViewerApp(QMainWindow):
 </html>
 '''
 
-        with open(html_path, "w") as f:
-            f.write(html_content)
+        # Write the HTML file, with error handling
+        try:
+            with open(html_path, "w") as f:
+                f.write(html_content)
+        except Exception as e:
+            self.show_error_dialog(
+                "Error Writing HTML",
+                f"Could not write HTML viewer file for structure {structure.id}.",
+                suggestion="Check directory permissions or disk space.",
+                details=str(e)
+            )
+            print(f"Error writing HTML file: {e}")
+            return
 
         # Load the HTML in the QtWebEngineView
         self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/pulled_structures/{html_filename}"))
@@ -793,16 +813,25 @@ class ProteinViewerApp(QMainWindow):
         # Save the screenshot
         if pixmap.save(file_path, 'PNG'):
             QMessageBox.information(self, "Screenshot Saved", f"Screenshot saved to: {file_path}")
-            self.add_to_recent_files(file_path)
-        else:
-            QMessageBox.warning(self, "Save Failed", "Could not save the screenshot.")
 
     def closeEvent(self, event):
+        # Aggressively cleanup QWebEngineView and its page
+        if hasattr(self, 'web_view'):
+            try:
+                self.web_view.setParent(None)
+                self.web_view.close()
+                page = self.web_view.page()
+                if page is not None:
+                    page.deleteLater()
+                self.web_view.deleteLater()
+            except Exception as e:
+                print(f"Error during web_view cleanup: {e}")
         if hasattr(self, '_server_thread'):
             self._server_thread.shutdown()
+        # Process events to ensure deletions are handled
+        QApplication.processEvents()
         super().closeEvent(event)
 
-    # --- Recent Files Support ---
     def add_to_recent_files(self, file_path):
         settings = QSettings("PicoMolApp", "PicoMol")
         recents = settings.value("recent_files", [], type=list)
@@ -822,7 +851,6 @@ class ProteinViewerApp(QMainWindow):
             action.triggered.connect(lambda checked, p=path: self.open_local_pdb(p))
             self.recent_files_menu.addAction(action)
 
-    # --- Save Structure As... ---
     def save_structure_as(self):
         if not hasattr(self, 'current_structure_id') or not self.current_structure_id:
             self.statusBar().showMessage("No structure loaded to save.")
@@ -844,7 +872,6 @@ class ProteinViewerApp(QMainWindow):
         except Exception as e:
             self.statusBar().showMessage(f"Failed to save structure: {e}")
 
-    # --- Drag and Drop Support ---
     def dragEnterEvent(self, event):
         if event.mimeData().hasUrls():
             for url in event.mimeData().urls():
