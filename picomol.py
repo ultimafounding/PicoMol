@@ -405,6 +405,13 @@ class ProteinViewerApp(QMainWindow):
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
 
+        # Reset View Action
+        reset_view_action = QAction("Reset View to Defaults", self)
+        reset_view_action.setShortcut("Ctrl+R")
+        reset_view_action.setToolTip("Reset all viewer settings to their default values.")
+        reset_view_action.triggered.connect(self.reset_view_to_defaults)
+        edit_menu.addAction(reset_view_action)
+
         # Help menu with About
         help_menu = menubar.addMenu("Help")
         about_action = QAction("About PicoMol", self)
@@ -542,6 +549,26 @@ class ProteinViewerApp(QMainWindow):
         self._undo_stack.clear()
         self._redo_stack.clear()
         self._undo_stack.append(self.capture_state())
+
+    def reset_view_to_defaults(self):
+        """Reset all visible viewer settings to their default values and update the viewer."""
+        # Store current state for undo
+        self.push_undo()
+        # Set defaults
+        if hasattr(self, 'representation_combo'):
+            self.representation_combo.setCurrentText("cartoon")
+        if hasattr(self, 'color_combo'):
+            self.color_combo.setCurrentIndex(0)  # atomindex or first in list
+        if hasattr(self, 'spin_checkbox'):
+            self.spin_checkbox.setChecked(False)
+            self.toggle_spin()
+        if hasattr(self, 'background_color_entry'):
+            self.background_color_entry.setText("black")
+            self.update_background_color()
+        if hasattr(self, 'custom_color_entry'):
+            self.custom_color_entry.setText("")
+            self.update_custom_color()
+        self.statusBar().showMessage("Viewer settings reset to defaults.")
 
     def show_about_dialog(self):
         dlg = AboutDialog(self)

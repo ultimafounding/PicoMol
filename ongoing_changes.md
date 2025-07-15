@@ -23,7 +23,8 @@ This document tracks ongoing and potential future changes for the PicoMol projec
     - App is much more stable and provides actionable feedback instead of crashing.
 7. **Add a preferences/settings dialog** for customizing appearance and behavior.
 8. **Ensure accessibility** (keyboard navigation, colorblind-friendly palettes).
-9. **Allow users to reset the view or return to defaults easily.**
+9. **Allow users to reset the view or return to defaults easily.** ✅
+    - Added a "Reset View to Defaults" action in the Edit menu (Ctrl+R). This resets all visible viewer settings (representation, color scheme, spin, background color, custom color) to their defaults, with undo support.
 10. **Add a “feedback” button** for users to quickly report issues or suggest improvements.
 11. **Provide a simple “about” dialog** with version info and credits. ✅
     - About dialog added under the Help menu. Shows version (0.0.2), credits (Jack Magson), license, and full NGL.js citations. Styled consistently with the rest of the app.
