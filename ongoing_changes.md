@@ -17,7 +17,10 @@ This document tracks ongoing and potential future changes for the PicoMol projec
     - Added drag-and-drop file opening with a visible overlay.
     - Added "Save Structure As..." and Recent Files menu for quick access.
 
-6. **Improve error messages** to be actionable and user-friendly.
+6. **Improve error messages** to be actionable and user-friendly. ✅
+    - Added a reusable, user-friendly error dialog for all major error scenarios (missing files, failed downloads, dependency errors, etc.).
+    - Status bar usage is now robust and no longer causes runtime crashes.
+    - App is much more stable and provides actionable feedback instead of crashing.
 7. **Add a preferences/settings dialog** for customizing appearance and behavior.
 8. **Ensure accessibility** (keyboard navigation, colorblind-friendly palettes).
 9. **Allow users to reset the view or return to defaults easily.**
