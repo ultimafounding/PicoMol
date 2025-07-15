@@ -810,6 +810,12 @@ class ProteinViewerApp(QMainWindow):
                     comp.addRepresentation(representation);
                     stage.setSpin(false);
                     stage.autoView();
+                    // Set color scheme after component is loaded
+                    if (window.initialColorScheme) {{
+                        currentComponent.eachRepresentation(function (repr) {{
+                            repr.setColor(window.initialColorScheme);
+                        }});
+                    }}
                 }});
             }}
 
@@ -820,6 +826,12 @@ class ProteinViewerApp(QMainWindow):
                 if (currentComponent) {{
                     currentComponent.removeAllRepresentations(); // Clear existing representations
                     currentComponent.addRepresentation(representation);
+                    // Update color scheme if we have one
+                    if (window.initialColorScheme) {{
+                        currentComponent.eachRepresentation(function (repr) {{
+                            repr.setColor(window.initialColorScheme);
+                        }});
+                    }}
                 }} else {{
                     loadAndRepresent("{pdb_filename}", representation);
                 }}
@@ -831,7 +843,7 @@ class ProteinViewerApp(QMainWindow):
                         repr.setColor(colorScheme);
                     }});
                 }}
-            }};
+            }}
 
             window.setCustomColor = function(color) {{
                 if (currentComponent) {{
@@ -873,8 +885,28 @@ class ProteinViewerApp(QMainWindow):
             return
 
         # Load the HTML in the QtWebEngineView
+        color_scheme = self.color_combo.currentText() if hasattr(self, 'color_combo') else 'atomindex'
+        html_content = html_content.replace("</head>", f"<script>window.initialColorScheme = '{color_scheme}';</script></head>")
+        
+        with open(html_path, "w") as f:
+            f.write(html_content)
+        
         self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/pulled_structures/{html_filename}"))
-
+        # Wait for page to load before updating color scheme
+        def on_load_finished(success):
+            if success:
+                # Ensure we have a color combo
+                if hasattr(self, 'color_combo'):
+                    current_scheme = self.color_combo.currentText()
+                    # Only update if it's different from initial
+                    if current_scheme != color_scheme:
+                        self.web_view.page().runJavaScript(f"setColorScheme('{current_scheme}');")
+        # Disconnect any existing signal handler first
+        try:
+            self.web_view.page().loadFinished.disconnect()
+        except TypeError:
+            pass  # No existing connection
+        self.web_view.page().loadFinished.connect(on_load_finished)
 
     def save_screenshot(self):
         # Grab the current view of the QWebEngineView
