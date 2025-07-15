@@ -4,6 +4,12 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 
 ## Features
 
+*   **Robust Error Handling & Stability:**
+    - All errors (such as missing files, failed downloads, or missing dependencies) now show a user-friendly dialog instead of crashing the app.
+    - The status bar is now used reliably for all status messages (no more crashes or call errors).
+    - Internal port usage is now stable and prevents attribute errors.
+    - The app is much less likely to crash unexpectedly and provides actionable feedback for common problems.
+
 *   **Fetch PDB Structures:** Download protein data directly from the Protein Data Bank (PDB) using a PDB ID.
 *   **Open Local PDB Files:** Load and visualize protein structures from `.pdb` or `.ent` files stored on your local machine.
 *   **Drag-and-Drop File Opening:** Instantly open `.pdb` or `.ent` files by dragging them onto the PicoMol window. A clear overlay will guide you where to drop files.
