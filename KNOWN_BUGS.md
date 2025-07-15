@@ -1,4 +1,4 @@
-- Loading a file after inputting a non-valid file results in a failure
+- Loading a file after inputting a non-valid file results in a failure and a white screen.
 
 FIXED:
 - Default colour is not what is set in the colour scheme box (Fixed in commit [commit_hash])
