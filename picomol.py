@@ -818,12 +818,19 @@ class ProteinViewerApp(QMainWindow):
         # Aggressively cleanup QWebEngineView and its page
         if hasattr(self, 'web_view'):
             try:
+                # Remove from parent layout if present
+                parent_widget = self.web_view.parentWidget()
+                if parent_widget is not None:
+                    layout = parent_widget.layout()
+                    if layout is not None:
+                        layout.removeWidget(self.web_view)
                 self.web_view.setParent(None)
                 self.web_view.close()
                 page = self.web_view.page()
                 if page is not None:
                     page.deleteLater()
                 self.web_view.deleteLater()
+                self.web_view = None  # Remove lingering reference
             except Exception as e:
                 print(f"Error during web_view cleanup: {e}")
         if hasattr(self, '_server_thread'):
