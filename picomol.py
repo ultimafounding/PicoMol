@@ -127,6 +127,109 @@ class WelcomeDialog(QDialog):
 
 class ProteinViewerApp(QMainWindow):
     def __init__(self, port):
+        super().__init__()
+        self.port = port
+        self._undo_stack = []
+        self._redo_stack = []
+        self._is_restoring_state = False
+        self.setWindowTitle("Basic Protein Structure Viewer")
+        self.setGeometry(100, 100, 1000, 800)
+        self.setAcceptDrops(True)
+
+        # Show welcome screen if user wants it
+        settings = QSettings("PicoMolApp", "PicoMol")
+        show_welcome = settings.value("show_welcome", False, type=bool)
+        if show_welcome:
+            self._welcome_dialog = WelcomeDialog(self)
+            self._welcome_dialog.setModal(True)
+            def handle_close():
+                settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
+                self._welcome_dialog.deleteLater()
+            self._welcome_dialog.finished.connect(handle_close)
+            self._welcome_dialog.show()
+
+        # Create directories if not exist
+        self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
+        os.makedirs(self.pulled_structures_dir, exist_ok=True)
+        self.ngl_assets_dir = os.path.join(os.getcwd(), "ngl_assets")
+        os.makedirs(self.ngl_assets_dir, exist_ok=True)
+
+        ngl_min_js_path = os.path.join(self.ngl_assets_dir, "ngl.min.js")
+        if not os.path.exists(ngl_min_js_path):
+            QMessageBox.information(self, "NGL.js Missing", "ngl.min.js not found. Attempting to run setup_ngl.py...")
+            try:
+                # Check if requests is installed
+                try:
+                    import requests
+                except ImportError:
+                    self.show_error_dialog(
+                        "Dependency Missing",
+                        "The 'requests' library is required to download ngl.js.",
+                        suggestion="Please install it using 'pip install requests' and restart the application."
+                    )
+                    sys.exit(1)
+
+                subprocess.run([sys.executable, os.path.join(os.getcwd(), "setup_ngl.py")], check=True)
+                QMessageBox.information(self, "NGL.js Setup", "ngl.min.js downloaded successfully. Please restart the application.")
+                sys.exit(0)
+            except subprocess.CalledProcessError as e:
+                self.show_error_dialog(
+                    "NGL.js Setup Failed",
+                    "Failed to run setup_ngl.py.",
+                    suggestion="Please download ngl.min.js manually or check your internet connection.",
+                    details=str(e)
+                )
+                sys.exit(1)
+            except Exception as e:
+                self.show_error_dialog(
+                    "Error",
+                    "An unexpected error occurred during NGL.js setup.",
+                    details=str(e)
+                )
+                sys.exit(1)
+
+        # Copy ngl.min.js to pulled_structures_dir
+        shutil.copy(ngl_min_js_path, self.pulled_structures_dir)
+
+        self.pdb_parser = PDBParser()
+        self.pdb_list = PDBList()
+        self.init_ui()
+
+    def show_error_dialog(self, title, summary, suggestion=None, details=None):
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        dlg.setMinimumWidth(420)
+        layout = QVBoxLayout(dlg)
+        summary_label = QLabel(f"<b>{summary}</b>")
+        summary_label.setWordWrap(True)
+        layout.addWidget(summary_label)
+        if suggestion:
+            suggestion_label = QLabel(suggestion)
+            suggestion_label.setStyleSheet("color: #0077cc;")
+            suggestion_label.setWordWrap(True)
+            layout.addWidget(suggestion_label)
+        if details:
+            details_box = QTextEdit()
+            details_box.setReadOnly(True)
+            details_box.setPlainText(details)
+            details_box.setMaximumHeight(80)
+            details_box.setVisible(False)
+            toggle_btn = QPushButton("Show Details")
+            def toggle():
+                if details_box.isVisible():
+                    details_box.setVisible(False)
+                    toggle_btn.setText("Show Details")
+                else:
+                    details_box.setVisible(True)
+                    toggle_btn.setText("Hide Details")
+            toggle_btn.clicked.connect(toggle)
+            layout.addWidget(toggle_btn)
+            layout.addWidget(details_box)
+        btn_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        btn_box.accepted.connect(dlg.accept)
+        layout.addWidget(btn_box)
+        dlg.exec_()
+
         # Undo/redo stacks
         self._undo_stack = []
         self._redo_stack = []
@@ -163,23 +266,35 @@ class ProteinViewerApp(QMainWindow):
                 try:
                     import requests
                 except ImportError:
-                    QMessageBox.critical(self, "Dependency Missing", "The 'requests' library is required to download ngl.js. Please install it using 'pip install requests' and restart the application.")
+                    self.show_error_dialog(
+    "Dependency Missing",
+    "The 'requests' library is required to download ngl.js.",
+    suggestion="Please install it using 'pip install requests' and restart the application."
+)
                     sys.exit(1)
 
                 subprocess.run([sys.executable, os.path.join(os.getcwd(), "setup_ngl.py")], check=True)
                 QMessageBox.information(self, "NGL.js Setup", "ngl.min.js downloaded successfully. Please restart the application.")
                 sys.exit(0)
             except subprocess.CalledProcessError as e:
-                QMessageBox.critical(self, "NGL.js Setup Failed", f"Failed to run setup_ngl.py: {e}. Please download ngl.min.js manually or check your internet connection.")
+                self.show_error_dialog(
+    "NGL.js Setup Failed",
+    "Failed to run setup_ngl.py.",
+    suggestion="Please download ngl.min.js manually or check your internet connection.",
+    details=str(e)
+)
                 sys.exit(1)
             except Exception as e:
-                QMessageBox.critical(self, "Error", f"An unexpected error occurred during NGL.js setup: {e}")
+                self.show_error_dialog(
+    "Error",
+    "An unexpected error occurred during NGL.js setup.",
+    details=str(e)
+)
                 sys.exit(1)
 
         # Copy ngl.min.js to pulled_structures_dir
         shutil.copy(ngl_min_js_path, self.pulled_structures_dir)
 
-        self.port = port
         self.pdb_parser = PDBParser()
         self.pdb_list = PDBList()
 
@@ -313,8 +428,7 @@ class ProteinViewerApp(QMainWindow):
         self.resizeEvent = self._resizeEventWithOverlay
 
         # Status bar
-        self.statusBar = self.statusBar()
-        self.statusBar.showMessage("Ready")
+        self.statusBar().showMessage("Ready")
 
         # Control Panel
         control_panel_widget = QWidget()
@@ -480,10 +594,10 @@ class ProteinViewerApp(QMainWindow):
     def fetch_pdb_id(self):
         pdb_id = self.pdb_id_entry.text().strip().upper()
         if not pdb_id:
-            self.statusBar.showMessage("Please enter a PDB ID.")
+            self.statusBar().showMessage("Please enter a PDB ID.")
             return
         try:
-            self.statusBar.showMessage(f"Fetching PDB ID {pdb_id}...")
+            self.statusBar().showMessage(f"Fetching PDB ID {pdb_id}...")
             # Define a consistent path for the PDB file.
             pdb_path = os.path.join(self.pulled_structures_dir, f"{pdb_id}.pdb")
 
@@ -497,13 +611,18 @@ class ProteinViewerApp(QMainWindow):
                     os.remove(pdb_path)
                 os.rename(retrieved_file_path, pdb_path)
 
-            self.statusBar.showMessage(f"Loading structure {pdb_id}...")
+            self.statusBar().showMessage(f"Loading structure {pdb_id}...")
             structure = self.pdb_parser.get_structure(pdb_id, pdb_path)
             self.display_structure(structure)
-            self.statusBar.showMessage(f"Displayed {pdb_id}")
+            self.statusBar().showMessage(f"Displayed {pdb_id}")
         except Exception as e:
-            self.statusBar.showMessage(f"Error fetching PDB ID {pdb_id}")
-            QMessageBox.critical(self, "Error", f"Could not fetch PDB ID {pdb_id}:\n{e}")
+            self.statusBar().showMessage(f"Error fetching PDB ID {pdb_id}")
+            self.show_error_dialog(
+    "Error Fetching PDB",
+    f"Could not fetch PDB ID {pdb_id}.",
+    suggestion="Check your internet connection or verify the PDB ID.",
+    details=str(e)
+)
 
     def open_local_pdb(self, file_path=None):
         if not file_path:
@@ -513,21 +632,26 @@ class ProteinViewerApp(QMainWindow):
         if not file_path:
             return
         try:
-            self.statusBar.showMessage(f"Opening local PDB file: {os.path.basename(file_path)}...")
+            self.statusBar().showMessage(f"Opening local PDB file: {os.path.basename(file_path)}...")
             structure_id = os.path.basename(file_path).split(".")[0]
             pdb_filename = f"{structure_id}.pdb"
             target_path = os.path.join(self.pulled_structures_dir, pdb_filename)
             if os.path.abspath(file_path) != os.path.abspath(target_path):
                 import shutil
                 shutil.copy(file_path, target_path)
-            self.statusBar.showMessage(f"Loading structure from {os.path.basename(file_path)}...")
+            self.statusBar().showMessage(f"Loading structure from {os.path.basename(file_path)}...")
             structure = self.pdb_parser.get_structure(structure_id, target_path)
             self.display_structure(structure)
-            self.statusBar.showMessage(f"Displayed {structure_id}")
+            self.statusBar().showMessage(f"Displayed {structure_id}")
             self.add_to_recent_files(file_path)
         except Exception as e:
-            self.statusBar.showMessage(f"Error opening file: {os.path.basename(file_path)}")
-            QMessageBox.critical(self, "Error", f"Could not open file:\n{e}")
+            self.statusBar().showMessage(f"Error opening file: {os.path.basename(file_path)}")
+            self.show_error_dialog(
+    "Error Opening File",
+    "Could not open the selected file.",
+    suggestion="Make sure the file exists and is a valid PDB or ENT file.",
+    details=str(e)
+)
 
     def display_structure(self, structure):
         from pathlib import Path
@@ -701,11 +825,11 @@ class ProteinViewerApp(QMainWindow):
     # --- Save Structure As... ---
     def save_structure_as(self):
         if not hasattr(self, 'current_structure_id') or not self.current_structure_id:
-            self.statusBar.showMessage("No structure loaded to save.")
+            self.statusBar().showMessage("No structure loaded to save.")
             return
         pdb_path = os.path.join(self.pulled_structures_dir, f"{self.current_structure_id}.pdb")
         if not os.path.exists(pdb_path):
-            self.statusBar.showMessage("Current structure file not found.")
+            self.statusBar().showMessage("Current structure file not found.")
             return
         file_path, _ = QFileDialog.getSaveFileName(self, "Save Structure As", f"{self.current_structure_id}.pdb", "PDB Files (*.pdb);;All Files (*)")
         if not file_path:
@@ -715,10 +839,10 @@ class ProteinViewerApp(QMainWindow):
         try:
             import shutil
             shutil.copy(pdb_path, file_path)
-            self.statusBar.showMessage(f"Structure saved to: {file_path}")
+            self.statusBar().showMessage(f"Structure saved to: {file_path}")
             self.add_to_recent_files(file_path)
         except Exception as e:
-            self.statusBar.showMessage(f"Failed to save structure: {e}")
+            self.statusBar().showMessage(f"Failed to save structure: {e}")
 
     # --- Drag and Drop Support ---
     def dragEnterEvent(self, event):
