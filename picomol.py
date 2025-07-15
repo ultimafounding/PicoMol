@@ -15,6 +15,45 @@ from PyQt5.QtWidgets import (
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
     QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction
 )
+
+
+class AboutDialog(QDialog):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("About PicoMol")
+        self.setMinimumWidth(420)
+        layout = QVBoxLayout(self)
+        about_text = QLabel(
+            """
+            <h2>PicoMol</h2>
+            <p><b>Version:</b> 0.0.2 (2025-07-15)</p>
+            <p>A simple, user-friendly molecular visualization tool for protein structures.<br>
+            Built with PyQt5 and NGL.js, powered by Biopython.</p>
+            <ul>
+              <li>Fetch and visualize PDB structures</li>
+              <li>Open local PDB files</li>
+              <li>Undo/redo, screenshots, color schemes, and more</li>
+            </ul>
+            <p><b>Credits:</b><br>
+            Developed by Jack Magson.<br>
+            Uses <a href='https://github.com/arose/ngl'>NGL.js</a> (MIT License) for 3D visualization.<br>
+            Powered by <a href='https://biopython.org/'>Biopython</a> and <a href='https://riverbankcomputing.com/software/pyqt/intro'>PyQt5</a>.<br>
+            </p>
+            <p><b>License:</b> GNU GPL v3.0<br>
+            See the LICENSE file for details.</p>
+            <p><b>NGL.js citation:</b><br>
+            AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. NGL viewer: web-based molecular graphics for large complexes. <i>Bioinformatics</i>: bty419, 2018. <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a><br>
+            AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. <i>Nucleic Acids Res</i> (1 July 2015) 43 (W1): W576-W579 first published online April 29, 2015. <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a>
+            </p>
+            """
+        )
+        about_text.setOpenExternalLinks(True)
+        about_text.setWordWrap(True)
+        layout.addWidget(about_text)
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        layout.addWidget(button_box)
+
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import QUrl, Qt
@@ -251,6 +290,13 @@ class ProteinViewerApp(QMainWindow):
         redo_action.triggered.connect(self.redo)
         edit_menu.addAction(redo_action)
 
+        # Help menu with About
+        help_menu = menubar.addMenu("Help")
+        about_action = QAction("About PicoMol", self)
+        about_action.setToolTip("Show version info, credits, and license.")
+        about_action.triggered.connect(self.show_about_dialog)
+        help_menu.addAction(about_action)
+
         central = QWidget()
         self.setCentralWidget(central)
         main_layout = QHBoxLayout(central)
@@ -382,6 +428,10 @@ class ProteinViewerApp(QMainWindow):
         self._undo_stack.clear()
         self._redo_stack.clear()
         self._undo_stack.append(self.capture_state())
+
+    def show_about_dialog(self):
+        dlg = AboutDialog(self)
+        dlg.exec_()
 
     def update_custom_color(self):
         color = self.custom_color_entry.text()

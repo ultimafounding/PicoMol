@@ -22,6 +22,7 @@ This document tracks ongoing and potential future changes for the PicoMol projec
 8. **Ensure accessibility** (keyboard navigation, colorblind-friendly palettes).
 9. **Allow users to reset the view or return to defaults easily.**
 10. **Add a “feedback” button** for users to quickly report issues or suggest improvements.
-11. **Provide a simple “about” dialog** with version info and credits.
+11. **Provide a simple “about” dialog** with version info and credits. ✅
+    - About dialog added under the Help menu. Shows version (0.0.2), credits (Jack Magson), license, and full NGL.js citations. Styled consistently with the rest of the app.
 
 Feel free to update this list as development progresses or new ideas arise.
