@@ -682,26 +682,46 @@ class ProteinViewerApp(QMainWindow):
 
             # Retrieve PDB file only if it doesn't exist
             if not os.path.exists(pdb_path):
-                retrieved_file_path = self.pdb_list.retrieve_pdb_file(
-                    pdb_id, pdir=self.pulled_structures_dir, file_format="pdb"
-                )
-                # Rename the downloaded file to our consistent path, overwriting if necessary.
-                if os.path.exists(pdb_path):
-                    os.remove(pdb_path)
-                os.rename(retrieved_file_path, pdb_path)
+                try:
+                    retrieved_file_path = self.pdb_list.retrieve_pdb_file(
+                        pdb_id, pdir=self.pulled_structures_dir, file_format="pdb"
+                    )
+                    # If we get here but no file was actually downloaded
+                    if not os.path.exists(retrieved_file_path):
+                        raise FileNotFoundError(f"PDB file for {pdb_id} was not downloaded")
+                    # Rename the downloaded file to our consistent path, overwriting if necessary.
+                    if os.path.exists(pdb_path):
+                        os.remove(pdb_path)
+                    os.rename(retrieved_file_path, pdb_path)
+                except Exception as e:
+                    # If there's any error during download, ensure we don't have a partial file
+                    if os.path.exists(pdb_path):
+                        try:
+                            os.remove(pdb_path)
+                        except:
+                            pass
+                    raise
 
-            self.statusBar().showMessage(f"Loading structure {pdb_id}...")
+            # If we get here, we should have a valid PDB file
+            if not os.path.exists(pdb_path):
+                raise FileNotFoundError(f"Failed to create PDB file for {pdb_id}")
+
             structure = self.pdb_parser.get_structure(pdb_id, pdb_path)
             self.display_structure(structure)
             self.statusBar().showMessage(f"Displayed {pdb_id}")
+            self.add_to_recent_files(pdb_path)
+
         except Exception as e:
             self.statusBar().showMessage(f"Error fetching PDB ID {pdb_id}")
             self.show_error_dialog(
-    "Error Fetching PDB",
-    f"Could not fetch PDB ID {pdb_id}.",
-    suggestion="Check your internet connection or verify the PDB ID.",
-    details=str(e)
-)
+                "Error Fetching PDB",
+                f"Could not fetch PDB ID {pdb_id}.",
+                suggestion="Please check your internet connection and verify the PDB ID is correct. The application will now close due to an unresolved error.",
+                details=str(e)
+            )
+            # Close the application after showing the error
+            QApplication.quit()
+            sys.exit(1)
 
     def open_local_pdb(self, file_path=None):
         if not file_path:
@@ -715,22 +735,26 @@ class ProteinViewerApp(QMainWindow):
             structure_id = os.path.basename(file_path).split(".")[0]
             pdb_filename = f"{structure_id}.pdb"
             target_path = os.path.join(self.pulled_structures_dir, pdb_filename)
+            
+            # Only copy if the file is not already in the target location
             if os.path.abspath(file_path) != os.path.abspath(target_path):
                 import shutil
                 shutil.copy(file_path, target_path)
+                
             self.statusBar().showMessage(f"Loading structure from {os.path.basename(file_path)}...")
             structure = self.pdb_parser.get_structure(structure_id, target_path)
             self.display_structure(structure)
             self.statusBar().showMessage(f"Displayed {structure_id}")
-            self.add_to_recent_files(file_path)
+            self.add_to_recent_files(target_path)
+            
         except Exception as e:
             self.statusBar().showMessage(f"Error opening file: {os.path.basename(file_path)}")
             self.show_error_dialog(
-    "Error Opening File",
-    "Could not open the selected file.",
-    suggestion="Make sure the file exists and is a valid PDB or ENT file.",
-    details=str(e)
-)
+                "Error Opening File",
+                f"Could not open the selected file: {os.path.basename(file_path)}",
+                suggestion="Make sure the file exists and is a valid PDB or ENT file.",
+                details=str(e)
+            )
 
     def display_structure(self, structure):
         from pathlib import Path
