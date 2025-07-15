@@ -4,26 +4,31 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 
 ## Features
 
-*   **Robust Error Handling & Stability:**
-    - All errors (such as missing files, failed downloads, or missing dependencies) now show a user-friendly dialog instead of crashing the app.
-    - The status bar is now used reliably for all status messages (no more crashes or call errors).
-    - Internal port usage is now stable and prevents attribute errors.
-    - The app is much less likely to crash unexpectedly and provides actionable feedback for common problems.
+### Core Functionality
 
 *   **Fetch PDB Structures:** Download protein data directly from the Protein Data Bank (PDB) using a PDB ID.
 *   **Open Local PDB Files:** Load and visualize protein structures from `.pdb` or `.ent` files stored on your local machine.
 *   **Drag-and-Drop File Opening:** Instantly open `.pdb` or `.ent` files by dragging them onto the PicoMol window. A clear overlay will guide you where to drop files.
 *   **Recent Files & Save As:** Save the current structure to any location with "Save Structure As..." and quickly reopen files from the Recent Files menu.
 *   **Screenshot Export:** Save a screenshot of the current protein structure view as an image file with a single click.
-
 *   **Sequence Data Display:** View the amino acid or nucleotide sequence extracted from the loaded PDB structure.
 
-*   **Improved User Interface:** Features a cleaner, more organized layout with controls in a sidebar and a larger viewing area for protein structures.
+### Visualization & Interaction
+
 *   **Interactive 3D Visualization:** Utilizes NGL.js for high-quality, interactive 3D rendering of protein structures.
 *   **Representation Options:** Switch between different molecular representations (e.g., cartoon, ball+stick, surface, licorice).
 *   **Coloring Schemes:** Apply various coloring schemes based on atom properties, residue types, chain IDs, and more.
 *   **Spin Control:** Toggle automatic rotation of the protein structure.
 *   **Background Color Customization:** Change the background color of the viewer.
+
+### User Experience & Stability
+
+*   **Robust Error Handling & Stability:**
+    - All errors (such as missing files, failed downloads, or missing dependencies) now show a user-friendly dialog instead of crashing the app.
+    - The status bar is now used reliably for all status messages (no more crashes or call errors).
+    - Internal port usage is now stable and prevents attribute errors.
+    - The app is much less likely to crash unexpectedly and provides actionable feedback for common problems.
+*   **Improved User Interface:** Features a cleaner, more organized layout with controls in a sidebar and a larger viewing area for protein structures.
 *   **Robust Undo/Redo:** Undo and redo any view-related change (including custom color and background color) with a minimal, smart stack that avoids redundant entries.
     - **Note:** Undo/redo is still a work in progress. Minor issues may remain and feedback is welcome.
 *   **Welcome Screen:** Optional welcome dialog appears only if the user wants it, and respects user preference for future launches.
