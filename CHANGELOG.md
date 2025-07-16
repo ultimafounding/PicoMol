@@ -14,10 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Structure: Placeholder for structural analysis tools
 - Sequence display moved above the 3D viewer for better visibility
 - Improved UI with better organization and visual hierarchy
+- Color picker for uniform color scheme selection
+  - Appears only when "uniform" color scheme is selected
+  - Click to choose from system color dialog
+  - Visual feedback of current color
 
 ### Changed
 - Restructured main window layout to accommodate new tabbed interface
 - Updated sequence display styling for better readability
+- Adjusted sequence display height to 75px for better space efficiency
 - Improved window resizing behavior
 
 ### Fixed
