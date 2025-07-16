@@ -15,7 +15,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
     QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
-    QTabWidget, QSizePolicy
+    QTabWidget, QSizePolicy, QColorDialog
 )
 
 
@@ -468,7 +468,7 @@ class ProteinViewerApp(QMainWindow):
         # Add sequence display at the top
         self.sequence_display = QTextEdit()
         self.sequence_display.setReadOnly(True)
-        self.sequence_display.setMaximumHeight(100)  # Limit height
+        self.sequence_display.setFixedHeight(75)  # Set fixed height to 50px
         self.sequence_display.setPlaceholderText("Sequence will appear here when a structure is loaded...")
         self.sequence_display.setStyleSheet("""
             QTextEdit {
@@ -557,6 +557,16 @@ class ProteinViewerApp(QMainWindow):
         self.color_combo.setCurrentText("chainid")
         self.color_combo.currentIndexChanged.connect(self.update_color_scheme)
         color_layout.addWidget(self.color_combo)
+        
+        # Uniform color picker (initially hidden)
+        self.uniform_color_button = QPushButton()
+        self.uniform_color_button.setFixedSize(24, 24)
+        self.uniform_color_button.setStyleSheet("background-color: #FF0000; border: 1px solid #999;")
+        self.uniform_color_button.setToolTip("Select color for uniform coloring")
+        self.uniform_color_button.clicked.connect(self.pick_uniform_color)
+        self.uniform_color_button.hide()  # Initially hidden
+        color_layout.addWidget(self.uniform_color_button)
+        
         vis_layout.addLayout(color_layout)
         
         # Background Color
@@ -750,11 +760,34 @@ class ProteinViewerApp(QMainWindow):
     def clear_all_representations(self):
         self.web_view.page().runJavaScript("clearAllRepresentations();")
 
+    def pick_uniform_color(self):
+        """Open a color dialog to pick a uniform color"""
+        color = QColorDialog.getColor()
+        if color.isValid():
+            # Convert QColor to hex string
+            color_hex = color.name()
+            # Update button color
+            self.uniform_color_button.setStyleSheet(f"background-color: {color_hex}; border: 1px solid #999;")
+            # Apply the color to the structure
+            self.web_view.page().runJavaScript(f"setUniformColor('{color_hex}');")
+    
     def update_color_scheme(self):
         self.push_undo()
         color_scheme = self.color_combo.currentText()
+        
+        # Show/hide color picker based on selection
+        self.uniform_color_button.setVisible(color_scheme == "uniform")
+        
         # This will call a JavaScript function in the web view
         self.web_view.page().runJavaScript(f"setColorScheme('{color_scheme}');")
+        
+        # If switching to uniform, apply the current button color
+        if color_scheme == "uniform" and self.uniform_color_button.styleSheet():
+            # Extract current color from button style
+            style = self.uniform_color_button.styleSheet()
+            if 'background-color:' in style:
+                color = style.split('background-color:')[1].split(';')[0].strip()
+                self.web_view.page().runJavaScript(f"setUniformColor('{color}');")
 
     def toggle_spin(self):
         self.push_undo()
@@ -957,6 +990,14 @@ class ProteinViewerApp(QMainWindow):
                 if (currentComponent) {{
                     currentComponent.eachRepresentation(function (repr) {{
                         repr.setColor(colorScheme);
+                    }});
+                }}
+            }}
+
+            window.setUniformColor = function(color) {{
+                if (currentComponent) {{
+                    currentComponent.eachRepresentation(function (repr) {{
+                        repr.setColor(color);
                     }});
                 }}
             }}
