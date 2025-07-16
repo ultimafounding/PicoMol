@@ -4,6 +4,39 @@ This file tracks ongoing and planned changes for future releases of PicoMol.
 
 ## Planned for Next Release
 
+### Core Bioinformatics Suite
+- **BLAST Integration**
+  - Local BLAST+ integration for sequence similarity searches
+  - NCBI BLAST web service connectivity
+  - Interactive visualization of BLAST results
+  - Custom database creation and management
+
+- **Sequence Analysis Tools**
+  - Sequence alignment (global/local/multiple sequence alignment)
+  - Sequence manipulation (reverse complement, translation, etc.)
+  - Sequence feature annotation
+  - ORF (Open Reading Frame) finder
+  - Restriction enzyme mapping
+
+- **Structural Bioinformatics**
+  - Secondary structure prediction
+  - Protein-ligand interaction analysis
+  - Electrostatic potential mapping
+  - Solvent accessibility calculations
+  - Structure validation tools (Ramachandran plots, rotamer analysis)
+
+- **Phylogenetic Analysis**
+  - Multiple sequence alignment visualization
+  - Phylogenetic tree construction (Neighbor-Joining, Maximum Likelihood)
+  - Tree visualization and annotation
+  - Ancestral sequence reconstruction
+
+- **Genomics Integration**
+  - VCF file support for variant analysis
+  - GWAS (Genome-Wide Association Study) visualization
+  - Genome browser integration
+  - SNP effect prediction
+
 - **Preferences/settings dialog**
     - Allow users to customize appearance and behavior.
     - Some improvements are underway, but full support is planned for the next release.
@@ -59,6 +92,25 @@ This file tracks ongoing and planned changes for future releases of PicoMol.
     - Integration with sequence analysis tools
 
 ---
+
+## Future Bioinformatics Features
+
+- **Molecular Docking**
+  - Integration with AutoDock Vina
+  - Docking pose visualization
+  - Binding affinity prediction
+  - Virtual screening capabilities
+
+- **Cryo-EM Integration**
+  - Map visualization
+  - Model fitting
+  - Resolution assessment
+
+- **MD Simulation Analysis**
+  - Trajectory visualization
+  - RMSD/RMSF calculations
+  - Hydrogen bond analysis
+  - Cluster analysis
 
 ## Ideas/Requests
 
