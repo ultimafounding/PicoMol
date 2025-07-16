@@ -14,7 +14,8 @@ import webbrowser
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction
+    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
+    QTabWidget, QSizePolicy
 )
 
 
@@ -27,7 +28,7 @@ class AboutDialog(QDialog):
         about_text = QLabel(
             """
             <h2>PicoMol</h2>
-            <p><b>Version:</b> 0.0.2 (2025-07-15)</p>
+            <p><b>Version:</b> 0.0.3 (2025-07-16)</p>
             <p>A simple, user-friendly molecular visualization tool for protein structures.<br>
             Built with PyQt5 and NGL.js, powered by Biopython.</p>
             <ul>
@@ -384,6 +385,10 @@ class ProteinViewerApp(QMainWindow):
 
 
     def init_ui(self):
+        # Create the web view first
+        self.web_view = QWebEngineView()
+        self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        
         # Menu bar with File, Edit, Recent Files
         menubar = self.menuBar()
         file_menu = menubar.addMenu("File")
@@ -401,6 +406,7 @@ class ProteinViewerApp(QMainWindow):
         undo_action.setShortcut("Ctrl+Z")
         undo_action.triggered.connect(self.undo)
         edit_menu.addAction(undo_action)
+        
         redo_action = QAction("Redo", self)
         redo_action.setShortcut("Ctrl+Y")
         redo_action.triggered.connect(self.redo)
@@ -420,14 +426,29 @@ class ProteinViewerApp(QMainWindow):
         about_action.triggered.connect(self.show_about_dialog)
         help_menu.addAction(about_action)
 
+        # Create main widget and layout
         central = QWidget()
         self.setCentralWidget(central)
-        main_layout = QHBoxLayout(central)
+        main_layout = QVBoxLayout(central)
+        main_layout.setContentsMargins(5, 5, 5, 5)
+        main_layout.setSpacing(5)
+        
+        # Create main tab widget
+        self.main_tabs = QTabWidget()
+        main_layout.addWidget(self.main_tabs)
 
         # Drag-and-drop overlay label (hidden by default)
         self.drag_overlay = QLabel("\n\nDrop PDB or ENT files here to open", self)
         self.drag_overlay.setAlignment(Qt.AlignCenter)
-        self.drag_overlay.setStyleSheet("background: rgba(30, 144, 255, 0.7); color: white; font-size: 28px; border: 3px dashed white; border-radius: 24px;")
+        self.drag_overlay.setStyleSheet("""
+            background: rgba(30, 144, 255, 0.7); 
+            color: white; 
+            font-size: 28px; 
+            font-weight: bold;
+            border: 3px dashed white; 
+            border-radius: 24px;
+            padding: 20px;
+        """)
         self.drag_overlay.setVisible(False)
         self.drag_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
         self.drag_overlay.setGeometry(0, 0, self.width(), self.height())
@@ -438,124 +459,195 @@ class ProteinViewerApp(QMainWindow):
         # Status bar
         self.statusBar().showMessage("Ready")
 
-        # Control Panel
-        control_panel_widget = QWidget()
-        control_panel_layout = QVBoxLayout(control_panel_widget)
-
-        control_panel_layout.addWidget(QLabel("Enter PDB ID:"))
-
-        self.pdb_id_entry = QLineEdit()
-        self.pdb_id_entry.setToolTip("Enter a valid PDB ID (e.g., 1CRN, 4HHB) to fetch a protein structure from the PDB database.")
-        control_panel_layout.addWidget(self.pdb_id_entry)
-
-        fetch_button = QPushButton("Fetch PDB")
-        fetch_button.setToolTip("Download and visualize a protein structure using the entered PDB ID.")
-        fetch_button.clicked.connect(self.fetch_pdb_id)
-        control_panel_layout.addWidget(fetch_button)
-
-        open_button = QPushButton("Open Local PDB File")
-        open_button.setToolTip("Open and visualize a local .pdb or .ent file from your computer.")
-        open_button.clicked.connect(self.open_local_pdb)
-        control_panel_layout.addWidget(open_button)
-
-        # Screenshot Button
-        screenshot_button = QPushButton("Save Screenshot")
-        screenshot_button.setToolTip("Save a screenshot of the current protein structure view as a PNG image.")
-        screenshot_button.clicked.connect(self.save_screenshot)
-        control_panel_layout.addWidget(screenshot_button)
-
-        # NGL.js Options Group
-        ngl_options_group = QGroupBox("NGL.js Display Options")
-        ngl_layout = QVBoxLayout()
-
-        representation_label = QLabel("Representation:")
-        ngl_layout.addWidget(representation_label)
-        self.representation_combo = QComboBox()
-        self.representation_combo.setToolTip("Select the 3D representation style for the protein structure (e.g., cartoon, surface, ball+stick, etc.).")
-        self.representation_combo.addItems(["axes", "backbone", "ball+stick", "base", "cartoon", "contact", "distance", "helixorient", "hyperball", "label", "licorice", "line", "point", "ribbon", "rocket", "rope", "spacefill", "surface", "trace", "tube", "unitcell", "validation"])
-        self.representation_combo.setCurrentText("cartoon") # Set default to cartoon
-        self.representation_combo.currentIndexChanged.connect(self.update_representation)
-        ngl_layout.addWidget(self.representation_combo)
-
-        color_label = QLabel("Color Scheme:")
-        ngl_layout.addWidget(color_label)
-        self.color_combo = QComboBox()
-        self.color_combo.setToolTip("Choose a color scheme for the structure (e.g., by atom, chain, residue, etc.).")
-        self.color_combo.addItems(["atomindex", "bfactor", "chainid", "chainindex", "chainname", "densityfit", "electrostatic", "element", "entityindex", "entitytype", "geoquality", "hydrophobicity", "modelindex", "moleculetype", "occupancy", "random", "residueindex", "resname", "sstruc", "uniform", "value", "volume"])
-        self.color_combo.currentIndexChanged.connect(self.update_color_scheme)
-        ngl_layout.addWidget(self.color_combo)
-
-        self.spin_checkbox = QCheckBox("Spin")
-        self.spin_checkbox.setToolTip("Toggle automatic rotation (spin) of the 3D protein structure.")
-        self.spin_checkbox.setChecked(False)
-        self.spin_checkbox.stateChanged.connect(self.toggle_spin)
-        ngl_layout.addWidget(self.spin_checkbox)
-
-
-
-        # Background Color Option
-        background_color_label = QLabel("Background Color (hex or name):")
-        ngl_layout.addWidget(background_color_label)
-        self.background_color_entry = QLineEdit("black") # Default to black
-        self.background_color_entry.setToolTip("Enter a color name or hex code for the background (e.g., 'black', '#ffffff').")
-        ngl_layout.addWidget(self.background_color_entry)
-        apply_bg_color_button = QPushButton("Apply Background Color")
-        apply_bg_color_button.setToolTip("Apply the chosen background color to the viewer.")
-        apply_bg_color_button.clicked.connect(self.update_background_color)
-        ngl_layout.addWidget(apply_bg_color_button)
-
-        # Custom Color Option
-        custom_color_label = QLabel("Custom Color (hex or name):")
-        ngl_layout.addWidget(custom_color_label)
-        self.custom_color_entry = QLineEdit()
-        self.custom_color_entry.setToolTip("Enter a custom color (name or hex code) to apply to the protein structure.")
-        self._last_custom_color = self.custom_color_entry.text()
-        ngl_layout.addWidget(self.custom_color_entry)
-        apply_custom_color_button = QPushButton("Apply Custom Color")
-
-        # Initial undo stack state after UI setup
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._undo_stack.append(self.capture_state())
-        print(f"[UNDO] Initial stack: {[s['custom_color'] for s in self._undo_stack]}")
-        apply_custom_color_button.setToolTip("Apply the custom color to the protein structure.")
-        apply_custom_color_button.clicked.connect(self.update_custom_color)
-        ngl_layout.addWidget(apply_custom_color_button)
-
-        ngl_options_group.setLayout(ngl_layout)
-        control_panel_layout.addWidget(ngl_options_group)
-        control_panel_layout.addStretch(1) # Push everything to the top
-
-        # Feedback Button
-        feedback_button = QPushButton("Send Feedback")
-        feedback_button.setToolTip("Report a bug or suggest an improvement.")
-        feedback_button.clicked.connect(self.show_feedback_dialog)
-        control_panel_layout.addWidget(feedback_button)
-
-        # Sequence Display
-        sequence_group = QGroupBox("Sequence Data")
-        sequence_layout = QVBoxLayout()
+        # Create visualization tab
+        visualization_tab = QWidget()
+        visualization_layout = QVBoxLayout(visualization_tab)  # Changed to QVBoxLayout
+        visualization_layout.setContentsMargins(5, 5, 5, 5)
+        visualization_layout.setSpacing(5)
+        
+        # Add sequence display at the top
         self.sequence_display = QTextEdit()
         self.sequence_display.setReadOnly(True)
-        self.sequence_display.setToolTip("Displays the amino acid sequence of the loaded protein structure.")
-        sequence_layout.addWidget(self.sequence_display)
-        sequence_group.setLayout(sequence_layout)
-        sequence_group.setMaximumHeight(100) # Set a maximum height for the sequence box
-
-        self.web_view = QWebEngineView()
-
-        # Create a new vertical layout for sequence and web view
-        right_panel_layout = QVBoxLayout()
-        right_panel_layout.addWidget(sequence_group, 1) # Give sequence_group a smaller stretch factor
-        right_panel_layout.addWidget(self.web_view, 3) # Give web_view a larger stretch factor
-
-        main_layout.addWidget(control_panel_widget)
-        main_layout.addLayout(right_panel_layout, 3) # Give right_panel_layout a stretch factor of 3
-
-        # Initialize undo stack with initial state
-        self._undo_stack.clear()
-        self._redo_stack.clear()
-        self._undo_stack.append(self.capture_state())
+        self.sequence_display.setMaximumHeight(100)  # Limit height
+        self.sequence_display.setPlaceholderText("Sequence will appear here when a structure is loaded...")
+        self.sequence_display.setStyleSheet("""
+            QTextEdit {
+                font-family: monospace;
+                background-color: #f8f9fa;
+                border: 1px solid #dee2e6;
+                border-radius: 4px;
+                padding: 8px;
+                margin: 5px;
+                font-size: 12px;
+            }
+        """)
+        visualization_layout.addWidget(self.sequence_display)
+        
+        # Create horizontal layout for control panel and viewer
+        viewer_container = QWidget()
+        viewer_layout = QHBoxLayout(viewer_container)
+        viewer_layout.setContentsMargins(0, 0, 0, 0)
+        viewer_layout.setSpacing(5)
+        
+        # Control Panel
+        control_panel = QWidget()
+        control_layout = QVBoxLayout(control_panel)
+        control_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # PDB Input Section
+        pdb_group = QGroupBox("PDB Input")
+        pdb_layout = QVBoxLayout()
+        
+        # PDB ID Input
+        pdb_id_layout = QHBoxLayout()
+        pdb_id_layout.addWidget(QLabel("PDB ID:"))
+        self.pdb_id_entry = QLineEdit()
+        self.pdb_id_entry.setPlaceholderText("e.g., 1CRN, 4HHB")
+        self.pdb_id_entry.setToolTip("Enter a valid PDB ID to fetch a protein structure from the PDB database.")
+        pdb_id_layout.addWidget(self.pdb_id_entry)
+        
+        fetch_button = QPushButton("Fetch")
+        fetch_button.setToolTip("Download and visualize a protein structure using the entered PDB ID.")
+        fetch_button.clicked.connect(self.fetch_pdb_id)
+        pdb_id_layout.addWidget(fetch_button)
+        pdb_layout.addLayout(pdb_id_layout)
+        
+        # File Open Button
+        open_button = QPushButton("Open Local PDB File...")
+        open_button.setToolTip("Open and visualize a local .pdb or .ent file from your computer.")
+        open_button.clicked.connect(self.open_local_pdb)
+        pdb_layout.addWidget(open_button)
+        
+        # Screenshot Button
+        screenshot_button = QPushButton("Save Screenshot...")
+        screenshot_button.setToolTip("Save a screenshot of the current protein structure view as a PNG image.")
+        screenshot_button.clicked.connect(self.save_screenshot)
+        pdb_layout.addWidget(screenshot_button)
+        
+        # Feedback Button
+        feedback_button = QPushButton("Send Feedback...")
+        feedback_button.setToolTip("Report a bug or suggest an improvement.")
+        feedback_button.clicked.connect(self.show_feedback_dialog)
+        pdb_layout.addWidget(feedback_button)
+        
+        pdb_group.setLayout(pdb_layout)
+        control_layout.addWidget(pdb_group)
+        
+        # Visualization Options
+        vis_group = QGroupBox("Visualization Options")
+        vis_layout = QVBoxLayout()
+        
+        # Representation
+        rep_layout = QHBoxLayout()
+        rep_layout.addWidget(QLabel("Representation:"))
+        self.representation_combo = QComboBox()
+        self.representation_combo.setToolTip("Select the 3D representation style for the protein structure.")
+        self.representation_combo.addItems(["cartoon", "ball+stick", "spacefill", "surface", "ribbon", "licorice", "tube"])
+        self.representation_combo.setCurrentText("cartoon")
+        self.representation_combo.currentIndexChanged.connect(self.update_representation)
+        rep_layout.addWidget(self.representation_combo)
+        vis_layout.addLayout(rep_layout)
+        
+        # Color Scheme
+        color_layout = QHBoxLayout()
+        color_layout.addWidget(QLabel("Color:"))
+        self.color_combo = QComboBox()
+        self.color_combo.setToolTip("Choose a color scheme for the structure.")
+        self.color_combo.addItems(["chainid", "residueindex", "sstruc", "resname", "element", "uniform"])
+        self.color_combo.setCurrentText("chainid")
+        self.color_combo.currentIndexChanged.connect(self.update_color_scheme)
+        color_layout.addWidget(self.color_combo)
+        vis_layout.addLayout(color_layout)
+        
+        # Background Color
+        bg_layout = QHBoxLayout()
+        bg_layout.addWidget(QLabel("Background:"))
+        self.background_color_entry = QLineEdit("black")
+        self.background_color_entry.setToolTip("Enter a color name or hex code (e.g., 'white', '#000000').")
+        self.background_color_entry.setMaximumWidth(100)
+        bg_layout.addWidget(self.background_color_entry)
+        
+        apply_bg_button = QPushButton("Apply")
+        apply_bg_button.setToolTip("Apply background color")
+        apply_bg_button.clicked.connect(self.update_background_color)
+        bg_layout.addWidget(apply_bg_button)
+        vis_layout.addLayout(bg_layout)
+        
+        # Spin Toggle
+        self.spin_checkbox = QCheckBox("Auto-rotate")
+        self.spin_checkbox.setToolTip("Toggle automatic rotation of the 3D view.")
+        self.spin_checkbox.setChecked(False)
+        self.spin_checkbox.stateChanged.connect(self.toggle_spin)
+        vis_layout.addWidget(self.spin_checkbox)
+        
+        vis_group.setLayout(vis_layout)
+        control_layout.addWidget(vis_group)
+        
+        # Add stretch to push everything up
+        control_layout.addStretch()
+        
+        # Add control panel and viewer to horizontal layout
+        viewer_layout.addWidget(control_panel, 0)
+        viewer_layout.addWidget(self.web_view, 1)
+        
+        # Add the viewer container to the main layout
+        visualization_layout.addWidget(viewer_container, 1)
+        
+        # Add visualization tab to main tabs
+        self.main_tabs.addTab(visualization_tab, "3D Viewer")
+        
+        # Create bioinformatics tab
+        bioinformatics_tab = QWidget()
+        bio_layout = QVBoxLayout(bioinformatics_tab)
+        bio_layout.setContentsMargins(5, 5, 5, 5)
+        
+        # Add placeholder for bioinformatics tools
+        placeholder = QLabel("Bioinformatics tools coming soon!\n\n"
+                           "This tab will contain various bioinformatics tools including:\n"
+                           "• Sequence analysis\n"
+                           "• Structure analysis\n"
+                           "• Alignment tools\n"
+                           "• And more...")
+        placeholder.setAlignment(Qt.AlignCenter)
+        bio_layout.addWidget(placeholder)
+        
+        # Add bioinformatics tab to main tabs
+        self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
+        
+        # Create BLAST tab
+        blast_tab = QWidget()
+        blast_layout = QVBoxLayout(blast_tab)
+        blast_label = QLabel("BLAST Search (Coming in Next Release)")
+        blast_label.setAlignment(Qt.AlignCenter)
+        blast_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
+        blast_layout.addWidget(blast_label)
+        blast_layout.addStretch()
+        self.main_tabs.addTab(blast_tab, "BLAST")
+        
+        # Create Sequence Analysis tab (empty for now, will be implemented later)
+        seq_tab = QWidget()
+        seq_layout = QVBoxLayout(seq_tab)
+        seq_label = QLabel("Sequence Analysis Tools (Coming Soon)")
+        seq_label.setAlignment(Qt.AlignCenter)
+        seq_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
+        seq_layout.addWidget(seq_label)
+        seq_layout.addStretch()
+        self.main_tabs.addTab(seq_tab, "Sequence Tools")
+        
+        # Create Structural Analysis tab
+        struct_tab = QWidget()
+        struct_layout = QVBoxLayout(struct_tab)
+        struct_label = QLabel("Structural Analysis (Coming in Next Release)")
+        struct_label.setAlignment(Qt.AlignCenter)
+        struct_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
+        struct_layout.addWidget(struct_label)
+        struct_layout.addStretch()
+        self.main_tabs.addTab(struct_tab, "Structure")
+        
+        # Initialize undo stack
+        self._undo_stack = []
+        self._redo_stack = []
+        self.push_undo()
 
     def reset_view_to_defaults(self):
         """Reset all visible viewer settings to their default values and update the viewer."""
