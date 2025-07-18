@@ -36,9 +36,7 @@ def create_ncbi_style_blastp_tab(parent):
 
 def create_ncbi_style_blastn_tab(parent):
     """Create BLASTN tab with exact NCBI layout."""
-    # Import the fixed BLASTN implementation
-    from blast_utils_ncbi_blastn_fixed import create_ncbi_style_blastn_tab_fixed
-    return create_ncbi_style_blastn_tab_fixed(parent)
+    return create_ncbi_style_blastn_tab_unified(parent)
 
 
 def create_ncbi_style_blastx_tab(parent):
@@ -48,12 +46,12 @@ def create_ncbi_style_blastx_tab(parent):
 
 def create_ncbi_style_tblastn_tab(parent):
     """Create TBLASTN tab with exact NCBI layout."""
-    return create_ncbi_style_blast_tab(parent, "tblastn", "Search translated nucleotide database using a protein query", "protein")
+    return create_ncbi_style_blast_tab(parent, "tblastn", "Translated BLAST: tblastn", "protein")
 
 
 def create_ncbi_style_tblastx_tab(parent):
     """Create TBLASTX tab with exact NCBI layout."""
-    return create_ncbi_style_blast_tab(parent, "tblastx", "Search translated nucleotide database using a translated nucleotide query", "nucleotide")
+    return create_ncbi_style_blast_tab(parent, "tblastx", "Translated BLAST: tblastx", "nucleotide")
 
 
 def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
@@ -81,6 +79,30 @@ def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
         }
     """)
     main_layout.addWidget(title_label)
+    
+    # Program description for all programs
+    if program_type == "blastp":
+        desc_label = QLabel("BLASTP searches protein databases using a protein query.")
+    elif program_type == "blastn":
+        desc_label = QLabel("BLASTN searches nucleotide databases using a nucleotide query.")
+    elif program_type == "blastx":
+        desc_label = QLabel("BLASTX searches protein databases using a translated nucleotide query.")
+    elif program_type == "tblastn":
+        desc_label = QLabel("TBLASTN searches translated nucleotide databases using a protein query.")
+    elif program_type == "tblastx":
+        desc_label = QLabel("TBLASTX searches translated nucleotide databases using a translated nucleotide query.")
+    else:
+        desc_label = QLabel(f"{program_type.upper()} sequence search.")
+    
+    desc_label.setStyleSheet("""
+        QLabel {
+            font-size: 14px;
+            color: #666;
+            padding: 5px 0;
+            margin-bottom: 10px;
+        }
+    """)
+    main_layout.addWidget(desc_label)
     
     # Create scroll area for the form
     scroll_area = QScrollArea()
@@ -322,6 +344,52 @@ def create_query_section(parent, program_type, sequence_type="protein"):
     
     layout.addLayout(bl2seq_layout)
     
+    # Genetic Code (for translated searches - in query section like NCBI)
+    # Note: tblastn does NOT show genetic code in query section according to HTML
+    if program_type in ["blastx", "tblastx"]:
+        genetic_layout = QHBoxLayout()
+        genetic_label = QLabel("Genetic code")
+        genetic_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+        genetic_layout.addWidget(genetic_label)
+        
+        genetic_combo = QComboBox()
+        genetic_combo.setFixedWidth(250)
+        genetic_codes = [
+            ("1", "Standard (1)"),
+            ("2", "Vertebrate Mitochondrial (2)"),
+            ("3", "Yeast Mitochondrial (3)"),
+            ("4", "Mold Mitochondrial; ... (4)"),
+            ("5", "Invertebrate Mitochondrial (5)"),
+            ("6", "Ciliate Nuclear; ... (6)"),
+            ("9", "Echinoderm Mitochondrial (9)"),
+            ("10", "Euplotid Nuclear (10)"),
+            ("11", "Bacteria and Archaea (11)"),
+            ("12", "Alternative Yeast Nuclear (12)"),
+            ("13", "Ascidian Mitochondrial (13)"),
+            ("14", "Flatworm Mitochondrial (14)"),
+            ("16", "Chlorophycean Mitochondrial (16)"),
+            ("21", "Trematode Mitochondrial (21)"),
+            ("22", "Scenedesmus obliquus Mitochondrial (22)"),
+            ("23", "Thraustochytrium Mitochondrial (23)"),
+            ("24", "Pterobranchia Mitochondrial (24)"),
+            ("25", "Candidate Division SR1 and Gracilibacteria (25)"),
+            ("26", "Pachysolen tannophilus Nuclear (26)"),
+            ("27", "Karyorelict Nuclear (27)"),
+            ("28", "Condylostoma Nuclear (28)"),
+            ("29", "Mesodinium Nuclear (29)"),
+            ("30", "Peritrich Nuclear (30)"),
+            ("31", "Blastocrithidia Nuclear (31)")
+        ]
+        for code, desc in genetic_codes:
+            genetic_combo.addItem(desc, code)
+        genetic_combo.setCurrentText("Standard (1)")
+        genetic_combo.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+        setattr(parent, f'{program_type}_genetic_code', genetic_combo)
+        genetic_layout.addWidget(genetic_combo)
+        genetic_layout.addStretch()
+        
+        layout.addLayout(genetic_layout)
+    
     return section
 
 
@@ -513,18 +581,76 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
     """)
     layout.addWidget(legend)
     
-    # Database selection with radio buttons (like NCBI)
-    db_group_layout = QVBoxLayout()
-    
-    # Standard databases radio button
-    standard_radio = QRadioButton("Standard databases (nr etc.):")
-    standard_radio.setChecked(True)
-    standard_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
-    setattr(parent, f'{program_type}_standard_radio', standard_radio)
-    db_group_layout.addWidget(standard_radio)
-    
-    # ClusteredNR radio button with recommendation badge (only for protein searches)
-    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
+    # Database selection with radio buttons exactly like NCBI HTML
+    # CRITICAL: genomeDbs div has class="blastn megaBlast discoMegablast" - NOT for tblastn!
+    # Only show for blastn (megaBlast, discoMegablast), NOT for tblastn or tblastx
+    if program_type == "blastn":
+        # Create genomeDbs div equivalent
+        genomic_group = QFrame()
+        genomic_group.setStyleSheet("border: none; margin: 10px 0;")
+        genomic_layout = QVBoxLayout(genomic_group)
+        genomic_layout.setContentsMargins(0, 0, 0, 0)
+        
+        # Database type radio button group
+        db_type_group = QButtonGroup()
+        
+        # Standard databases radio button (Rgen)
+        standard_radio = QRadioButton("Standard databases (nr etc.):")
+        standard_radio.setChecked(True)
+        standard_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+        setattr(parent, f'{program_type}_Rgen', standard_radio)
+        db_type_group.addButton(standard_radio, 0)
+        genomic_layout.addWidget(standard_radio)
+        
+        # rRNA/ITS databases radio button (Rrna)
+        rrna_radio = QRadioButton("rRNA/ITS databases")
+        rrna_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+        setattr(parent, f'{program_type}_Rrna', rrna_radio)
+        db_type_group.addButton(rrna_radio, 1)
+        genomic_layout.addWidget(rrna_radio)
+        
+        # Genomic + transcript databases radio button (Rhc)
+        genomic_radio = QRadioButton("Genomic + transcript databases")
+        genomic_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+        setattr(parent, f'{program_type}_Rhc', genomic_radio)
+        db_type_group.addButton(genomic_radio, 2)
+        genomic_layout.addWidget(genomic_radio)
+        
+        # Betacoronavirus radio button (Rvir)
+        beta_radio = QRadioButton("Betacoronavirus")
+        beta_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+        setattr(parent, f'{program_type}_Rvir', beta_radio)
+        db_type_group.addButton(beta_radio, 3)
+        genomic_layout.addWidget(beta_radio)
+        
+        setattr(parent, f'{program_type}_db_type_group', db_type_group)
+        layout.addWidget(genomic_group)
+        
+        # rRNA Extra info (hidden by default)
+        rrna_extra = QLabel('<a href="https://www.ncbi.nlm.nih.gov/refseq/targetedloci/" style="color: #007cba;">Targeted Loci Project Information</a>')
+        rrna_extra.setOpenExternalLinks(True)
+        rrna_extra.setVisible(False)
+        setattr(parent, f'{program_type}_rrna_extra', rrna_extra)
+        layout.addWidget(rrna_extra)
+        
+        # Connect radio buttons to show/hide extra info
+        def update_rrna_extra():
+            rrna_extra.setVisible(rrna_radio.isChecked())
+        
+        rrna_radio.toggled.connect(update_rrna_extra)
+        
+    elif program_type in ["blastp", "blastx"]:
+        # For protein searches only, show ClusteredNR option
+        db_group_layout = QVBoxLayout()
+        
+        # Standard databases radio button
+        standard_radio = QRadioButton("Standard databases (nr etc.):")
+        standard_radio.setChecked(True)
+        standard_radio.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+        setattr(parent, f'{program_type}_standard_radio', standard_radio)
+        db_group_layout.addWidget(standard_radio)
+        
+        # ClusteredNR radio button with recommendation badge
         clustered_layout = QHBoxLayout()
         clustered_radio = QRadioButton("ClusteredNR database")
         clustered_radio.setStyleSheet("font-weight: normal;")
@@ -551,8 +677,8 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
         clustered_layout.addStretch()
         
         db_group_layout.addLayout(clustered_layout)
-    
-    layout.addLayout(db_group_layout)
+        layout.addLayout(db_group_layout)
+    # For tblastn and tblastx: NO radio buttons at all - just direct database dropdown
     
     # Database dropdown
     db_layout = QHBoxLayout()
@@ -577,9 +703,31 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
         }
     """)
     
-    # Add databases based on program type
-    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
-        # Protein databases for protein searches or protein targets
+    # Add databases based on program type - exact match from HTML
+    if program_type == "tblastn":
+        # TBLASTN searches nucleotide databases using protein query - from HTML
+        databases = [
+            ("core_nt", "Core nucleotide database (core_nt)"),
+            ("refseq_select_rna", "RefSeq Select RNA sequences (refseq_select)"),
+            ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
+            ("refseq_representative_genomes", "RefSeq Reference genomes (refseq_reference_genomes)"),
+            ("refseq_genomes", "RefSeq Genome Database (refseq_genomes)"),
+            ("nt", "Nucleotide collection (nr/nt)"),
+            ("Whole_Genome_Shotgun_contigs", "Whole-genome shotgun contigs (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("sra", "Sequence Read Archive (SRA)"),
+            ("tsa_nt", "Transcriptome Shotgun Assembly (TSA)"),
+            ("tls_nt", "Targeted Loci(TLS)"),
+            ("htgs", "High throughput genomic sequences (HTGS)"),
+            ("patnt", "Patent sequences(pat)"),
+            ("pdbnt", "PDB nucleotide database (pdb)"),
+            ("genomic/9606/RefSeqGene", "Human RefSeqGene sequences(RefSeq_Gene)"),
+            ("gss", "Genomic survey sequences (gss)"),
+            ("sts", "Sequence tagged sites (dbsts)"),
+            ("genomic/Viruses/Betacoronavirus", "Betacoronavirus Genbank")
+        ]
+    elif program_type in ["blastp", "blastx"]:
+        # Protein databases for protein searches only (blastp, blastx)
         databases = [
             ("nr", "Non-redundant protein sequences (nr)"),
             ("refseq_select_prot", "RefSeq Select proteins (refseq_select)"),
@@ -592,8 +740,30 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
             ("tsa_nr", "Transcriptome Shotgun Assembly proteins (tsa_nr)"),
             ("nr_cluster_seq", "ClusteredNR (nr_cluster_seq)")
         ]
+    elif program_type == "tblastx":
+        # TBLASTX searches nucleotide databases using translated nucleotide query - from HTML
+        databases = [
+            ("core_nt", "Core nucleotide database (core_nt)"),
+            ("refseq_select_rna", "RefSeq Select RNA sequences (refseq_select)"),
+            ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
+            ("refseq_representative_genomes", "RefSeq Reference genomes (refseq_reference_genomes)"),
+            ("refseq_genomes", "RefSeq Genome Database (refseq_genomes)"),
+            ("nt", "Nucleotide collection (nr/nt)"),
+            ("Whole_Genome_Shotgun_contigs", "Whole-genome shotgun contigs (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("sra", "Sequence Read Archive (SRA)"),
+            ("tsa_nt", "Transcriptome Shotgun Assembly (TSA)"),
+            ("tls_nt", "Targeted Loci(TLS)"),
+            ("htgs", "High throughput genomic sequences (HTGS)"),
+            ("patnt", "Patent sequences(pat)"),
+            ("pdbnt", "PDB nucleotide database (pdb)"),
+            ("genomic/9606/RefSeqGene", "Human RefSeqGene sequences(RefSeq_Gene)"),
+            ("gss", "Genomic survey sequences (gss)"),
+            ("sts", "Sequence tagged sites (dbsts)"),
+            ("genomic/Viruses/Betacoronavirus", "Betacoronavirus Genbank")
+        ]
     else:
-        # Nucleotide databases for nucleotide searches
+        # Nucleotide databases for other nucleotide searches
         databases = [
             ("nt", "Nucleotide collection (nt)"),
             ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
@@ -634,23 +804,67 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
         """Update database dropdown based on selected radio button."""
         database_combo.clear()
         
-        if hasattr(parent, f'{program_type}_clustered_radio') and getattr(parent, f'{program_type}_clustered_radio').isChecked():
-            # ClusteredNR selected
-            for db_id, db_name in all_databases['clustered']:
+        if program_type == "blastn":
+            # For blastn, check which database type is selected
+            db_type_group = getattr(parent, f'{program_type}_db_type_group', None)
+            if db_type_group:
+                checked_id = db_type_group.checkedId()
+                if checked_id == 0:  # Standard (Rgen)
+                    db_group = "Rgen"
+                elif checked_id == 1:  # rRNA (Rrna)
+                    db_group = "Rrna"
+                elif checked_id == 2:  # Genomic + transcript (Rhc)
+                    db_group = "Rhc"
+                elif checked_id == 3:  # Betacoronavirus (Rvir)
+                    db_group = "Rvir"
+                else:
+                    db_group = "Rgen"  # Default
+            else:
+                db_group = "Rgen"  # Default
+            
+            # Filter databases by group
+            for db_id, db_name in all_databases['standard']:
+                # For now, show all standard databases (would need dbgroup mapping for full filtering)
                 database_combo.addItem(db_name, db_id)
-        else:
-            # Standard databases selected
+        elif program_type in ["tblastn", "tblastx"]:
+            # For tblastn/tblastx, no radio buttons - just show all nucleotide databases
             for db_id, db_name in all_databases['standard']:
                 database_combo.addItem(db_name, db_id)
+        else:
+            # For protein searches
+            if hasattr(parent, f'{program_type}_clustered_radio') and getattr(parent, f'{program_type}_clustered_radio').isChecked():
+                # ClusteredNR selected
+                for db_id, db_name in all_databases['clustered']:
+                    database_combo.addItem(db_name, db_id)
+            else:
+                # Standard databases selected
+                for db_id, db_name in all_databases['standard']:
+                    database_combo.addItem(db_name, db_id)
     
     # Initial population
     for db_id, db_name in databases:
         database_combo.addItem(db_name, db_id)
     
+    # Set default database based on program type (from HTML defVal)
+    if program_type in ["tblastn", "tblastx"]:
+        # Find and set "nt" as default for tblastn and tblastx
+        for i in range(database_combo.count()):
+            if database_combo.itemData(i) == "nt":
+                database_combo.setCurrentIndex(i)
+                break
+    
     # Connect radio buttons to update function
-    standard_radio.toggled.connect(update_database_list)
-    if hasattr(parent, f'{program_type}_clustered_radio'):
-        getattr(parent, f'{program_type}_clustered_radio').toggled.connect(update_database_list)
+    if program_type == "blastn":
+        # Connect nucleotide database type radio buttons (only for blastn)
+        db_type_group = getattr(parent, f'{program_type}_db_type_group', None)
+        if db_type_group:
+            for button in db_type_group.buttons():
+                button.toggled.connect(update_database_list)
+    elif program_type in ["blastp", "blastx"]:
+        # Connect protein database radio buttons
+        standard_radio.toggled.connect(update_database_list)
+        if hasattr(parent, f'{program_type}_clustered_radio'):
+            getattr(parent, f'{program_type}_clustered_radio').toggled.connect(update_database_list)
     
     setattr(parent, f'{program_type}_database_combo', database_combo)
     setattr(parent, f'{program_type}_update_database_list', update_database_list)
@@ -709,8 +923,8 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
     setattr(parent, f'{program_type}_exclude_models', exclude_models)
     exclude_layout.addWidget(exclude_models)
     
-    # WP proteins checkbox (only for protein searches)
-    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
+    # WP proteins checkbox (only for protein searches - blastp, blastx)
+    if program_type in ["blastp", "blastx"]:
         wp_proteins = QCheckBox("Non-redundant RefSeq proteins (WP)")
         wp_proteins.setStyleSheet("margin-left: 20px;")
         setattr(parent, f'{program_type}_wp_proteins', wp_proteins)
@@ -723,54 +937,23 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
     
     layout.addLayout(exclude_layout)
     
-    # Genetic Code (for translated searches - show directly in search set section)
-    if program_type in ["blastx", "tblastn", "tblastx"]:
-        genetic_layout = QHBoxLayout()
-        genetic_label = QLabel("Genetic Code")
-        genetic_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
-        genetic_layout.addWidget(genetic_label)
-        
-        genetic_combo = QComboBox()
-        genetic_combo.setFixedWidth(250)
-        genetic_codes = [
-            ("1", "Standard (1)"),
-            ("2", "Vertebrate Mitochondrial (2)"),
-            ("3", "Yeast Mitochondrial (3)"),
-            ("4", "Mold Mitochondrial; ... (4)"),
-            ("5", "Invertebrate Mitochondrial (5)"),
-            ("6", "Ciliate Nuclear; ... (6)"),
-            ("9", "Echinoderm Mitochondrial (9)"),
-            ("10", "Euplotid Nuclear (10)"),
-            ("11", "Bacteria and Archaea (11)"),
-            ("12", "Alternative Yeast Nuclear (12)")
-        ]
-        for code, desc in genetic_codes:
-            genetic_combo.addItem(desc, code)
-        genetic_combo.setCurrentText("Standard (1)")
-        genetic_combo.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
-        setattr(parent, f'{program_type}_genetic_code', genetic_combo)
-        genetic_layout.addWidget(genetic_combo)
-        
-        genetic_help = QPushButton("?")
-        genetic_help.setFixedSize(20, 20)
-        genetic_help.setStyleSheet("""
-            QPushButton {
-                background-color: #007cba;
-                color: white;
-                border: none;
-                border-radius: 10px;
-                font-size: 12px;
-                font-weight: bold;
-            }
-            QPushButton:hover {
-                background-color: #005a87;
-            }
-        """)
-        genetic_help.setToolTip("Genetic code help")
-        genetic_layout.addWidget(genetic_help)
-        genetic_layout.addStretch()
-        
-        layout.addLayout(genetic_layout)
+    # Limit to sequences from type material (seqFTLimitBy section)
+    type_material_layout = QVBoxLayout()
+    type_material_label = QLabel("Limit to")
+    type_material_label.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+    type_material_hint = QLabel("Optional")
+    type_material_hint.setStyleSheet("color: #666; font-size: 11px;")
+    type_material_layout.addWidget(type_material_label)
+    type_material_layout.addWidget(type_material_hint)
+    
+    type_material_checkbox = QCheckBox("Sequences from type material")
+    type_material_checkbox.setStyleSheet("margin-left: 20px;")
+    setattr(parent, f'{program_type}_type_material', type_material_checkbox)
+    type_material_layout.addWidget(type_material_checkbox)
+    
+    layout.addLayout(type_material_layout)
+    
+    # Note: Genetic Code is now in the query section for NCBI consistency
     
     # Entrez Query
     entrez_layout = QVBoxLayout()
@@ -1053,10 +1236,7 @@ def create_program_selection_section(parent, program_type):
     setattr(parent, f'{program_type}_summary_label', summary_label)
     summary_layout.addWidget(summary_label)
     
-    new_window_checkbox = QCheckBox("Show results in a new window")
-    new_window_checkbox.setStyleSheet("font-size: 12px; margin-top: 5px;")
-    setattr(parent, f'{program_type}_new_window', new_window_checkbox)
-    summary_layout.addWidget(new_window_checkbox)
+    # Removed "Show results in a new window" checkbox
     
     search_layout.addLayout(summary_layout)
     layout.addLayout(search_layout)
@@ -1212,7 +1392,13 @@ def create_general_parameters_group(parent, program_type):
     expect_label.setFixedWidth(150)
     expect_layout.addWidget(expect_label)
     
-    expect_input = QLineEdit("0.05")
+    # Set default expect threshold based on program type
+    if program_type == "tblastn":
+        default_expect = "0.05"
+    else:
+        default_expect = "0.05"
+    
+    expect_input = QLineEdit(default_expect)
     expect_input.setFixedWidth(100)
     expect_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
     setattr(parent, f'{program_type}_expect_threshold', expect_input)
@@ -1237,7 +1423,10 @@ def create_general_parameters_group(parent, program_type):
     elif program_type == "blastn":
         word_options = ["7", "11", "15", "20", "24", "28"]
         default_word = "11"
-    elif program_type in ["blastx", "tblastn"]:
+    elif program_type == "tblastn":
+        word_options = ["2", "3", "5", "6"]
+        default_word = "5"
+    elif program_type == "blastx":
         word_options = ["2", "3", "6"]
         default_word = "3"
     elif program_type == "tblastx":
@@ -1853,3 +2042,254 @@ def open_ncbi_blast(parent, program_type):
         webbrowser.open_new_tab(ncbi_url)
     except Exception as e:
         QMessageBox.warning(parent, "Browser Error", f"Could not open browser: {str(e)}")
+
+
+# ============================================================================
+# BLASTN UNIFIED IMPLEMENTATION
+# ============================================================================
+
+def create_ncbi_style_blastn_tab_unified(parent):
+    """Create BLASTN tab with exact NCBI layout from blastn.html."""
+    
+    # Main widget
+    main_widget = QWidget()
+    main_layout = QVBoxLayout(main_widget)
+    main_layout.setContentsMargins(10, 10, 10, 10)
+    main_layout.setSpacing(0)
+    
+    # Initialize worker
+    setattr(parent, 'blastn_worker', None)
+    
+    # Page title
+    title_label = QLabel("Standard Nucleotide BLAST")
+    title_label.setStyleSheet("""
+        QLabel {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+    """)
+    main_layout.addWidget(title_label)
+    
+    # Program description
+    desc_label = QLabel("BLASTN searches nucleotide databases using a nucleotide query.")
+    desc_label.setStyleSheet("""
+        QLabel {
+            font-size: 14px;
+            color: #666;
+            padding: 5px 0;
+            margin-bottom: 10px;
+        }
+    """)
+    main_layout.addWidget(desc_label)
+    
+    # Create scroll area for the form
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    
+    # Form widget
+    form_widget = QWidget()
+    form_layout = QVBoxLayout(form_widget)
+    form_layout.setContentsMargins(0, 0, 0, 0)
+    form_layout.setSpacing(20)
+    
+    # 1. Enter Query Sequence Section
+    query_section = create_blastn_query_section_unified(parent)
+    form_layout.addWidget(query_section)
+    
+    # 2. Choose Search Set Section  
+    search_set_section = create_search_set_section(parent, "blastn", "nucleotide")
+    form_layout.addWidget(search_set_section)
+    
+    # 3. Program Selection Section
+    program_section = create_program_selection_section(parent, "blastn")
+    form_layout.addWidget(program_section)
+    
+    # 4. Algorithm Parameters Section (collapsible)
+    params_section = create_algorithm_parameters_section(parent, "blastn")
+    form_layout.addWidget(params_section)
+    
+    # Add stretch
+    form_layout.addStretch()
+    
+    # Set form widget to scroll area
+    scroll_area.setWidget(form_widget)
+    main_layout.addWidget(scroll_area)
+    
+    # Results section
+    results_section = create_results_section(parent, "blastn")
+    main_layout.addWidget(results_section)
+    
+    return main_widget
+
+
+def create_blastn_query_section_unified(parent):
+    """Create the 'Enter Query Sequence' section exactly like NCBI BLASTN."""
+    
+    section = QFrame()
+    section.setFrameStyle(QFrame.Box)
+    section.setStyleSheet("""
+        QFrame {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+    """)
+    
+    layout = QVBoxLayout(section)
+    layout.setContentsMargins(15, 10, 15, 15)
+    
+    # Legend/Title
+    legend = QLabel("Enter Query Sequence")
+    legend.setStyleSheet("""
+        QLabel {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            background-color: #fafafa;
+            padding: 0 5px;
+            margin-bottom: 10px;
+        }
+    """)
+    layout.addWidget(legend)
+    
+    # Query input area
+    query_layout = QVBoxLayout()
+    
+    # Label with help link
+    label_layout = QHBoxLayout()
+    query_label = QLabel("Enter accession number(s), gi(s), or FASTA sequence(s)")
+    query_label.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+    label_layout.addWidget(query_label)
+    
+    help_button = QPushButton("?")
+    help_button.setFixedSize(20, 20)
+    help_button.setStyleSheet("""
+        QPushButton {
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #005a87;
+        }
+    """)
+    help_button.setToolTip("How to enter queries")
+    label_layout.addWidget(help_button)
+    
+    clear_button = QPushButton("Clear")
+    clear_button.setStyleSheet("""
+        QPushButton {
+            background: none;
+            border: none;
+            color: #007cba;
+            text-decoration: underline;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            color: #005a87;
+        }
+    """)
+    clear_button.clicked.connect(lambda: getattr(parent, 'blastn_query_input').clear())
+    label_layout.addWidget(clear_button)
+    label_layout.addStretch()
+    
+    query_layout.addLayout(label_layout)
+    
+    # Text area
+    query_input = QTextEdit()
+    query_input.setFixedHeight(120)
+    query_input.setStyleSheet("""
+        QTextEdit {
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 12px;
+            background-color: white;
+        }
+    """)
+    query_input.setPlaceholderText("Enter nucleotide sequence here...\n\nExample:\n>My_sequence\nATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG")
+    setattr(parent, 'blastn_query_input', query_input)
+    query_layout.addWidget(query_input)
+    
+    layout.addLayout(query_layout)
+    
+    # Query subrange
+    subrange_layout = QHBoxLayout()
+    subrange_label = QLabel("Query subrange")
+    subrange_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    subrange_layout.addWidget(subrange_label)
+    
+    from_label = QLabel("From")
+    from_input = QLineEdit()
+    from_input.setFixedWidth(80)
+    from_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, 'blastn_query_from', from_input)
+    
+    to_label = QLabel("To")
+    to_input = QLineEdit()
+    to_input.setFixedWidth(80)
+    to_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, 'blastn_query_to', to_input)
+    
+    subrange_layout.addWidget(from_label)
+    subrange_layout.addWidget(from_input)
+    subrange_layout.addWidget(to_label)
+    subrange_layout.addWidget(to_input)
+    subrange_layout.addStretch()
+    
+    layout.addLayout(subrange_layout)
+    
+    # File upload
+    upload_layout = QHBoxLayout()
+    upload_label = QLabel("Or, upload file")
+    upload_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    upload_layout.addWidget(upload_label)
+    
+    upload_button = QPushButton("Choose File")
+    upload_button.setStyleSheet("""
+        QPushButton {
+            background-color: #f8f9fa;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+        }
+    """)
+    upload_button.clicked.connect(lambda: open_blast_file(parent, "blastn"))
+    upload_layout.addWidget(upload_button)
+    
+    file_label = QLabel("No file selected")
+    file_label.setStyleSheet("color: #666; margin-left: 10px;")
+    setattr(parent, 'blastn_file_label', file_label)
+    upload_layout.addWidget(file_label)
+    upload_layout.addStretch()
+    
+    layout.addLayout(upload_layout)
+    
+    # Job Title
+    job_layout = QHBoxLayout()
+    job_label = QLabel("Job Title")
+    job_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    job_layout.addWidget(job_label)
+    
+    job_input = QLineEdit()
+    job_input.setFixedWidth(400)
+    job_input.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+    job_input.setPlaceholderText("Enter a descriptive title for your BLAST search")
+    setattr(parent, 'blastn_job_title', job_input)
+    job_layout.addWidget(job_input)
+    job_layout.addStretch()
+    
+    layout.addLayout(job_layout)
+    
+    return section

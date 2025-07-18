@@ -56,18 +56,18 @@ def create_ncbi_style_blastn_tab_fixed(parent):
     main_layout.addWidget(title_label)
     
     # Program description
-    descr_label = QLabel("BLASTN programs search nucleotide databases using a nucleotide query.")
-    descr_label.setStyleSheet("""
+    desc_label = QLabel("BLASTN searches nucleotide databases using a nucleotide query.")
+    desc_label.setStyleSheet("""
         QLabel {
+            font-size: 14px;
             color: #666;
-            font-size: 12px;
+            padding: 5px 0;
             margin-bottom: 10px;
-            padding: 5px;
-            background-color: #f8f9fa;
-            border-radius: 3px;
         }
     """)
-    main_layout.addWidget(descr_label)
+    main_layout.addWidget(desc_label)
+    
+    # Old description removed - using consistent format above
     
     # Create scroll area for the form
     scroll_area = QScrollArea()
@@ -655,10 +655,7 @@ def create_blastn_program_selection_section(parent):
     parent.blastn_summary_label = summary_label
     summary_layout.addWidget(summary_label)
     
-    new_window_checkbox = QCheckBox("Show results in a new window")
-    new_window_checkbox.setStyleSheet("font-size: 12px; margin-top: 5px;")
-    parent.blastn_new_window = new_window_checkbox
-    summary_layout.addWidget(new_window_checkbox)
+    # Removed "Show results in a new window" checkbox
     
     search_layout.addLayout(summary_layout)
     layout.addLayout(search_layout)

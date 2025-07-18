@@ -80,7 +80,12 @@ class OnlineBlastWorker(QThread):
                     # Search is complete, get results
                     results = self.get_blast_results()
                     if results:
-                        self.finished.emit(results)
+                        # Handle tuple format (format_type, content) or string format
+                        if isinstance(results, tuple) and len(results) == 2:
+                            format_type, content = results
+                            self.finished.emit(content)  # Emit only the content string
+                        else:
+                            self.finished.emit(results)  # Backward compatibility
                     else:
                         self.error.emit("Failed to retrieve BLAST results.")
                     return
@@ -799,11 +804,11 @@ def format_blast_output(result_data, program_type="blast"):
     try:
         from blast_results_parser import enhanced_format_blast_output
         
-        # Handle the new tuple format (format_type, content)
+        # Handle the new tuple format (format_type, content) or just content string
         if isinstance(result_data, tuple) and len(result_data) == 2:
             format_type, raw_output = result_data
         else:
-            # Backward compatibility
+            # Backward compatibility - assume it's just the content string
             format_type, raw_output = 'Text', result_data
         
         if not raw_output or not raw_output.strip():
@@ -820,7 +825,7 @@ def format_blast_output(result_data, program_type="blast"):
 def format_blast_output_basic(result_data):
     """Basic BLAST output formatter (fallback)."""
     
-    # Handle the new tuple format
+    # Handle the new tuple format or just content string
     if isinstance(result_data, tuple) and len(result_data) == 2:
         format_type, raw_output = result_data
     else:
