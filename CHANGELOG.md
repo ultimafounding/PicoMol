@@ -7,28 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
-- Tabbed interface for better organization of features
-  - 3D Viewer: Main protein visualization with sequence display
-  - Sequence Tools: Placeholder for future sequence analysis features
-  - BLAST: Placeholder for BLAST search functionality
-  - Structure: Placeholder for structural analysis tools
-- Sequence display moved above the 3D viewer for better visibility
-- Improved UI with better organization and visual hierarchy
+- Complete BLAST integration with full NCBI-style interface
+  - BLASTP, BLASTN, BLASTX, TBLASTN, and TBLASTX support
+  - Online BLAST searches connecting directly to NCBI servers
+  - Comprehensive results parsing and formatting
+  - Sequence validation and FASTA file support
+  - Multiple database options (nr, nt, RefSeq, etc.)
+- Organized project structure with `blast_utils` package
+- Enhanced tabbed interface for better feature organization
+- Sequence display above 3D viewer for better visibility
 - Color picker for uniform color scheme selection
-  - Appears only when "uniform" color scheme is selected
-  - Click to choose from system color dialog
-  - Visual feedback of current color
+- Requirements.txt and setup.py for easier installation
+- Comprehensive documentation updates
 
 ### Changed
-- Restructured main window layout to accommodate new tabbed interface
-- Updated sequence display styling for better readability
-- Adjusted sequence display height to 75px for better space efficiency
-- Improved window resizing behavior
+- Restructured codebase with organized `blast_utils` package
+- Updated import statements for new package structure
+- Improved README with detailed feature descriptions
+- Enhanced error handling and user feedback
+- Better project organization and file structure
+
+### Removed
+- Legacy BLAST files and duplicate code
+- Large HTML reference files (blastn.html, etc.)
+- Unnecessary development documentation files
+- Python cache files and temporary artifacts
 
 ### Fixed
-- Fixed sequence display not showing up after structure loading
-- Resolved tab switching issues
-- Fixed undo/redo functionality with new UI elements
+- Resolved BLAST function import errors
+- Fixed sequence display issues
+- Improved tab switching functionality
+- Enhanced undo/redo system stability
 
 ## [0.0.2] - 2025-07-15
 ### Added

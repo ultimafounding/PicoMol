@@ -1,0 +1,15 @@
+# Core GUI and Web Engine
+PyQt5>=5.15.0
+PyQtWebEngine>=5.15.0
+
+# Bioinformatics and molecular data handling
+biopython>=1.79
+
+# HTTP requests for downloading NGL.js and BLAST functionality
+requests>=2.25.0
+
+# Note: The following are included with Python standard library:
+# - functools, os, sys, threading, socketserver, http.server
+# - time, shutil, subprocess, warnings, webbrowser
+# - json, xml.etree.ElementTree, urllib.parse, urllib.request, urllib.error
+# - re, typing

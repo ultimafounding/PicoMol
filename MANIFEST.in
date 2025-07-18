@@ -1,0 +1,29 @@
+# Include documentation and license files
+include README.md
+include LICENSE
+include CHANGELOG.md
+include KNOWN_BUGS.md
+include requirements.txt
+
+# Include setup and utility scripts
+include setup_ngl.py
+include setup.py
+
+# Include blast utilities package
+recursive-include blast_utils *.py
+
+# Include release notes
+recursive-include release_notes *.md
+
+# Exclude cache and temporary files
+global-exclude __pycache__
+global-exclude *.pyc
+global-exclude *.pyo
+global-exclude .git*
+global-exclude *.tmp
+global-exclude *.log
+
+# Exclude downloaded/generated content
+exclude ngl_assets/ngl.min.js
+exclude pulled_structures/*
+exclude blast_results_*.txt

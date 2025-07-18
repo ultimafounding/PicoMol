@@ -11,7 +11,7 @@ import sys
 import warnings
 import webbrowser
 
-from blast_utils_ncbi_layout import (
+from blast_utils import (
     create_ncbi_style_blastp_tab, create_ncbi_style_blastn_tab,
     create_ncbi_style_blastx_tab, create_ncbi_style_tblastn_tab,
     create_ncbi_style_tblastx_tab
@@ -29,30 +29,44 @@ class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("About PicoMol")
-        self.setMinimumWidth(420)
+        self.setMinimumWidth(500)
         layout = QVBoxLayout(self)
         about_text = QLabel(
             """
-            <h2>PicoMol</h2>
-            <p><b>Version:</b> 0.0.3 (2025-07-16)</p>
-            <p>A simple, user-friendly molecular visualization tool for protein structures.<br>
+            <h2>🧬 PicoMol</h2>
+            <p><b>Version:</b> 0.0.3 (2025-07-18)</p>
+            <p>A comprehensive molecular visualization and bioinformatics suite for protein structures and sequence analysis.<br>
             Built with PyQt5 and NGL.js, powered by Biopython.</p>
+            
+            <h3>🔬 Core Features</h3>
             <ul>
-              <li>Fetch and visualize PDB structures</li>
-              <li>Open local PDB files</li>
-              <li>Undo/redo, screenshots, color schemes, and more</li>
+              <li><b>3D Molecular Visualization:</b> Interactive protein structure viewing with multiple representations</li>
+              <li><b>BLAST Integration:</b> Complete BLAST suite (BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX)</li>
+              <li><b>PDB Support:</b> Fetch from PDB database or load local files</li>
+              <li><b>Sequence Analysis:</b> View and analyze protein/nucleotide sequences</li>
+              <li><b>Export Tools:</b> Save screenshots and structure files</li>
+              <li><b>User-Friendly:</b> Drag-and-drop, undo/redo, recent files, and more</li>
             </ul>
-            <p><b>Credits:</b><br>
-            Developed by Jack Magson.<br>
-            Uses <a href='https://github.com/arose/ngl'>NGL.js</a> (MIT License) for 3D visualization.<br>
-            Powered by <a href='https://biopython.org/'>Biopython</a> and <a href='https://riverbankcomputing.com/software/pyqt/intro'>PyQt5</a>.<br>
-            </p>
-            <p><b>License:</b> GNU GPL v3.0<br>
-            See the LICENSE file for details.</p>
-            <p><b>NGL.js citation:</b><br>
-            AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. NGL viewer: web-based molecular graphics for large complexes. <i>Bioinformatics</i>: bty419, 2018. <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a><br>
-            AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. <i>Nucleic Acids Res</i> (1 July 2015) 43 (W1): W576-W579 first published online April 29, 2015. <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a>
-            </p>
+            
+            <h3>🛠️ Technology Stack</h3>
+            <ul>
+              <li><b>GUI Framework:</b> <a href='https://riverbankcomputing.com/software/pyqt/intro'>PyQt5</a> with QWebEngine</li>
+              <li><b>3D Visualization:</b> <a href='https://github.com/arose/ngl'>NGL.js</a> (MIT License)</li>
+              <li><b>Bioinformatics:</b> <a href='https://biopython.org/'>Biopython</a></li>
+              <li><b>BLAST Services:</b> NCBI BLAST API integration</li>
+            </ul>
+            
+            <p><b>Developer:</b> Jack Magson<br>
+            <b>License:</b> GNU GPL v3.0 (see LICENSE file)<br>
+            <b>Repository:</b> <a href='https://github.com/ultimafounding/PicoMol'>GitHub</a></p>
+            
+            <h3>📚 Citations</h3>
+            <p><b>NGL.js:</b><br>
+            • AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. NGL viewer: web-based molecular graphics for large complexes. <i>Bioinformatics</i>: bty419, 2018. <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a><br>
+            • AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. <i>Nucleic Acids Res</i> 43 (W1): W576-W579, 2015. <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a></p>
+            
+            <p><b>BLAST:</b><br>
+            • Altschul, S.F., Gish, W., Miller, W., Myers, E.W. & Lipman, D.J. Basic local alignment search tool. <i>Journal of Molecular Biology</i> 215, 403-410, 1990.</p>
             """
         )
         about_text.setOpenExternalLinks(True)

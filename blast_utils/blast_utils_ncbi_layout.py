@@ -26,7 +26,7 @@ from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPalette
 
 # Import the worker class from the original blast_utils
-from blast_utils import OnlineBlastWorker, validate_sequence, clean_fasta_sequence, format_blast_output
+from .blast_utils import OnlineBlastWorker, validate_sequence, clean_fasta_sequence, format_blast_output
 
 
 def create_ncbi_style_blastp_tab(parent):
@@ -36,9 +36,7 @@ def create_ncbi_style_blastp_tab(parent):
 
 def create_ncbi_style_blastn_tab(parent):
     """Create BLASTN tab with exact NCBI layout."""
-    # Import the fixed BLASTN implementation
-    from blast_utils_ncbi_blastn_fixed import create_ncbi_style_blastn_tab_fixed
-    return create_ncbi_style_blastn_tab_fixed(parent)
+    return create_ncbi_style_blastn_tab_unified(parent)
 
 
 def create_ncbi_style_blastx_tab(parent):
@@ -53,7 +51,7 @@ def create_ncbi_style_tblastn_tab(parent):
 
 def create_ncbi_style_tblastx_tab(parent):
     """Create TBLASTX tab with exact NCBI layout."""
-    return create_ncbi_style_blast_tab(parent, "tblastx", "Search translated nucleotide database using a translated nucleotide query", "nucleotide")
+    return create_ncbi_style_blast_tab(parent, "tblastx", "Translated BLAST: tblastx", "nucleotide")
 
 
 def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
@@ -82,29 +80,29 @@ def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
     """)
     main_layout.addWidget(title_label)
     
-    # Program description (for tblastn and tblastx)
-    if program_type == "tblastn":
-        desc_label = QLabel("TBLASTN search translated nucleotide databases using a protein query.")
-        desc_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: #666;
-                padding: 5px 0;
-                margin-bottom: 10px;
-            }
-        """)
-        main_layout.addWidget(desc_label)
+    # Program description for all programs
+    if program_type == "blastp":
+        desc_label = QLabel("BLASTP searches protein databases using a protein query.")
+    elif program_type == "blastn":
+        desc_label = QLabel("BLASTN searches nucleotide databases using a nucleotide query.")
+    elif program_type == "blastx":
+        desc_label = QLabel("BLASTX searches protein databases using a translated nucleotide query.")
+    elif program_type == "tblastn":
+        desc_label = QLabel("TBLASTN searches translated nucleotide databases using a protein query.")
     elif program_type == "tblastx":
-        desc_label = QLabel("TBLASTX search translated nucleotide databases using a translated nucleotide query.")
-        desc_label.setStyleSheet("""
-            QLabel {
-                font-size: 14px;
-                color: #666;
-                padding: 5px 0;
-                margin-bottom: 10px;
-            }
-        """)
-        main_layout.addWidget(desc_label)
+        desc_label = QLabel("TBLASTX searches translated nucleotide databases using a translated nucleotide query.")
+    else:
+        desc_label = QLabel(f"{program_type.upper()} sequence search.")
+    
+    desc_label.setStyleSheet("""
+        QLabel {
+            font-size: 14px;
+            color: #666;
+            padding: 5px 0;
+            margin-bottom: 10px;
+        }
+    """)
+    main_layout.addWidget(desc_label)
     
     # Create scroll area for the form
     scroll_area = QScrollArea()
@@ -750,7 +748,35 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
             ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
             ("refseq_representative_genomes", "RefSeq Reference genomes (refseq_reference_genomes)"),
             ("refseq_genomes", "RefSeq Genome Database (refseq_genomes)"),
-            ("nt", "Nucleotide collection ironmental samples (env_nt)")
+            ("nt", "Nucleotide collection (nr/nt)"),
+            ("Whole_Genome_Shotgun_contigs", "Whole-genome shotgun contigs (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("sra", "Sequence Read Archive (SRA)"),
+            ("tsa_nt", "Transcriptome Shotgun Assembly (TSA)"),
+            ("tls_nt", "Targeted Loci(TLS)"),
+            ("htgs", "High throughput genomic sequences (HTGS)"),
+            ("patnt", "Patent sequences(pat)"),
+            ("pdbnt", "PDB nucleotide database (pdb)"),
+            ("genomic/9606/RefSeqGene", "Human RefSeqGene sequences(RefSeq_Gene)"),
+            ("gss", "Genomic survey sequences (gss)"),
+            ("sts", "Sequence tagged sites (dbsts)"),
+            ("genomic/Viruses/Betacoronavirus", "Betacoronavirus Genbank")
+        ]
+    else:
+        # Nucleotide databases for other nucleotide searches
+        databases = [
+            ("nt", "Nucleotide collection (nt)"),
+            ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
+            ("refseq_genomic", "Reference genomic sequences (refseq_genomic)"),
+            ("chromosome", "Chromosome sequences (chromosome)"),
+            ("wgs", "Whole-genome shotgun reads (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("gss", "Genome survey sequences (gss)"),
+            ("htgs", "High throughput genomic sequences (htgs)"),
+            ("pat", "Patent sequences (pat)"),
+            ("pdb", "Protein Data Bank sequences (pdb)"),
+            ("month", "Month sequences (month)"),
+            ("env_nt", "Environmental samples (env_nt)")
         ]
     
     # Store all database options
@@ -1210,10 +1236,7 @@ def create_program_selection_section(parent, program_type):
     setattr(parent, f'{program_type}_summary_label', summary_label)
     summary_layout.addWidget(summary_label)
     
-    new_window_checkbox = QCheckBox("Show results in a new window")
-    new_window_checkbox.setStyleSheet("font-size: 12px; margin-top: 5px;")
-    setattr(parent, f'{program_type}_new_window', new_window_checkbox)
-    summary_layout.addWidget(new_window_checkbox)
+    # Removed "Show results in a new window" checkbox
     
     search_layout.addLayout(summary_layout)
     layout.addLayout(search_layout)
@@ -2019,3 +2042,254 @@ def open_ncbi_blast(parent, program_type):
         webbrowser.open_new_tab(ncbi_url)
     except Exception as e:
         QMessageBox.warning(parent, "Browser Error", f"Could not open browser: {str(e)}")
+
+
+# ============================================================================
+# BLASTN UNIFIED IMPLEMENTATION
+# ============================================================================
+
+def create_ncbi_style_blastn_tab_unified(parent):
+    """Create BLASTN tab with exact NCBI layout from blastn.html."""
+    
+    # Main widget
+    main_widget = QWidget()
+    main_layout = QVBoxLayout(main_widget)
+    main_layout.setContentsMargins(10, 10, 10, 10)
+    main_layout.setSpacing(0)
+    
+    # Initialize worker
+    setattr(parent, 'blastn_worker', None)
+    
+    # Page title
+    title_label = QLabel("Standard Nucleotide BLAST")
+    title_label.setStyleSheet("""
+        QLabel {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            padding: 10px 0;
+            border-bottom: 1px solid #ddd;
+            margin-bottom: 15px;
+        }
+    """)
+    main_layout.addWidget(title_label)
+    
+    # Program description
+    desc_label = QLabel("BLASTN searches nucleotide databases using a nucleotide query.")
+    desc_label.setStyleSheet("""
+        QLabel {
+            font-size: 14px;
+            color: #666;
+            padding: 5px 0;
+            margin-bottom: 10px;
+        }
+    """)
+    main_layout.addWidget(desc_label)
+    
+    # Create scroll area for the form
+    scroll_area = QScrollArea()
+    scroll_area.setWidgetResizable(True)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    
+    # Form widget
+    form_widget = QWidget()
+    form_layout = QVBoxLayout(form_widget)
+    form_layout.setContentsMargins(0, 0, 0, 0)
+    form_layout.setSpacing(20)
+    
+    # 1. Enter Query Sequence Section
+    query_section = create_blastn_query_section_unified(parent)
+    form_layout.addWidget(query_section)
+    
+    # 2. Choose Search Set Section  
+    search_set_section = create_search_set_section(parent, "blastn", "nucleotide")
+    form_layout.addWidget(search_set_section)
+    
+    # 3. Program Selection Section
+    program_section = create_program_selection_section(parent, "blastn")
+    form_layout.addWidget(program_section)
+    
+    # 4. Algorithm Parameters Section (collapsible)
+    params_section = create_algorithm_parameters_section(parent, "blastn")
+    form_layout.addWidget(params_section)
+    
+    # Add stretch
+    form_layout.addStretch()
+    
+    # Set form widget to scroll area
+    scroll_area.setWidget(form_widget)
+    main_layout.addWidget(scroll_area)
+    
+    # Results section
+    results_section = create_results_section(parent, "blastn")
+    main_layout.addWidget(results_section)
+    
+    return main_widget
+
+
+def create_blastn_query_section_unified(parent):
+    """Create the 'Enter Query Sequence' section exactly like NCBI BLASTN."""
+    
+    section = QFrame()
+    section.setFrameStyle(QFrame.Box)
+    section.setStyleSheet("""
+        QFrame {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fafafa;
+        }
+    """)
+    
+    layout = QVBoxLayout(section)
+    layout.setContentsMargins(15, 10, 15, 15)
+    
+    # Legend/Title
+    legend = QLabel("Enter Query Sequence")
+    legend.setStyleSheet("""
+        QLabel {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            background-color: #fafafa;
+            padding: 0 5px;
+            margin-bottom: 10px;
+        }
+    """)
+    layout.addWidget(legend)
+    
+    # Query input area
+    query_layout = QVBoxLayout()
+    
+    # Label with help link
+    label_layout = QHBoxLayout()
+    query_label = QLabel("Enter accession number(s), gi(s), or FASTA sequence(s)")
+    query_label.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+    label_layout.addWidget(query_label)
+    
+    help_button = QPushButton("?")
+    help_button.setFixedSize(20, 20)
+    help_button.setStyleSheet("""
+        QPushButton {
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #005a87;
+        }
+    """)
+    help_button.setToolTip("How to enter queries")
+    label_layout.addWidget(help_button)
+    
+    clear_button = QPushButton("Clear")
+    clear_button.setStyleSheet("""
+        QPushButton {
+            background: none;
+            border: none;
+            color: #007cba;
+            text-decoration: underline;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            color: #005a87;
+        }
+    """)
+    clear_button.clicked.connect(lambda: getattr(parent, 'blastn_query_input').clear())
+    label_layout.addWidget(clear_button)
+    label_layout.addStretch()
+    
+    query_layout.addLayout(label_layout)
+    
+    # Text area
+    query_input = QTextEdit()
+    query_input.setFixedHeight(120)
+    query_input.setStyleSheet("""
+        QTextEdit {
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 12px;
+            background-color: white;
+        }
+    """)
+    query_input.setPlaceholderText("Enter nucleotide sequence here...\n\nExample:\n>My_sequence\nATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG")
+    setattr(parent, 'blastn_query_input', query_input)
+    query_layout.addWidget(query_input)
+    
+    layout.addLayout(query_layout)
+    
+    # Query subrange
+    subrange_layout = QHBoxLayout()
+    subrange_label = QLabel("Query subrange")
+    subrange_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    subrange_layout.addWidget(subrange_label)
+    
+    from_label = QLabel("From")
+    from_input = QLineEdit()
+    from_input.setFixedWidth(80)
+    from_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, 'blastn_query_from', from_input)
+    
+    to_label = QLabel("To")
+    to_input = QLineEdit()
+    to_input.setFixedWidth(80)
+    to_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, 'blastn_query_to', to_input)
+    
+    subrange_layout.addWidget(from_label)
+    subrange_layout.addWidget(from_input)
+    subrange_layout.addWidget(to_label)
+    subrange_layout.addWidget(to_input)
+    subrange_layout.addStretch()
+    
+    layout.addLayout(subrange_layout)
+    
+    # File upload
+    upload_layout = QHBoxLayout()
+    upload_label = QLabel("Or, upload file")
+    upload_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    upload_layout.addWidget(upload_label)
+    
+    upload_button = QPushButton("Choose File")
+    upload_button.setStyleSheet("""
+        QPushButton {
+            background-color: #f8f9fa;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+        }
+    """)
+    upload_button.clicked.connect(lambda: open_blast_file(parent, "blastn"))
+    upload_layout.addWidget(upload_button)
+    
+    file_label = QLabel("No file selected")
+    file_label.setStyleSheet("color: #666; margin-left: 10px;")
+    setattr(parent, 'blastn_file_label', file_label)
+    upload_layout.addWidget(file_label)
+    upload_layout.addStretch()
+    
+    layout.addLayout(upload_layout)
+    
+    # Job Title
+    job_layout = QHBoxLayout()
+    job_label = QLabel("Job Title")
+    job_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    job_layout.addWidget(job_label)
+    
+    job_input = QLineEdit()
+    job_input.setFixedWidth(400)
+    job_input.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+    job_input.setPlaceholderText("Enter a descriptive title for your BLAST search")
+    setattr(parent, 'blastn_job_title', job_input)
+    job_layout.addWidget(job_input)
+    job_layout.addStretch()
+    
+    layout.addLayout(job_layout)
+    
+    return section

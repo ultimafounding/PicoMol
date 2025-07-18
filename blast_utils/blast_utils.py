@@ -802,7 +802,7 @@ def format_blast_output(result_data, program_type="blast"):
     
     # Import the enhanced parser
     try:
-        from blast_results_parser import enhanced_format_blast_output
+        from .blast_results_parser import enhanced_format_blast_output
         
         # Handle the new tuple format (format_type, content) or just content string
         if isinstance(result_data, tuple) and len(result_data) == 2:
