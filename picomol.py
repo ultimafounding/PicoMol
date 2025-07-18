@@ -11,11 +11,13 @@ import sys
 import warnings
 import webbrowser
 
+from blast_utils import create_blastp_tab
+
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
     QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
-    QTabWidget, QSizePolicy, QColorDialog
+    QTabWidget, QSizePolicy, QColorDialog, QFormLayout
 )
 
 
@@ -639,11 +641,15 @@ class ProteinViewerApp(QMainWindow):
         blastn_tab.setLayout(blastn_layout)
         blast_type_tabs.addTab(blastn_tab, "blastn")
         
-        blastp_tab = QWidget()
-        blastp_layout = QVBoxLayout(blastp_tab)
-        blastp_layout.addWidget(QLabel("BLASTP controls will go here"))
-        blastp_tab.setLayout(blastp_layout)
+        blastp_tab = create_blastp_tab(self)
         blast_type_tabs.addTab(blastp_tab, "blastp")
+
+        # Connect signals for BLASTP tab after it's created
+        self.blastp_db_standard.toggled.connect(self._update_blastp_db_visibility)
+        self.blastp_db_standard.toggled.connect(self._update_blastp_search_set_visibility)
+        self.blastp_db_clustered.toggled.connect(self._update_blastp_search_set_visibility)
+        self._update_blastp_db_visibility() # Set initial visibility
+        self._update_blastp_search_set_visibility() # Set initial visibility
         
         blastx_tab = QWidget()
         blastx_layout = QVBoxLayout(blastx_tab)
@@ -689,6 +695,144 @@ class ProteinViewerApp(QMainWindow):
         self._undo_stack = []
         self._redo_stack = []
         self.push_undo()
+
+    def _update_blastp_search_set_visibility(self):
+        # Organism and exclude options should always be visible
+        self.blastp_organism_input.setVisible(True)
+        self.blastp_organism_exclude_checkbox.setVisible(True)
+        self.blastp_exclude_models_checkbox.setVisible(True)
+        self.blastp_exclude_refseq_checkbox.setVisible(True)
+        self.blastp_exclude_uncultured_checkbox.setVisible(True)
+        
+        # The standard database combo box should only be visible for standard databases
+        self.blastp_standard_db_combo.setVisible(self.blastp_db_standard.isChecked())
+
+    def _update_blastp_db_visibility(self):
+        self.blastp_standard_db_combo.setVisible(self.blastp_db_standard.isChecked())
+
+    def open_blast_file(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self, "Open Sequence File", "", "FASTA Files (*.fasta *.fa);;All Files (*)"
+        )
+        if file_path:
+            self.blastp_file_label.setText(os.path.basename(file_path))
+            with open(file_path, 'r') as f:
+                self.blastp_query_input.setText(f.read())
+
+    def run_blastp(self):
+        query = self.blastp_query_input.toPlainText().strip()
+        if not query:
+            self.blastp_results_display.setText("Error: Query sequence is empty.")
+            return
+
+        # Create a temporary file for the query
+        import tempfile
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix=".fasta") as query_file:
+            query_file.write(query)
+            query_filepath = query_file.name
+
+        try:
+            # Get parameters from UI
+            max_targets = self.blastp_max_targets.currentText()
+            expect_threshold = self.blastp_expect_threshold.text()
+            word_size = self.blastp_word_size.currentText()
+            matrix = self.blastp_matrix.currentText()
+            gap_costs_str = self.blastp_gap_costs.currentText()
+            gap_open = gap_costs_str.split(" ")[1]
+            gap_extend = gap_costs_str.split(" ")[3]
+            max_matches = self.blastp_max_matches.text()
+
+            # Determine selected program
+            if self.blastp_program_quick.isChecked():
+                program = "blastp-fast"
+            elif self.blastp_program_blastp.isChecked():
+                program = "blastp"
+            elif self.blastp_program_psi.isChecked():
+                program = "psiblast"
+            elif self.blastp_program_phi.isChecked():
+                program = "phiblast"
+            elif self.blastp_program_delta.isChecked():
+                program = "deltablast"
+            else:
+                program = "blastp"
+
+            # Determine selected database
+            if self.blastp_db_standard.isChecked():
+                database = self.blastp_standard_db_combo.currentText().split("(")[-1].replace(")", "")
+            elif self.blastp_db_clustered.isChecked():
+                database = "clustered_nr"
+            else:
+                database = "nr"
+
+            # Construct the blastp command
+            command = [
+                program,
+                "-query", query_filepath,
+                "-remote",
+                "-db", database,
+                "-max_target_seqs", max_targets,
+                "-evalue", expect_threshold,
+                "-word_size", word_size,
+                "-matrix", matrix,
+                "-gapopen", gap_open,
+                "-gapextend", gap_extend,
+                "-outfmt", "7" # Tabular with comment lines
+            ]
+
+            # Add other options if needed
+            if self.blastp_short_queries.isChecked():
+                command.extend(["-task", "blastp-short"])
+            
+            if max_matches and int(max_matches) > 0:
+                command.extend(["-max_hsps", max_matches])
+
+            if self.blastp_low_complexity.isChecked():
+                command.extend(["-seg", "yes"])
+            
+            mask = self.blastp_mask.text().strip()
+            if mask:
+                command.extend(["-gilist", mask])
+
+            # Organism and exclude options
+            organism = self.blastp_organism_input.text().strip()
+            if organism:
+                if self.blastp_organism_exclude_checkbox.isChecked():
+                    command.extend(["-negative_gilist", organism])
+                else:
+                    command.extend(["-organism", organism])
+
+            if self.blastp_exclude_models_checkbox.isChecked():
+                command.extend(["-exclude", "models"])
+            if self.blastp_exclude_refseq_checkbox.isChecked():
+                command.extend(["-exclude", "refseq_proteins"])
+            if self.blastp_exclude_uncultured_checkbox.isChecked():
+                command.extend(["-exclude", "env_nr"])
+
+            # Run the command
+            self.statusBar().showMessage("Running BLASTP search...")
+            self.blastp_results_display.setText("Running BLASTP search...")
+            QApplication.processEvents() # Update the UI
+
+            process = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+            )
+
+            if process.returncode == 0:
+                self.blastp_results_display.setText(process.stdout)
+                self.statusBar().showMessage("BLASTP search finished.")
+            else:
+                error_message = f"BLASTP search failed with exit code {process.returncode}.\n\nStderr:\n{process.stderr}"
+                self.blastp_results_display.setText(error_message)
+                self.statusBar().showMessage("BLASTP search failed.")
+
+        except Exception as e:
+            self.blastp_results_display.setText(f"An error occurred: {e}")
+            self.statusBar().showMessage("An error occurred during BLASTP search.")
+        finally:
+            # Clean up the temporary file
+            os.remove(query_filepath)
 
     def reset_view_to_defaults(self):
         """Reset all visible viewer settings to their default values and update the viewer."""
