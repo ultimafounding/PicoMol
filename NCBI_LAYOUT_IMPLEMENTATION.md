@@ -2,7 +2,7 @@
 
 ## ✅ Successfully Implemented!
 
-I have created a completely new BLAST interface that **exactly matches the NCBI BLAST website layout** as requested. The new implementation recreates the authentic look and feel of the official NCBI interface.
+I have created a completely new BLAST interface that **exactly matches the NCBI BLAST website layout**. The new implementation recreates the authentic look and feel of the official NCBI interface.
 
 ## 🎯 What Was Created
 

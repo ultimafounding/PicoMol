@@ -31,6 +31,33 @@ from blast_utils import OnlineBlastWorker, validate_sequence, clean_fasta_sequen
 
 def create_ncbi_style_blastp_tab(parent):
     """Create BLASTP tab with exact NCBI layout."""
+    return create_ncbi_style_blast_tab(parent, "blastp", "Standard Protein BLAST", "protein")
+
+
+def create_ncbi_style_blastn_tab(parent):
+    """Create BLASTN tab with exact NCBI layout."""
+    # Import the fixed BLASTN implementation
+    from blast_utils_ncbi_blastn_fixed import create_ncbi_style_blastn_tab_fixed
+    return create_ncbi_style_blastn_tab_fixed(parent)
+
+
+def create_ncbi_style_blastx_tab(parent):
+    """Create BLASTX tab with exact NCBI layout."""
+    return create_ncbi_style_blast_tab(parent, "blastx", "Translated BLAST: blastx", "nucleotide")
+
+
+def create_ncbi_style_tblastn_tab(parent):
+    """Create TBLASTN tab with exact NCBI layout."""
+    return create_ncbi_style_blast_tab(parent, "tblastn", "Search translated nucleotide database using a protein query", "protein")
+
+
+def create_ncbi_style_tblastx_tab(parent):
+    """Create TBLASTX tab with exact NCBI layout."""
+    return create_ncbi_style_blast_tab(parent, "tblastx", "Search translated nucleotide database using a translated nucleotide query", "nucleotide")
+
+
+def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
+    """Create a BLAST tab with exact NCBI layout for any program type."""
     
     # Main widget
     main_widget = QWidget()
@@ -39,10 +66,10 @@ def create_ncbi_style_blastp_tab(parent):
     main_layout.setSpacing(0)
     
     # Initialize worker
-    parent.blastp_worker = None
+    setattr(parent, f'{program_type}_worker', None)
     
     # Page title
-    title_label = QLabel("Standard Protein BLAST")
+    title_label = QLabel(title)
     title_label.setStyleSheet("""
         QLabel {
             font-size: 18px;
@@ -68,19 +95,25 @@ def create_ncbi_style_blastp_tab(parent):
     form_layout.setSpacing(20)
     
     # 1. Enter Query Sequence Section
-    query_section = create_query_section(parent, "blastp")
+    query_section = create_query_section(parent, program_type, sequence_type)
     form_layout.addWidget(query_section)
     
-    # 2. Choose Search Set Section  
-    search_set_section = create_search_set_section(parent, "blastp")
+    # 2. Subject Sequence Section (for BL2SEQ mode - initially hidden)
+    subject_section = create_subject_sequence_section(parent, program_type, sequence_type)
+    subject_section.setVisible(False)  # Initially hidden
+    setattr(parent, f'{program_type}_subject_section', subject_section)
+    form_layout.addWidget(subject_section)
+    
+    # 3. Choose Search Set Section  
+    search_set_section = create_search_set_section(parent, program_type, sequence_type)
     form_layout.addWidget(search_set_section)
     
-    # 3. Program Selection Section
-    program_section = create_program_selection_section(parent, "blastp")
+    # 4. Program Selection Section
+    program_section = create_program_selection_section(parent, program_type)
     form_layout.addWidget(program_section)
     
-    # 4. Algorithm Parameters Section (collapsible)
-    params_section = create_algorithm_parameters_section(parent, "blastp")
+    # 5. Algorithm Parameters Section (collapsible)
+    params_section = create_algorithm_parameters_section(parent, program_type)
     form_layout.addWidget(params_section)
     
     # Add stretch
@@ -91,13 +124,13 @@ def create_ncbi_style_blastp_tab(parent):
     main_layout.addWidget(scroll_area)
     
     # Results section
-    results_section = create_results_section(parent, "blastp")
+    results_section = create_results_section(parent, program_type)
     main_layout.addWidget(results_section)
     
     return main_widget
 
 
-def create_query_section(parent, program_type):
+def create_query_section(parent, program_type, sequence_type="protein"):
     """Create the 'Enter Query Sequence' section exactly like NCBI."""
     
     section = QFrame()
@@ -184,7 +217,13 @@ def create_query_section(parent, program_type):
             background-color: white;
         }
     """)
-    query_input.setPlaceholderText("Enter protein sequence here...")
+    placeholder_text = f"Enter {sequence_type} sequence here..."
+    if sequence_type == "nucleotide":
+        placeholder_text += "\n\nExample:\n>My_sequence\nATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG"
+    else:
+        placeholder_text += "\n\nExample:\n>My_protein\nMKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG"
+    
+    query_input.setPlaceholderText(placeholder_text)
     setattr(parent, f'{program_type}_query_input', query_input)
     query_layout.addWidget(query_input)
     
@@ -261,10 +300,190 @@ def create_query_section(parent, program_type):
     
     layout.addLayout(job_layout)
     
+    # BL2SEQ (Align two sequences) option
+    bl2seq_layout = QHBoxLayout()
+    bl2seq_checkbox = QCheckBox("Align two or more sequences")
+    bl2seq_checkbox.setStyleSheet("font-weight: normal; margin: 10px 0;")
+    bl2seq_checkbox.setToolTip("Enable pairwise sequence alignment mode")
+    setattr(parent, f'{program_type}_bl2seq', bl2seq_checkbox)
+    
+    # Connect checkbox to show/hide subject sequence section
+    def toggle_subject_section():
+        """Show/hide subject sequence section based on BL2SEQ checkbox."""
+        subject_section = getattr(parent, f'{program_type}_subject_section', None)
+        if subject_section:
+            subject_section.setVisible(bl2seq_checkbox.isChecked())
+    
+    bl2seq_checkbox.toggled.connect(toggle_subject_section)
+    setattr(parent, f'{program_type}_toggle_subject_section', toggle_subject_section)
+    
+    bl2seq_layout.addWidget(bl2seq_checkbox)
+    bl2seq_layout.addStretch()
+    
+    layout.addLayout(bl2seq_layout)
+    
     return section
 
 
-def create_search_set_section(parent, program_type):
+def create_subject_sequence_section(parent, program_type, sequence_type="protein"):
+    """Create the 'Enter Subject Sequence' section for BL2SEQ mode."""
+    
+    section = QFrame()
+    section.setFrameStyle(QFrame.Box)
+    section.setStyleSheet("""
+        QFrame {
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #fff3cd;
+        }
+    """)
+    
+    layout = QVBoxLayout(section)
+    layout.setContentsMargins(15, 10, 15, 15)
+    
+    # Legend/Title
+    legend = QLabel("Enter Subject Sequence (BL2SEQ Mode)")
+    legend.setStyleSheet("""
+        QLabel {
+            font-weight: bold;
+            font-size: 14px;
+            color: #333;
+            background-color: #fff3cd;
+            padding: 0 5px;
+            margin-bottom: 10px;
+        }
+    """)
+    layout.addWidget(legend)
+    
+    # Subject input area
+    subject_layout = QVBoxLayout()
+    
+    # Label with help link
+    label_layout = QHBoxLayout()
+    subject_label = QLabel("Enter accession number(s), gi(s), or FASTA sequence(s)")
+    subject_label.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+    label_layout.addWidget(subject_label)
+    
+    help_button = QPushButton("?")
+    help_button.setFixedSize(20, 20)
+    help_button.setStyleSheet("""
+        QPushButton {
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #005a87;
+        }
+    """)
+    help_button.setToolTip("How to enter subject sequences")
+    label_layout.addWidget(help_button)
+    
+    clear_button = QPushButton("Clear")
+    clear_button.setStyleSheet("""
+        QPushButton {
+            background: none;
+            border: none;
+            color: #007cba;
+            text-decoration: underline;
+            font-size: 12px;
+        }
+        QPushButton:hover {
+            color: #005a87;
+        }
+    """)
+    clear_button.clicked.connect(lambda: getattr(parent, f'{program_type}_subject_input').clear())
+    label_layout.addWidget(clear_button)
+    label_layout.addStretch()
+    
+    subject_layout.addLayout(label_layout)
+    
+    # Text area
+    subject_input = QTextEdit()
+    subject_input.setFixedHeight(120)
+    subject_input.setStyleSheet("""
+        QTextEdit {
+            border: 1px solid #ccc;
+            font-family: monospace;
+            font-size: 12px;
+            background-color: white;
+        }
+    """)
+    
+    # Set appropriate placeholder based on sequence type
+    if sequence_type == "nucleotide" or program_type in ["blastn", "blastx", "tblastx"]:
+        placeholder_text = "Enter nucleotide subject sequence here...\n\nExample:\n>Subject_sequence\nATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCGATCG"
+    else:
+        placeholder_text = "Enter protein subject sequence here...\n\nExample:\n>Subject_protein\nMKTVRQERLKSIVRILERSKEPVSGAQLAEELSVSRQVIVQDIAYLRSLGYNIVATPRGYVLAGG"
+    
+    subject_input.setPlaceholderText(placeholder_text)
+    setattr(parent, f'{program_type}_subject_input', subject_input)
+    subject_layout.addWidget(subject_input)
+    
+    layout.addLayout(subject_layout)
+    
+    # Subject subrange
+    subrange_layout = QHBoxLayout()
+    subrange_label = QLabel("Subject subrange")
+    subrange_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    subrange_layout.addWidget(subrange_label)
+    
+    from_label = QLabel("From")
+    from_input = QLineEdit()
+    from_input.setFixedWidth(80)
+    from_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, f'{program_type}_subject_from', from_input)
+    
+    to_label = QLabel("To")
+    to_input = QLineEdit()
+    to_input.setFixedWidth(80)
+    to_input.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+    setattr(parent, f'{program_type}_subject_to', to_input)
+    
+    subrange_layout.addWidget(from_label)
+    subrange_layout.addWidget(from_input)
+    subrange_layout.addWidget(to_label)
+    subrange_layout.addWidget(to_input)
+    subrange_layout.addStretch()
+    
+    layout.addLayout(subrange_layout)
+    
+    # File upload
+    upload_layout = QHBoxLayout()
+    upload_label = QLabel("Or, upload file")
+    upload_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    upload_layout.addWidget(upload_label)
+    
+    upload_button = QPushButton("Choose File")
+    upload_button.setStyleSheet("""
+        QPushButton {
+            background-color: #f8f9fa;
+            border: 1px solid #ccc;
+            padding: 4px 8px;
+            border-radius: 3px;
+        }
+        QPushButton:hover {
+            background-color: #e9ecef;
+        }
+    """)
+    upload_button.clicked.connect(lambda: open_subject_file(parent, program_type))
+    upload_layout.addWidget(upload_button)
+    
+    file_label = QLabel("No file selected")
+    file_label.setStyleSheet("color: #666; margin-left: 10px;")
+    setattr(parent, f'{program_type}_subject_file_label', file_label)
+    upload_layout.addWidget(file_label)
+    upload_layout.addStretch()
+    
+    layout.addLayout(upload_layout)
+    
+    return section
+
+
+def create_search_set_section(parent, program_type, sequence_type="protein"):
     """Create the 'Choose Search Set' section exactly like NCBI."""
     
     section = QFrame()
@@ -304,33 +523,34 @@ def create_search_set_section(parent, program_type):
     setattr(parent, f'{program_type}_standard_radio', standard_radio)
     db_group_layout.addWidget(standard_radio)
     
-    # ClusteredNR radio button with recommendation badge
-    clustered_layout = QHBoxLayout()
-    clustered_radio = QRadioButton("ClusteredNR database")
-    clustered_radio.setStyleSheet("font-weight: normal;")
-    setattr(parent, f'{program_type}_clustered_radio', clustered_radio)
-    clustered_layout.addWidget(clustered_radio)
-    
-    recommended_badge = QLabel("Recommended")
-    recommended_badge.setStyleSheet("""
-        QLabel {
-            background-color: #28a745;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 11px;
-            font-weight: bold;
-            margin-left: 5px;
-        }
-    """)
-    clustered_layout.addWidget(recommended_badge)
-    
-    learn_more = QLabel('<a href="#" style="color: #007cba;">Learn more...</a>')
-    learn_more.setOpenExternalLinks(False)
-    clustered_layout.addWidget(learn_more)
-    clustered_layout.addStretch()
-    
-    db_group_layout.addLayout(clustered_layout)
+    # ClusteredNR radio button with recommendation badge (only for protein searches)
+    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
+        clustered_layout = QHBoxLayout()
+        clustered_radio = QRadioButton("ClusteredNR database")
+        clustered_radio.setStyleSheet("font-weight: normal;")
+        setattr(parent, f'{program_type}_clustered_radio', clustered_radio)
+        clustered_layout.addWidget(clustered_radio)
+        
+        recommended_badge = QLabel("Recommended")
+        recommended_badge.setStyleSheet("""
+            QLabel {
+                background-color: #28a745;
+                color: white;
+                padding: 2px 6px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: bold;
+                margin-left: 5px;
+            }
+        """)
+        clustered_layout.addWidget(recommended_badge)
+        
+        learn_more = QLabel('<a href="#" style="color: #007cba;">Learn more...</a>')
+        learn_more.setOpenExternalLinks(False)
+        clustered_layout.addWidget(learn_more)
+        clustered_layout.addStretch()
+        
+        db_group_layout.addLayout(clustered_layout)
     
     layout.addLayout(db_group_layout)
     
@@ -357,24 +577,83 @@ def create_search_set_section(parent, program_type):
         }
     """)
     
-    # Add protein databases
-    protein_databases = [
-        ("nr", "Non-redundant protein sequences (nr)"),
-        ("refseq_select_prot", "RefSeq Select proteins (refseq_select)"),
-        ("refseq_protein", "Reference proteins (refseq_protein)"),
-        ("SMARTBLAST/landmark", "Model Organisms (landmark)"),
-        ("swissprot", "UniProtKB/Swiss-Prot(swissprot)"),
-        ("pataa", "Patented protein sequences(pataa)"),
-        ("pdb", "Protein Data Bank proteins(pdb)"),
-        ("env_nr", "Metagenomic proteins(env_nr)"),
-        ("tsa_nr", "Transcriptome Shotgun Assembly proteins (tsa_nr)"),
-        ("nr_cluster_seq", "ClusteredNR (nr_cluster_seq)")
-    ]
+    # Add databases based on program type
+    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
+        # Protein databases for protein searches or protein targets
+        databases = [
+            ("nr", "Non-redundant protein sequences (nr)"),
+            ("refseq_select_prot", "RefSeq Select proteins (refseq_select)"),
+            ("refseq_protein", "Reference proteins (refseq_protein)"),
+            ("SMARTBLAST/landmark", "Model Organisms (landmark)"),
+            ("swissprot", "UniProtKB/Swiss-Prot(swissprot)"),
+            ("pataa", "Patented protein sequences(pataa)"),
+            ("pdb", "Protein Data Bank proteins(pdb)"),
+            ("env_nr", "Metagenomic proteins(env_nr)"),
+            ("tsa_nr", "Transcriptome Shotgun Assembly proteins (tsa_nr)"),
+            ("nr_cluster_seq", "ClusteredNR (nr_cluster_seq)")
+        ]
+    else:
+        # Nucleotide databases for nucleotide searches
+        databases = [
+            ("nt", "Nucleotide collection (nt)"),
+            ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
+            ("refseq_genomic", "Reference genomic sequences (refseq_genomic)"),
+            ("chromosome", "Chromosome sequences (chromosome)"),
+            ("wgs", "Whole-genome shotgun reads (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("gss", "Genome survey sequences (gss)"),
+            ("htgs", "High throughput genomic sequences (htgs)"),
+            ("pat", "Patent sequences (pat)"),
+            ("pdb", "Protein Data Bank sequences (pdb)"),
+            ("month", "Month sequences (month)"),
+            ("env_nt", "Environmental samples (env_nt)")
+        ]
     
-    for db_id, db_name in protein_databases:
+    # Store all database options
+    all_databases = {
+        'standard': databases,
+        'clustered': [("nr_cluster_seq", "ClusteredNR (nr_cluster_seq)")],
+        'nucleotide': [
+            ("nt", "Nucleotide collection (nt)"),
+            ("refseq_rna", "Reference RNA sequences (refseq_rna)"),
+            ("refseq_genomic", "Reference genomic sequences (refseq_genomic)"),
+            ("chromosome", "Chromosome sequences (chromosome)"),
+            ("wgs", "Whole-genome shotgun reads (wgs)"),
+            ("est", "Expressed sequence tags (est)"),
+            ("gss", "Genome survey sequences (gss)"),
+            ("htgs", "High throughput genomic sequences (htgs)"),
+            ("pat", "Patent sequences (pat)"),
+            ("pdb", "Protein Data Bank sequences (pdb)"),
+            ("month", "Month sequences (month)"),
+            ("env_nt", "Environmental samples (env_nt)")
+        ]
+    }
+    
+    # Function to update database list based on radio selection
+    def update_database_list():
+        """Update database dropdown based on selected radio button."""
+        database_combo.clear()
+        
+        if hasattr(parent, f'{program_type}_clustered_radio') and getattr(parent, f'{program_type}_clustered_radio').isChecked():
+            # ClusteredNR selected
+            for db_id, db_name in all_databases['clustered']:
+                database_combo.addItem(db_name, db_id)
+        else:
+            # Standard databases selected
+            for db_id, db_name in all_databases['standard']:
+                database_combo.addItem(db_name, db_id)
+    
+    # Initial population
+    for db_id, db_name in databases:
         database_combo.addItem(db_name, db_id)
     
+    # Connect radio buttons to update function
+    standard_radio.toggled.connect(update_database_list)
+    if hasattr(parent, f'{program_type}_clustered_radio'):
+        getattr(parent, f'{program_type}_clustered_radio').toggled.connect(update_database_list)
+    
     setattr(parent, f'{program_type}_database_combo', database_combo)
+    setattr(parent, f'{program_type}_update_database_list', update_database_list)
     db_layout.addWidget(database_combo)
     
     help_db = QPushButton("?")
@@ -430,10 +709,12 @@ def create_search_set_section(parent, program_type):
     setattr(parent, f'{program_type}_exclude_models', exclude_models)
     exclude_layout.addWidget(exclude_models)
     
-    wp_proteins = QCheckBox("Non-redundant RefSeq proteins (WP)")
-    wp_proteins.setStyleSheet("margin-left: 20px;")
-    setattr(parent, f'{program_type}_wp_proteins', wp_proteins)
-    exclude_layout.addWidget(wp_proteins)
+    # WP proteins checkbox (only for protein searches)
+    if sequence_type == "protein" or program_type in ["blastp", "blastx", "tblastn"]:
+        wp_proteins = QCheckBox("Non-redundant RefSeq proteins (WP)")
+        wp_proteins.setStyleSheet("margin-left: 20px;")
+        setattr(parent, f'{program_type}_wp_proteins', wp_proteins)
+        exclude_layout.addWidget(wp_proteins)
     
     exclude_uncult = QCheckBox("Uncultured/environmental sample sequences")
     exclude_uncult.setStyleSheet("margin-left: 20px;")
@@ -441,6 +722,98 @@ def create_search_set_section(parent, program_type):
     exclude_layout.addWidget(exclude_uncult)
     
     layout.addLayout(exclude_layout)
+    
+    # Genetic Code (for translated searches - show directly in search set section)
+    if program_type in ["blastx", "tblastn", "tblastx"]:
+        genetic_layout = QHBoxLayout()
+        genetic_label = QLabel("Genetic Code")
+        genetic_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+        genetic_layout.addWidget(genetic_label)
+        
+        genetic_combo = QComboBox()
+        genetic_combo.setFixedWidth(250)
+        genetic_codes = [
+            ("1", "Standard (1)"),
+            ("2", "Vertebrate Mitochondrial (2)"),
+            ("3", "Yeast Mitochondrial (3)"),
+            ("4", "Mold Mitochondrial; ... (4)"),
+            ("5", "Invertebrate Mitochondrial (5)"),
+            ("6", "Ciliate Nuclear; ... (6)"),
+            ("9", "Echinoderm Mitochondrial (9)"),
+            ("10", "Euplotid Nuclear (10)"),
+            ("11", "Bacteria and Archaea (11)"),
+            ("12", "Alternative Yeast Nuclear (12)")
+        ]
+        for code, desc in genetic_codes:
+            genetic_combo.addItem(desc, code)
+        genetic_combo.setCurrentText("Standard (1)")
+        genetic_combo.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+        setattr(parent, f'{program_type}_genetic_code', genetic_combo)
+        genetic_layout.addWidget(genetic_combo)
+        
+        genetic_help = QPushButton("?")
+        genetic_help.setFixedSize(20, 20)
+        genetic_help.setStyleSheet("""
+            QPushButton {
+                background-color: #007cba;
+                color: white;
+                border: none;
+                border-radius: 10px;
+                font-size: 12px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #005a87;
+            }
+        """)
+        genetic_help.setToolTip("Genetic code help")
+        genetic_layout.addWidget(genetic_help)
+        genetic_layout.addStretch()
+        
+        layout.addLayout(genetic_layout)
+    
+    # Entrez Query
+    entrez_layout = QVBoxLayout()
+    entrez_label = QLabel("Entrez Query")
+    entrez_label.setStyleSheet("font-weight: normal; margin-bottom: 5px;")
+    entrez_layout.addWidget(entrez_label)
+    
+    entrez_input = QLineEdit()
+    entrez_input.setFixedWidth(400)
+    entrez_input.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
+    entrez_input.setPlaceholderText("Enter an Entrez query to limit search (optional)")
+    entrez_input.setToolTip("Use Entrez query syntax to search a subset of the selected database")
+    setattr(parent, f'{program_type}_entrez_query', entrez_input)
+    
+    entrez_help_layout = QHBoxLayout()
+    entrez_help_layout.addWidget(entrez_input)
+    
+    entrez_help = QPushButton("?")
+    entrez_help.setFixedSize(20, 20)
+    entrez_help.setStyleSheet("""
+        QPushButton {
+            background-color: #007cba;
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        QPushButton:hover {
+            background-color: #005a87;
+        }
+    """)
+    entrez_help.setToolTip("Entrez query help")
+    entrez_help_layout.addWidget(entrez_help)
+    entrez_help_layout.addStretch()
+    
+    entrez_layout.addLayout(entrez_help_layout)
+    
+    entrez_help_text = QLabel("Enter an Entrez query to limit search to a subset of the database")
+    entrez_help_text.setStyleSheet("color: #666; font-size: 11px; margin-top: 5px;")
+    entrez_layout.addWidget(entrez_help_text)
+    
+    layout.addLayout(entrez_layout)
     
     return section
 
@@ -484,18 +857,46 @@ def create_program_selection_section(parent, program_type):
     algo_group = QButtonGroup()
     algo_layout = QVBoxLayout()
     
-    algorithms = [
-        ("kmerBlastp", "Quick BLASTP (Accelerated protein-protein BLAST)"),
-        ("blastp", "blastp (protein-protein BLAST)"),
-        ("psiBlast", "PSI-BLAST (Position-Specific Iterated BLAST)"),
-        ("phiBlast", "PHI-BLAST (Pattern Hit Initiated BLAST)"),
-        ("deltaBlast", "DELTA-BLAST (Domain Enhanced Lookup Time Accelerated BLAST)")
-    ]
+    # Algorithm options based on program type
+    if program_type == "blastp":
+        algorithms = [
+            ("kmerBlastp", "Quick BLASTP (Accelerated protein-protein BLAST)"),
+            ("blastp", "blastp (protein-protein BLAST)"),
+            ("psiBlast", "PSI-BLAST (Position-Specific Iterated BLAST)"),
+            ("phiBlast", "PHI-BLAST (Pattern Hit Initiated BLAST)"),
+            ("deltaBlast", "DELTA-BLAST (Domain Enhanced Lookup Time Accelerated BLAST)")
+        ]
+        default_algo = "blastp"
+    elif program_type == "blastn":
+        algorithms = [
+            ("megaBlast", "Highly similar sequences (megablast)"),
+            ("discoMegablast", "More dissimilar sequences (discontiguous megablast)"),
+            ("blastn", "Somewhat similar sequences (blastn)")
+        ]
+        default_algo = "megaBlast"
+    elif program_type == "blastx":
+        algorithms = [
+            ("blastx", "blastx (translated nucleotide vs protein database)")
+        ]
+        default_algo = "blastx"
+    elif program_type == "tblastn":
+        algorithms = [
+            ("tblastn", "tblastn (protein vs translated nucleotide database)")
+        ]
+        default_algo = "tblastn"
+    elif program_type == "tblastx":
+        algorithms = [
+            ("tblastx", "tblastx (translated nucleotide vs translated nucleotide)")
+        ]
+        default_algo = "tblastx"
+    else:
+        algorithms = [(program_type, f"{program_type} search")]
+        default_algo = program_type
     
     for i, (algo_id, algo_desc) in enumerate(algorithms):
         radio = QRadioButton(algo_desc)
         radio.setStyleSheet("margin-bottom: 5px;")
-        if algo_id == "blastp":
+        if algo_id == default_algo:
             radio.setChecked(True)
         algo_group.addButton(radio, i)
         setattr(parent, f'{program_type}_{algo_id}_radio', radio)
@@ -508,6 +909,7 @@ def create_program_selection_section(parent, program_type):
     phi_layout = QHBoxLayout()
     phi_label = QLabel("Enter a PHI pattern")
     phi_label.setStyleSheet("font-weight: normal; margin-right: 10px;")
+    phi_label.setVisible(False)
     phi_layout.addWidget(phi_label)
     
     phi_input = QLineEdit()
@@ -515,10 +917,62 @@ def create_program_selection_section(parent, program_type):
     phi_input.setStyleSheet("border: 1px solid #ccc; padding: 4px;")
     phi_input.setVisible(False)
     setattr(parent, f'{program_type}_phi_pattern', phi_input)
+    setattr(parent, f'{program_type}_phi_label', phi_label)
     phi_layout.addWidget(phi_input)
     phi_layout.addStretch()
     
     layout.addLayout(phi_layout)
+    
+    # Connect algorithm radio buttons to update UI
+    def update_algorithm_ui():
+        """Update UI elements based on selected algorithm."""
+        checked_button = algo_group.checkedButton()
+        if checked_button:
+            button_text = checked_button.text()
+            
+            # Show/hide PHI pattern input
+            phi_visible = "PHI-BLAST" in button_text
+            phi_input.setVisible(phi_visible)
+            phi_label.setVisible(phi_visible)
+            
+            # Update summary text
+            summary_label = getattr(parent, f'{program_type}_summary_label')
+            if "Quick BLASTP" in button_text:
+                summary_text = f"Search nr using Quick BLASTP (Accelerated protein-protein BLAST)"
+            elif "PSI-BLAST" in button_text:
+                summary_text = f"Search nr using PSI-BLAST (Position-Specific Iterated BLAST)"
+            elif "PHI-BLAST" in button_text:
+                summary_text = f"Search nr using PHI-BLAST (Pattern Hit Initiated BLAST)"
+            elif "DELTA-BLAST" in button_text:
+                summary_text = f"Search nr using DELTA-BLAST (Domain Enhanced Lookup Time Accelerated BLAST)"
+            elif "megablast" in button_text.lower():
+                if "discontiguous" in button_text.lower():
+                    summary_text = f"Search nt using Discontiguous Megablast (More dissimilar sequences)"
+                else:
+                    summary_text = f"Search nt using Megablast (Optimize for highly similar sequences)"
+            elif "blastn" in button_text.lower() and program_type == "blastn":
+                summary_text = f"Search nt using Blastn (Somewhat similar sequences)"
+            elif program_type == "blastp":
+                summary_text = f"Search nr using Blastp (protein-protein BLAST)"
+            elif program_type == "blastn":
+                summary_text = f"Search nt using Blastn (nucleotide-nucleotide BLAST)"
+            elif program_type == "blastx":
+                summary_text = f"Search nr using Blastx (translated nucleotide vs protein)"
+            elif program_type == "tblastn":
+                summary_text = f"Search nt using Tblastn (protein vs translated nucleotide)"
+            elif program_type == "tblastx":
+                summary_text = f"Search nt using Tblastx (translated nucleotide vs translated nucleotide)"
+            else:
+                summary_text = f"Search using {program_type.upper()}"
+            
+            summary_label.setText(summary_text)
+    
+    # Connect all radio buttons to the update function
+    for button in algo_group.buttons():
+        button.toggled.connect(update_algorithm_ui)
+    
+    # Store the update function for external access
+    setattr(parent, f'{program_type}_update_algorithm_ui', update_algorithm_ui)
     
     # Search button and summary
     search_layout = QVBoxLayout()
@@ -580,7 +1034,21 @@ def create_program_selection_section(parent, program_type):
     
     # Search summary
     summary_layout = QVBoxLayout()
-    summary_label = QLabel("Search nr using Blastp (protein-protein BLAST)")
+    # Create summary based on program type
+    if program_type == "blastp":
+        summary_text = "Search nr using Blastp (protein-protein BLAST)"
+    elif program_type == "blastn":
+        summary_text = "Search nt using Blastn (nucleotide-nucleotide BLAST)"
+    elif program_type == "blastx":
+        summary_text = "Search nr using Blastx (translated nucleotide vs protein)"
+    elif program_type == "tblastn":
+        summary_text = "Search nt using Tblastn (protein vs translated nucleotide)"
+    elif program_type == "tblastx":
+        summary_text = "Search nt using Tblastx (translated nucleotide vs translated nucleotide)"
+    else:
+        summary_text = f"Search using {program_type.upper()}"
+    
+    summary_label = QLabel(summary_text)
     summary_label.setStyleSheet("color: #666; font-size: 12px; margin-top: 10px;")
     setattr(parent, f'{program_type}_summary_label', summary_label)
     summary_layout.addWidget(summary_label)
@@ -638,8 +1106,9 @@ def create_algorithm_parameters_section(parent, program_type):
     
     def toggle_params():
         visible = params_content.isVisible()
-        params_content.setVisible(not visible)
-        toggle_button.setText("▲ Algorithm parameters" if not visible else "▼ Algorithm parameters")
+        new_visible = not visible
+        params_content.setVisible(new_visible)
+        toggle_button.setText("▲ Algorithm parameters" if new_visible else "▼ Algorithm parameters")
     
     toggle_button.clicked.connect(toggle_params)
     setattr(parent, f'{program_type}_toggle_params', toggle_button)
@@ -752,7 +1221,7 @@ def create_general_parameters_group(parent, program_type):
     
     layout.addLayout(expect_layout)
     
-    # Word size
+    # Word size (program-specific options)
     word_layout = QHBoxLayout()
     word_label = QLabel("Word size")
     word_label.setFixedWidth(150)
@@ -760,8 +1229,26 @@ def create_general_parameters_group(parent, program_type):
     
     word_combo = QComboBox()
     word_combo.setFixedWidth(100)
-    word_combo.addItems(["2", "3", "5", "6"])
-    word_combo.setCurrentText("3")
+    
+    # Set word size options based on program type
+    if program_type == "blastp":
+        word_options = ["2", "3", "5", "6"]
+        default_word = "3"
+    elif program_type == "blastn":
+        word_options = ["7", "11", "15", "20", "24", "28"]
+        default_word = "11"
+    elif program_type in ["blastx", "tblastn"]:
+        word_options = ["2", "3", "6"]
+        default_word = "3"
+    elif program_type == "tblastx":
+        word_options = ["2", "3"]
+        default_word = "3"
+    else:
+        word_options = ["3"]
+        default_word = "3"
+    
+    word_combo.addItems(word_options)
+    word_combo.setCurrentText(default_word)
     word_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
     setattr(parent, f'{program_type}_word_size', word_combo)
     word_layout.addWidget(word_combo)
@@ -809,23 +1296,43 @@ def create_scoring_parameters_group(parent, program_type):
     title.setStyleSheet("font-weight: bold; font-size: 13px; margin-bottom: 10px;")
     layout.addWidget(title)
     
-    # Matrix
-    matrix_layout = QHBoxLayout()
-    matrix_label = QLabel("Matrix")
-    matrix_label.setFixedWidth(150)
-    matrix_layout.addWidget(matrix_label)
+    # Matrix (only for protein-based searches)
+    if program_type in ["blastp", "blastx", "tblastn"]:
+        matrix_layout = QHBoxLayout()
+        matrix_label = QLabel("Matrix")
+        matrix_label.setFixedWidth(150)
+        matrix_layout.addWidget(matrix_label)
+        
+        matrix_combo = QComboBox()
+        matrix_combo.setFixedWidth(120)
+        matrices = ["PAM30", "PAM70", "BLOSUM90", "BLOSUM80", "BLOSUM62", "BLOSUM50", "BLOSUM45", "PAM250"]
+        matrix_combo.addItems(matrices)
+        matrix_combo.setCurrentText("BLOSUM62")
+        matrix_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+        setattr(parent, f'{program_type}_matrix', matrix_combo)
+        matrix_layout.addWidget(matrix_combo)
+        matrix_layout.addStretch()
+        
+        layout.addLayout(matrix_layout)
     
-    matrix_combo = QComboBox()
-    matrix_combo.setFixedWidth(120)
-    matrices = ["PAM30", "PAM70", "BLOSUM90", "BLOSUM80", "BLOSUM62", "BLOSUM50", "BLOSUM45", "PAM250"]
-    matrix_combo.addItems(matrices)
-    matrix_combo.setCurrentText("BLOSUM62")
-    matrix_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
-    setattr(parent, f'{program_type}_matrix', matrix_combo)
-    matrix_layout.addWidget(matrix_combo)
-    matrix_layout.addStretch()
-    
-    layout.addLayout(matrix_layout)
+    # Match/Mismatch scores (for nucleotide searches)
+    if program_type in ["blastn", "tblastx"]:
+        match_layout = QHBoxLayout()
+        match_label = QLabel("Match/Mismatch Scores")
+        match_label.setFixedWidth(150)
+        match_layout.addWidget(match_label)
+        
+        match_combo = QComboBox()
+        match_combo.setFixedWidth(120)
+        match_scores = ["1,-2", "1,-3", "1,-4", "2,-3", "4,-5", "1,-1"]
+        match_combo.addItems([f"{score} (Match,Mismatch)" for score in match_scores])
+        match_combo.setCurrentText("2,-3 (Match,Mismatch)")
+        match_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+        setattr(parent, f'{program_type}_match_scores', match_combo)
+        match_layout.addWidget(match_combo)
+        match_layout.addStretch()
+        
+        layout.addLayout(match_layout)
     
     # Gap costs
     gap_layout = QHBoxLayout()
@@ -857,28 +1364,31 @@ def create_scoring_parameters_group(parent, program_type):
     
     layout.addLayout(gap_layout)
     
-    # Compositional adjustments
-    comp_layout = QHBoxLayout()
-    comp_label = QLabel("Compositional adjustments")
-    comp_label.setFixedWidth(150)
-    comp_layout.addWidget(comp_label)
+    # Compositional adjustments (only for protein-based searches)
+    if program_type in ["blastp", "blastx", "tblastn"]:
+        comp_layout = QHBoxLayout()
+        comp_label = QLabel("Compositional adjustments")
+        comp_label.setFixedWidth(150)
+        comp_layout.addWidget(comp_label)
+        
+        comp_combo = QComboBox()
+        comp_combo.setFixedWidth(300)
+        comp_adjustments = [
+            "No adjustment",
+            "Composition-based statistics",
+            "Conditional compositional score matrix adjustment",
+            "Universal compositional score matrix adjustment"
+        ]
+        comp_combo.addItems(comp_adjustments)
+        comp_combo.setCurrentText("Conditional compositional score matrix adjustment")
+        comp_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+        setattr(parent, f'{program_type}_comp_adjust', comp_combo)
+        comp_layout.addWidget(comp_combo)
+        comp_layout.addStretch()
+        
+        layout.addLayout(comp_layout)
     
-    comp_combo = QComboBox()
-    comp_combo.setFixedWidth(300)
-    comp_adjustments = [
-        "No adjustment",
-        "Composition-based statistics",
-        "Conditional compositional score matrix adjustment",
-        "Universal compositional score matrix adjustment"
-    ]
-    comp_combo.addItems(comp_adjustments)
-    comp_combo.setCurrentText("Conditional compositional score matrix adjustment")
-    comp_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
-    setattr(parent, f'{program_type}_comp_adjust', comp_combo)
-    comp_layout.addWidget(comp_combo)
-    comp_layout.addStretch()
-    
-    layout.addLayout(comp_layout)
+    # Genetic code is now in the search set section, not here
     
     return group
 
@@ -1009,13 +1519,60 @@ def create_results_section(parent, program_type):
             font-family: monospace;
         }
     """)
-    results_display.setPlaceholderText(
-        "BLAST results will appear here...\n\n"
-        "• Enter a protein sequence above\n"
-        "• Configure your search parameters\n"
-        "• Click the BLAST button to begin\n"
-        "• Results typically take 30 seconds to 2 minutes"
-    )
+    # Set appropriate placeholder text based on program type
+    if program_type == "blastp":
+        placeholder_text = (
+            "BLAST results will appear here...\n\n"
+            "• Enter a protein sequence above\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    elif program_type == "blastn":
+        placeholder_text = (
+            "BLAST results will appear here...\n\n"
+            "• Enter a nucleotide sequence above\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    elif program_type == "blastx":
+        placeholder_text = (
+            "BLASTX results will appear here...\n\n"
+            "• Enter a nucleotide sequence above\n"
+            "• Your sequence will be translated in all 6 reading frames\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    elif program_type == "tblastn":
+        placeholder_text = (
+            "TBLASTN results will appear here...\n\n"
+            "• Enter a protein sequence above\n"
+            "• Database sequences will be translated in all 6 reading frames\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    elif program_type == "tblastx":
+        placeholder_text = (
+            "TBLASTX results will appear here...\n\n"
+            "• Enter a nucleotide sequence above\n"
+            "• Both query and database will be translated in all 6 reading frames\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    else:
+        placeholder_text = (
+            "BLAST results will appear here...\n\n"
+            "• Enter a sequence above\n"
+            "• Configure your search parameters\n"
+            "• Click the BLAST button to begin\n"
+            "• Results typically take 30 seconds to 2 minutes"
+        )
+    
+    results_display.setPlaceholderText(placeholder_text)
     setattr(parent, f'{program_type}_results_display', results_display)
     layout.addWidget(results_display)
     
@@ -1033,8 +1590,11 @@ def run_ncbi_blast_search(parent, program_type):
         QMessageBox.warning(parent, "No Query", "Please enter a sequence to search.")
         return
     
-    # Validate sequence
-    sequence_type = "protein" if program_type in ["blastp", "tblastn"] else "nucleotide"
+    # Validate sequence based on query type
+    if program_type in ["blastp", "tblastn"]:
+        sequence_type = "protein"
+    else:
+        sequence_type = "nucleotide"
     is_valid, message = validate_sequence(query, sequence_type)
     if not is_valid:
         QMessageBox.warning(parent, "Invalid Sequence", message)
@@ -1054,23 +1614,31 @@ def run_ncbi_blast_search(parent, program_type):
         'word_size': word_size.currentText(),
     }
     
-    # Add protein-specific parameters
-    if program_type == "blastp":
+    # Add program-specific parameters
+    
+    # Matrix (for protein-based searches)
+    if hasattr(parent, f'{program_type}_matrix'):
         matrix = getattr(parent, f'{program_type}_matrix')
-        gap_costs = getattr(parent, f'{program_type}_gap_costs')
-        comp_adjust = getattr(parent, f'{program_type}_comp_adjust')
-        
         parameters['matrix'] = matrix.currentText()
-        
-        # Parse gap costs
+    
+    # Match/Mismatch scores (for nucleotide searches)
+    if hasattr(parent, f'{program_type}_match_scores'):
+        match_scores = getattr(parent, f'{program_type}_match_scores')
+        parameters['match_scores'] = match_scores.currentText().split(" ")[0]
+    
+    # Gap costs
+    if hasattr(parent, f'{program_type}_gap_costs'):
+        gap_costs = getattr(parent, f'{program_type}_gap_costs')
         gap_text = gap_costs.currentText()
         if "Existence:" in gap_text:
             parts = gap_text.replace("Existence:", "").replace("Extension:", "").split()
             if len(parts) >= 2:
                 parameters['gapopen'] = parts[0]
                 parameters['gapextend'] = parts[1]
-        
-        # Map compositional adjustment
+    
+    # Compositional adjustment (for protein-based searches)
+    if hasattr(parent, f'{program_type}_comp_adjust'):
+        comp_adjust = getattr(parent, f'{program_type}_comp_adjust')
         comp_map = {
             "No adjustment": "0",
             "Composition-based statistics": "1", 
@@ -1078,6 +1646,11 @@ def run_ncbi_blast_search(parent, program_type):
             "Universal compositional score matrix adjustment": "3"
         }
         parameters['comp_adjust'] = comp_map.get(comp_adjust.currentText(), "2")
+    
+    # Genetic code (for translated searches)
+    if hasattr(parent, f'{program_type}_genetic_code'):
+        genetic_code = getattr(parent, f'{program_type}_genetic_code')
+        parameters['genetic_code'] = genetic_code.currentData()
     
     # Get organism filter
     organism_input = getattr(parent, f'{program_type}_organism_input')
@@ -1097,8 +1670,12 @@ def run_ncbi_blast_search(parent, program_type):
             parameters['algorithm'] = 'phiBlast'
         elif "DELTA-BLAST" in button_text:
             parameters['algorithm'] = 'deltaBlast'
+        elif "megablast" in button_text.lower():
+            parameters['algorithm'] = 'megaBlast'
+        elif "discontiguous" in button_text.lower():
+            parameters['algorithm'] = 'discoMegablast'
         else:
-            parameters['algorithm'] = 'blastp'
+            parameters['algorithm'] = program_type
     
     # Update UI
     blast_button = getattr(parent, f'{program_type}_blast_button')
@@ -1147,7 +1724,7 @@ def cancel_ncbi_blast_search(parent, program_type):
 def on_ncbi_blast_finished(parent, program_type, result):
     """Handle successful BLAST completion."""
     
-    formatted_result = format_blast_output(result)
+    formatted_result = format_blast_output(result, program_type)
     results_display = getattr(parent, f'{program_type}_results_display')
     results_display.setText(formatted_result)
     
@@ -1205,6 +1782,28 @@ def open_blast_file(parent, program_type):
             
         except Exception as e:
             QMessageBox.critical(parent, "File Error", f"Could not read file: {str(e)}")
+
+
+def open_subject_file(parent, program_type):
+    """Open a FASTA file for subject sequence (BL2SEQ mode)."""
+    
+    file_path, _ = QFileDialog.getOpenFileName(
+        parent, "Open Subject Sequence File", "", "FASTA Files (*.fasta *.fa *.fas);;All Files (*)"
+    )
+    
+    if file_path:
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            file_label = getattr(parent, f'{program_type}_subject_file_label')
+            subject_input = getattr(parent, f'{program_type}_subject_input')
+            
+            file_label.setText(os.path.basename(file_path))
+            subject_input.setText(content)
+            
+        except Exception as e:
+            QMessageBox.critical(parent, "Subject File Error", f"Could not read subject file: {str(e)}")
 
 
 def save_blast_results(parent, program_type):

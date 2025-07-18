@@ -105,7 +105,7 @@ class OnlineBlastWorker(QThread):
     def submit_blast_search(self):
         """Submit BLAST search to NCBI and return request ID."""
         try:
-            # Prepare the search parameters
+            # Prepare the basic search parameters
             params = {
                 'CMD': 'Put',
                 'PROGRAM': self.program,
@@ -115,15 +115,58 @@ class OnlineBlastWorker(QThread):
                 'EXPECT': self.parameters.get('evalue', '10'),
                 'HITLIST_SIZE': self.parameters.get('max_target_seqs', '100'),
                 'WORD_SIZE': self.parameters.get('word_size', '3'),
-                'MATRIX_NAME': self.parameters.get('matrix', 'BLOSUM62'),
-                'GAPCOSTS': f"{self.parameters.get('gapopen', '11')} {self.parameters.get('gapextend', '1')}",
                 'FILTER': 'L' if self.parameters.get('low_complexity', True) else 'F',
-                'COMPOSITION_BASED_STATISTICS': self.parameters.get('comp_adjust', '2'),
-                'WORD_SCORE_THRESHOLD': self.parameters.get('word_threshold', '11'),
-                'QUERY_GENETIC_CODE': self.parameters.get('genetic_code', '1'),
-                'UNGAPPED_ALIGNMENT': 'T' if self.parameters.get('ungapped_alignment', False) else 'F',
                 'FORMAT_OBJECT': 'SearchInfo'
             }
+            
+            # Add program-specific parameters
+            if self.program in ['blastp', 'blastx', 'tblastn']:
+                # Protein-based searches
+                params['MATRIX_NAME'] = self.parameters.get('matrix', 'BLOSUM62')
+                params['COMPOSITION_BASED_STATISTICS'] = self.parameters.get('comp_adjust', '2')
+                if self.parameters.get('word_threshold'):
+                    params['WORD_SCORE_THRESHOLD'] = self.parameters.get('word_threshold', '11')
+                if self.parameters.get('ungapped_alignment'):
+                    params['UNGAPPED_ALIGNMENT'] = 'T' if self.parameters.get('ungapped_alignment', False) else 'F'
+            
+            elif self.program in ['blastn', 'tblastx']:
+                # Nucleotide-based searches
+                if self.parameters.get('match_scores'):
+                    match_scores = self.parameters.get('match_scores', '2,-3')
+                    if ',' in match_scores:
+                        match, mismatch = match_scores.split(',', 1)
+                        params['MATCH_SCORES'] = f"{match},{mismatch}"
+                
+                # Algorithm-specific parameters for BLASTN
+                if self.program == 'blastn':
+                    algorithm = self.parameters.get('algorithm', 'megaBlast')
+                    if algorithm == 'megaBlast':
+                        params['MEGABLAST'] = 'on'
+                    elif algorithm == 'discoMegablast':
+                        params['TEMPLATE_TYPE'] = 'coding'
+                        params['TEMPLATE_LENGTH'] = '18'
+            
+            # Gap costs (for all programs that support them)
+            if self.parameters.get('gapopen') and self.parameters.get('gapextend'):
+                params['GAPCOSTS'] = f"{self.parameters.get('gapopen', '11')} {self.parameters.get('gapextend', '1')}"
+            
+            # Genetic code (for translated searches)
+            if self.program in ['blastx', 'tblastn', 'tblastx']:
+                params['QUERY_GENETIC_CODE'] = self.parameters.get('genetic_code', '1')
+                if self.program in ['tblastn', 'tblastx']:
+                    params['DB_GENETIC_CODE'] = self.parameters.get('genetic_code', '1')
+            
+            # Algorithm-specific parameters
+            if self.parameters.get('algorithm'):
+                algorithm = self.parameters.get('algorithm')
+                if algorithm == 'psiBlast':
+                    params['PSI_BLAST'] = 'on'
+                elif algorithm == 'phiBlast':
+                    params['PHI_BLAST'] = 'on'
+                    if self.parameters.get('phi_pattern'):
+                        params['PHI_PATTERN'] = self.parameters.get('phi_pattern')
+                elif algorithm == 'deltaBlast':
+                    params['DELTA_BLAST'] = 'on'
             
             # Add organism if specified
             if self.parameters.get('organism'):
@@ -182,6 +225,28 @@ class OnlineBlastWorker(QThread):
     def get_blast_results(self):
         """Retrieve BLAST search results."""
         try:
+            # First try to get XML results for better parsing
+            xml_params = {
+                'CMD': 'Get',
+                'FORMAT_TYPE': 'XML',
+                'RID': self.request_id
+            }
+            
+            xml_url = 'https://blast.ncbi.nlm.nih.gov/Blast.cgi?' + urlencode(xml_params)
+            xml_request = Request(xml_url)
+            xml_request.add_header('User-Agent', 'PicoMol/1.0 (https://github.com/ultimafounding/PicoMol)')
+            
+            try:
+                with urlopen(xml_request, timeout=60) as response:
+                    xml_result = response.read().decode('utf-8')
+                
+                # Check if XML is valid and contains results
+                if xml_result and '<BlastOutput>' in xml_result and 'No hits found' not in xml_result:
+                    return ('XML', xml_result)
+            except:
+                pass  # Fall back to text format
+            
+            # Fall back to text format
             params = {
                 'CMD': 'Get',
                 'FORMAT_TYPE': 'Text',
@@ -198,7 +263,7 @@ class OnlineBlastWorker(QThread):
             with urlopen(request, timeout=60) as response:
                 result = response.read().decode('utf-8')
             
-            return result
+            return ('Text', result)
             
         except (URLError, HTTPError, Exception) as e:
             raise Exception(f"Failed to retrieve results: {str(e)}")
@@ -638,7 +703,7 @@ def cancel_blast_search(parent):
 def on_blast_finished(parent, result):
     """Handle successful BLAST completion."""
     
-    formatted_result = format_blast_output(result)
+    formatted_result = format_blast_output(result, "blastp")
     parent.blastp_results_display.setText(formatted_result)
     parent.statusBar().showMessage("✅ Online BLAST search completed successfully.")
     
@@ -702,6 +767,19 @@ def validate_sequence(sequence, sequence_type="protein"):
             nucleotide_count = sum(1 for char in clean_sequence if char in nucleotide_chars)
             if nucleotide_count / len(clean_sequence) > 0.8:
                 return False, "Sequence appears to be nucleotide, not protein"
+    elif sequence_type == "nucleotide":
+        # Standard nucleotide codes (including ambiguous codes)
+        valid_chars = set("ATCGRYSWKMBDHVN-")
+        invalid_chars = set(clean_sequence) - valid_chars
+        if invalid_chars:
+            return False, f"Invalid nucleotide characters found: {', '.join(sorted(invalid_chars))}"
+        
+        # Check for reasonable nucleotide composition
+        if len(clean_sequence) > 10:
+            protein_chars = set("DEFHIKLMNPQRSVWY")
+            protein_count = sum(1 for char in clean_sequence if char in protein_chars)
+            if protein_count / len(clean_sequence) > 0.3:
+                return False, "Sequence appears to be protein, not nucleotide"
     
     return True, f"Valid {sequence_type} sequence ({len(clean_sequence)} characters)"
 
@@ -714,8 +792,39 @@ def clean_fasta_sequence(sequence):
     return ''.join(seq_lines)
 
 
-def format_blast_output(raw_output):
-    """Format raw BLAST output for better display."""
+def format_blast_output(result_data, program_type="blast"):
+    """Format BLAST output using enhanced parser for comprehensive tables."""
+    
+    # Import the enhanced parser
+    try:
+        from blast_results_parser import enhanced_format_blast_output
+        
+        # Handle the new tuple format (format_type, content)
+        if isinstance(result_data, tuple) and len(result_data) == 2:
+            format_type, raw_output = result_data
+        else:
+            # Backward compatibility
+            format_type, raw_output = 'Text', result_data
+        
+        if not raw_output or not raw_output.strip():
+            return "❌ No results found or empty output."
+        
+        # Use enhanced parser for better formatting
+        return enhanced_format_blast_output(raw_output, program_type)
+        
+    except ImportError:
+        # Fall back to basic formatting if enhanced parser is not available
+        return format_blast_output_basic(result_data)
+
+
+def format_blast_output_basic(result_data):
+    """Basic BLAST output formatter (fallback)."""
+    
+    # Handle the new tuple format
+    if isinstance(result_data, tuple) and len(result_data) == 2:
+        format_type, raw_output = result_data
+    else:
+        raw_output = result_data
     
     if not raw_output or not raw_output.strip():
         return "❌ No results found or empty output."
@@ -1390,7 +1499,7 @@ def cancel_blast_search_generic(parent, program_type):
 def on_blast_finished_generic(parent, program_type, result):
     """Generic function to handle successful BLAST completion."""
     
-    formatted_result = format_blast_output(result)
+    formatted_result = format_blast_output(result, program_type)
     results_display = getattr(parent, f'{program_type}_results_display')
     results_display.setText(formatted_result)
     parent.statusBar().showMessage(f"✅ Online {program_type.upper()} search completed successfully.")

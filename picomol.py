@@ -11,7 +11,11 @@ import sys
 import warnings
 import webbrowser
 
-from blast_utils_ncbi_layout import create_ncbi_style_blastp_tab
+from blast_utils_ncbi_layout import (
+    create_ncbi_style_blastp_tab, create_ncbi_style_blastn_tab,
+    create_ncbi_style_blastx_tab, create_ncbi_style_tblastn_tab,
+    create_ncbi_style_tblastx_tab
+)
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -634,33 +638,21 @@ class ProteinViewerApp(QMainWindow):
         blast_type_tabs = QTabWidget()
         blast_layout.addWidget(blast_type_tabs)
         
-        # Add tabs for each BLAST type
-        blastn_tab = QWidget()
-        blastn_layout = QVBoxLayout(blastn_tab)
-        blastn_layout.addWidget(QLabel("BLASTN (NCBI-style layout coming soon)"))
+        # Add tabs for each BLAST type with NCBI-style layouts
+        blastn_tab = create_ncbi_style_blastn_tab(self)
         blast_type_tabs.addTab(blastn_tab, "blastn")
         
         blastp_tab = create_ncbi_style_blastp_tab(self)
         blast_type_tabs.addTab(blastp_tab, "blastp")
-
-        # BLAST tab is now self-contained with online functionality
         
-        blastx_tab = QWidget()
-        blastx_layout = QVBoxLayout(blastx_tab)
-        blastx_layout.addWidget(QLabel("BLASTX controls will go here"))
-        blastx_tab.setLayout(blastx_layout)
+        # Use consistent NCBI-style BLASTX interface
+        blastx_tab = create_ncbi_style_blastx_tab(self)
         blast_type_tabs.addTab(blastx_tab, "blastx")
         
-        tblastn_tab = QWidget()
-        tblastn_layout = QVBoxLayout(tblastn_tab)
-        tblastn_layout.addWidget(QLabel("TBLASTN controls will go here"))
-        tblastn_tab.setLayout(tblastn_layout)
+        tblastn_tab = create_ncbi_style_tblastn_tab(self)
         blast_type_tabs.addTab(tblastn_tab, "tblastn")
         
-        tblastx_tab = QWidget()
-        tblastx_layout = QVBoxLayout(tblastx_tab)
-        tblastx_layout.addWidget(QLabel("TBLASTX controls will go here"))
-        tblastx_tab.setLayout(tblastx_layout)
+        tblastx_tab = create_ncbi_style_tblastx_tab(self)
         blast_type_tabs.addTab(tblastx_tab, "tblastx")
         
         self.main_tabs.addTab(blast_tab, "BLAST")
