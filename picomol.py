@@ -627,11 +627,42 @@ class ProteinViewerApp(QMainWindow):
         # Create BLAST tab
         blast_tab = QWidget()
         blast_layout = QVBoxLayout(blast_tab)
-        blast_label = QLabel("BLAST Search (Coming in Next Release)")
-        blast_label.setAlignment(Qt.AlignCenter)
-        blast_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
-        blast_layout.addWidget(blast_label)
-        blast_layout.addStretch()
+        
+        # Create a tab widget for the different BLAST types
+        blast_type_tabs = QTabWidget()
+        blast_layout.addWidget(blast_type_tabs)
+        
+        # Add tabs for each BLAST type
+        blastn_tab = QWidget()
+        blastn_layout = QVBoxLayout(blastn_tab)
+        blastn_layout.addWidget(QLabel("BLASTN controls will go here"))
+        blastn_tab.setLayout(blastn_layout)
+        blast_type_tabs.addTab(blastn_tab, "blastn")
+        
+        blastp_tab = QWidget()
+        blastp_layout = QVBoxLayout(blastp_tab)
+        blastp_layout.addWidget(QLabel("BLASTP controls will go here"))
+        blastp_tab.setLayout(blastp_layout)
+        blast_type_tabs.addTab(blastp_tab, "blastp")
+        
+        blastx_tab = QWidget()
+        blastx_layout = QVBoxLayout(blastx_tab)
+        blastx_layout.addWidget(QLabel("BLASTX controls will go here"))
+        blastx_tab.setLayout(blastx_layout)
+        blast_type_tabs.addTab(blastx_tab, "blastx")
+        
+        tblastn_tab = QWidget()
+        tblastn_layout = QVBoxLayout(tblastn_tab)
+        tblastn_layout.addWidget(QLabel("TBLASTN controls will go here"))
+        tblastn_tab.setLayout(tblastn_layout)
+        blast_type_tabs.addTab(tblastn_tab, "tblastn")
+        
+        tblastx_tab = QWidget()
+        tblastx_layout = QVBoxLayout(tblastx_tab)
+        tblastx_layout.addWidget(QLabel("TBLASTX controls will go here"))
+        tblastx_tab.setLayout(tblastx_layout)
+        blast_type_tabs.addTab(tblastx_tab, "tblastx")
+        
         self.main_tabs.addTab(blast_tab, "BLAST")
         
         # Create Sequence Analysis tab (empty for now, will be implemented later)

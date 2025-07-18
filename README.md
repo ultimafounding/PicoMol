@@ -1,6 +1,6 @@
-# PicoMol: The Miniature Molecular Visualisation System
+# PicoMol: The Comprehensive Molecular Visualization and Bioinformatics Suite
 
-PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualizing protein structures. It allows users to fetch protein data from the PDB database or load local PDB files, and then display them with various representations and coloring schemes.
+PicoMol is a powerful, user-friendly desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a comprehensive suite of tools for researchers, students, and developers working with protein structures and other biomolecular data.
 
 ## Features
 
@@ -12,6 +12,14 @@ PicoMol is a simple desktop application built with PyQt5 and NGL.js for visualiz
 *   **Recent Files & Save As:** Save the current structure to any location with "Save Structure As..." and quickly reopen files from the Recent Files menu.
 *   **Screenshot Export:** Save a screenshot of the current protein structure view as an image file with a single click.
 *   **Sequence Data Display:** View the amino acid or nucleotide sequence extracted from the loaded PDB structure.
+
+### Bioinformatics Suite
+
+*   **BLAST Integration:** Perform local and remote BLAST searches, visualize results, and manage custom databases.
+*   **Sequence Analysis:** A full suite of tools for sequence alignment, manipulation, feature annotation, ORF finding, and restriction mapping.
+*   **Structural Bioinformatics:** Analyze protein-ligand interactions, predict secondary structures, calculate electrostatic potentials, and validate structural quality with Ramachandran plots.
+*   **Phylogenetic Analysis:** Construct, visualize, and annotate phylogenetic trees from multiple sequence alignments.
+*   **Genomics Integration:** Support for VCF files, GWAS visualization, and SNP effect prediction.
 
 ### Visualization & Interaction
 
