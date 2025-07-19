@@ -1487,7 +1487,7 @@ def create_scoring_parameters_group(parent, program_type):
     layout.addWidget(title)
     
     # Matrix (only for protein-based searches)
-    if program_type in ["blastp", "blastx", "tblastn"]:
+    if program_type in ["blastp", "blastx", "tblastn", "tblastx"]:
         matrix_layout = QHBoxLayout()
         matrix_label = QLabel("Matrix")
         matrix_label.setFixedWidth(150)
@@ -1554,7 +1554,7 @@ def create_scoring_parameters_group(parent, program_type):
     
     layout.addLayout(gap_layout)
     
-    # Compositional adjustments (only for protein-based searches)
+    # Compositional adjustments (only for protein-based searches, not tblastx)
     if program_type in ["blastp", "blastx", "tblastn"]:
         comp_layout = QHBoxLayout()
         comp_label = QLabel("Compositional adjustments")

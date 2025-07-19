@@ -126,7 +126,7 @@ class OnlineBlastWorker(QThread):
             
             # Add program-specific parameters
             if self.program in ['blastp', 'blastx', 'tblastn']:
-                # Protein-based searches
+                # Protein-based searches (with compositional adjustments)
                 params['MATRIX_NAME'] = self.parameters.get('matrix', 'BLOSUM62')
                 params['COMPOSITION_BASED_STATISTICS'] = self.parameters.get('comp_adjust', '2')
                 if self.parameters.get('word_threshold'):
@@ -134,7 +134,17 @@ class OnlineBlastWorker(QThread):
                 if self.parameters.get('ungapped_alignment'):
                     params['UNGAPPED_ALIGNMENT'] = 'T' if self.parameters.get('ungapped_alignment', False) else 'F'
             
-            elif self.program in ['blastn', 'tblastx']:
+            elif self.program == 'tblastx':
+                # TBLASTX: matrix only, no compositional adjustments
+                params['MATRIX_NAME'] = self.parameters.get('matrix', 'BLOSUM62')
+                # TBLASTX also uses nucleotide-style match/mismatch scores
+                if self.parameters.get('match_scores'):
+                    match_scores = self.parameters.get('match_scores', '2,-3')
+                    if ',' in match_scores:
+                        match, mismatch = match_scores.split(',', 1)
+                        params['MATCH_SCORES'] = f"{match},{mismatch}"
+            
+            elif self.program == 'blastn':
                 # Nucleotide-based searches
                 if self.parameters.get('match_scores'):
                     match_scores = self.parameters.get('match_scores', '2,-3')
@@ -1497,7 +1507,7 @@ def run_online_blast_search_generic(parent, program_type):
         if program_type in ["blastp", "blastx", "tblastn"]:
             gap_costs_list = BLAST_CONFIG["gap_costs"]["protein"]
         else:
-            # For nucleotide searches, get the match/mismatch scores first
+            # For nucleotide searches (including tblastx), get the match/mismatch scores first
             match_scores = parameters.get('match_scores', '2,-3')
             if match_scores in BLAST_CONFIG["gap_costs"]["nucleotide"]:
                 gap_costs_list = BLAST_CONFIG["gap_costs"]["nucleotide"][match_scores]
@@ -1780,7 +1790,7 @@ def show_blast_help_generic(parent, program_type):
         <li>Default varies by program type</li>
     </ul>
     
-    {"<h4>Scoring Matrix</h4><ul><li><b>BLOSUM62</b> - Default, good for most searches</li><li><b>BLOSUM45</b> - More sensitive for distant relationships</li><li><b>BLOSUM80</b> - Less sensitive, for close relationships</li></ul>" if program_type in ["blastp", "blastx", "tblastn"] else ""}
+    {"<h4>Scoring Matrix</h4><ul><li><b>BLOSUM62</b> - Default, good for most searches</li><li><b>BLOSUM45</b> - More sensitive for distant relationships</li><li><b>BLOSUM80</b> - Less sensitive, for close relationships</li></ul>" if program_type in ["blastp", "blastx", "tblastn", "tblastx"] else ""}
     
     {"<h4>Match/Mismatch Scores</h4><ul><li>First number is reward for match</li><li>Second number is penalty for mismatch</li><li>Higher ratios are more stringent</li></ul>" if program_type in ["blastn", "tblastx"] else ""}
     
