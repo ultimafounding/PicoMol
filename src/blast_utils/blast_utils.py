@@ -117,7 +117,7 @@ class OnlineBlastWorker(QThread):
                 'DATABASE': self.database,
                 'QUERY': self.sequence,
                 'FORMAT_TYPE': 'XML',
-                'EXPECT': self.parameters.get('evalue', '10'),
+                'EXPECT': self.parameters.get('evalue', '0.05'),
                 'HITLIST_SIZE': self.parameters.get('max_target_seqs', '100'),
                 'WORD_SIZE': self.parameters.get('word_size', '3'),
                 'FILTER': 'L' if self.parameters.get('low_complexity', True) else 'F',
@@ -523,7 +523,7 @@ def create_blastp_tab(parent):
     algo_layout.addRow("Max target sequences:", parent.blastp_max_targets)
     
     # Expect threshold
-    parent.blastp_expect_threshold = QLineEdit("10")
+    parent.blastp_expect_threshold = QLineEdit("0.05")
     parent.blastp_expect_threshold.setToolTip("Expected number of chance matches (lower = more stringent)")
     algo_layout.addRow("E-value threshold:", parent.blastp_expect_threshold)
     
@@ -738,7 +738,7 @@ def run_online_blast_search(parent):
     
     # Get parameters
     parameters = {
-        'evalue': parent.blastp_expect_threshold.text().strip() or "10",
+        'evalue': parent.blastp_expect_threshold.text().strip() or "0.05",
         'max_target_seqs': parent.blastp_max_targets.currentText(),
         'word_size': parent.blastp_word_size.currentText(),
         'matrix': parent.blastp_matrix.currentText(),
@@ -1245,7 +1245,7 @@ def create_blastn_tab(parent):
     params_layout.addRow("Max target sequences:", parent.blastn_max_targets)
     
     # Expect threshold
-    parent.blastn_expect_threshold = QLineEdit("10")
+    parent.blastn_expect_threshold = QLineEdit("0.05")
     parent.blastn_expect_threshold.setToolTip("Expected number of chance matches (lower = more stringent)")
     params_layout.addRow("E-value threshold:", parent.blastn_expect_threshold)
     
@@ -1469,7 +1469,7 @@ def run_online_blast_search_generic(parent, program_type):
     # Get parameters
     expect_threshold = getattr(parent, f'{program_type}_expect_threshold')
     parameters = {
-        'evalue': expect_threshold.text().strip() or "10",
+        'evalue': expect_threshold.text().strip() or "0.05",
     }
     
     # Add common parameters

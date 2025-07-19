@@ -230,7 +230,7 @@ class BlastResultsParser:
                     current_hit.bit_score = float(score_match.group(1))
                     current_hit.score = float(score_match.group(2))
                 
-                expect_match = re.search(r'Expect\s*=\s*([\de.-]+)', line)
+                expect_match = re.search(r'Expect\s*=\s*([\d.e+-]+)', line)
                 if expect_match:
                     current_hit.evalue = float(expect_match.group(1))
             
