@@ -738,63 +738,15 @@ def on_blast_progress(parent, message):
 
 
 def validate_sequence(sequence, sequence_type="protein"):
-    """Validate a biological sequence."""
-    
-    if not sequence or not sequence.strip():
-        return False, "Sequence is empty"
-    
-    # Remove FASTA header if present
-    lines = sequence.strip().split('\n')
-    seq_lines = [line.strip() for line in lines if not line.startswith('>')]
-    clean_sequence = ''.join(seq_lines).upper().replace(' ', '').replace('\t', '')
-    
-    if not clean_sequence:
-        return False, "No sequence found after removing headers"
-    
-    # Check minimum length
-    if len(clean_sequence) < 3:
-        return False, f"Sequence too short ({len(clean_sequence)} characters). Minimum length is 3."
-    
-    # Check maximum length for online BLAST
-    if len(clean_sequence) > 20000:
-        return False, f"Sequence too long ({len(clean_sequence)} characters). Maximum length for online BLAST is 20,000."
-    
-    if sequence_type == "protein":
-        # Standard amino acid codes (including ambiguous codes)
-        valid_chars = set("ACDEFGHIKLMNPQRSTVWYXBZJUO*-")
-        invalid_chars = set(clean_sequence) - valid_chars
-        if invalid_chars:
-            return False, f"Invalid amino acid characters found: {', '.join(sorted(invalid_chars))}"
-        
-        # Check for reasonable protein composition
-        if len(clean_sequence) > 10:
-            nucleotide_chars = set("ATCG")
-            nucleotide_count = sum(1 for char in clean_sequence if char in nucleotide_chars)
-            if nucleotide_count / len(clean_sequence) > 0.8:
-                return False, "Sequence appears to be nucleotide, not protein"
-    elif sequence_type == "nucleotide":
-        # Standard nucleotide codes (including ambiguous codes)
-        valid_chars = set("ATCGRYSWKMBDHVN-")
-        invalid_chars = set(clean_sequence) - valid_chars
-        if invalid_chars:
-            return False, f"Invalid nucleotide characters found: {', '.join(sorted(invalid_chars))}"
-        
-        # Check for reasonable nucleotide composition
-        if len(clean_sequence) > 10:
-            protein_chars = set("DEFHIKLMNPQRSVWY")
-            protein_count = sum(1 for char in clean_sequence if char in protein_chars)
-            if protein_count / len(clean_sequence) > 0.3:
-                return False, "Sequence appears to be protein, not nucleotide"
-    
-    return True, f"Valid {sequence_type} sequence ({len(clean_sequence)} characters)"
+    """Validate a biological sequence or accession number."""
+    from .accession_validator import validate_sequence_or_accession
+    return validate_sequence_or_accession(sequence, sequence_type)
 
 
 def clean_fasta_sequence(sequence):
     """Clean FASTA sequence by removing headers and formatting."""
-    
-    lines = sequence.strip().split('\n')
-    seq_lines = [line.strip() for line in lines if not line.startswith('>')]
-    return ''.join(seq_lines)
+    from .accession_validator import clean_fasta_sequence_or_accession, is_accession_number
+    return clean_fasta_sequence_or_accession(sequence)
 
 
 def format_blast_output(result_data, program_type="blast"):
@@ -1755,3 +1707,313 @@ def create_placeholder_tab(name, description):
     layout.addWidget(placeholder)
     
     return widget
+
+
+def format_blast_output(result_data, program_type="blast"):
+    """Format BLAST output using enhanced parser for comprehensive tables."""
+    
+    # Import the enhanced parser
+    try:
+        from .blast_results_parser import enhanced_format_blast_output
+        
+        # Handle the new tuple format (format_type, content) or just content string
+        if isinstance(result_data, tuple) and len(result_data) == 2:
+            format_type, raw_output = result_data
+        else:
+            # Backward compatibility - assume it's just the content string
+            format_type, raw_output = 'Text', result_data
+        
+        if not raw_output or not raw_output.strip():
+            return "❌ No results found or empty output."
+        
+        # Use enhanced parser for better formatting
+        return enhanced_format_blast_output(raw_output, program_type)
+        
+    except ImportError:
+        # Fall back to basic formatting if enhanced parser is not available
+        return format_blast_output_basic(result_data)
+
+
+def format_blast_output_basic(result_data):
+    """Basic BLAST output formatter (fallback)."""
+    
+    # Handle the new tuple format or just content string
+    if isinstance(result_data, tuple) and len(result_data) == 2:
+        format_type, raw_output = result_data
+    else:
+        raw_output = result_data
+    
+    if not raw_output or not raw_output.strip():
+        return "❌ No results found or empty output."
+    
+    # Add header
+    formatted = "🧬 BLAST Search Results\n"
+    formatted += "=" * 50 + "\n\n"
+    
+    # Process the output
+    lines = raw_output.split('\n')
+    in_alignments = False
+    hit_count = 0
+    
+    for line in lines:
+        # Skip empty lines at start
+        if not line.strip() and not formatted.endswith('\n\n'):
+            continue
+        
+        # Detect sections
+        if "Sequences producing significant alignments:" in line:
+            formatted += "📊 " + line + "\n"
+            formatted += "-" * 50 + "\n"
+            in_alignments = True
+            continue
+        elif line.startswith(">"):
+            hit_count += 1
+            formatted += f"\n🎯 Hit #{hit_count}: {line[1:]}\n"
+            continue
+        elif "Length=" in line:
+            formatted += f"   📏 {line.strip()}\n"
+            continue
+        elif "Score =" in line and "Expect =" in line:
+            formatted += f"   📈 {line.strip()}\n"
+            continue
+        elif "Identities =" in line:
+            formatted += f"   🔍 {line.strip()}\n"
+            continue
+        elif line.strip().startswith("Query") or line.strip().startswith("Sbjct"):
+            formatted += f"   {line}\n"
+            continue
+        
+        # Add other lines
+        formatted += line + "\n"
+    
+    # Add summary if no hits
+    if hit_count == 0 and "No hits found" not in raw_output:
+        if "No significant similarity found" in raw_output or "No hits found" in raw_output:
+            formatted += "\n❌ No significant hits found.\n\n"
+            formatted += "💡 Try adjusting your search parameters:\n"
+            formatted += "   • Increase the E-value threshold\n"
+            formatted += "   • Use a different scoring matrix\n"
+            formatted += "   • Check your query sequence\n"
+            formatted += "   • Try a different database\n"
+    
+    return formatted
+
+
+def save_blast_results(parent):
+    """Save BLAST results to a file."""
+    
+    if not hasattr(parent, 'blastp_results_display') or not parent.blastp_results_display.toPlainText().strip():
+        QMessageBox.warning(parent, "No Results", "No BLAST results to save.")
+        return
+    
+    # Generate default filename with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    default_filename = f"online_blast_results_{timestamp}.txt"
+    
+    file_path, _ = QFileDialog.getSaveFileName(
+        parent, 
+        "Save BLAST Results", 
+        default_filename, 
+        "Text Files (*.txt);;All Files (*)"
+    )
+    
+    if file_path:
+        try:
+            content = parent.blastp_results_display.toPlainText()
+            
+            # Add header information
+            header = f"# Online BLAST Results saved on {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            header += f"# Query: {parent.blastp_query_input.toPlainText()[:100]}...\n"
+            header += f"# Database: {parent.blastp_database_combo.currentText()}\n"
+            header += "# Generated by PicoMol using NCBI's online BLAST service\n"
+            header += "# " + "="*60 + "\n\n"
+            
+            with open(file_path, 'w') as f:
+                f.write(header + content)
+            
+            QMessageBox.information(parent, "Results Saved", f"BLAST results saved to:\n{file_path}")
+            parent.statusBar().showMessage(f"Results saved to {os.path.basename(file_path)}")
+        except Exception as e:
+            QMessageBox.critical(parent, "Save Error", f"Failed to save results:\n{str(e)}")
+
+
+def open_ncbi_blast(parent):
+    """Open NCBI BLAST website with current query."""
+    
+    if not hasattr(parent, 'blastp_query_input'):
+        return
+        
+    query = parent.blastp_query_input.toPlainText().strip()
+    if not query:
+        QMessageBox.warning(parent, "No Query", "Please enter a sequence to search.")
+        return
+    
+    # Clean sequence for URL
+    clean_query = clean_fasta_sequence(query)
+    
+    if len(clean_query) > 8000:  # NCBI has URL length limits
+        QMessageBox.warning(
+            parent, 
+            "Sequence Too Long", 
+            "The sequence is too long to pass via URL. Please copy and paste it manually into NCBI BLAST."
+        )
+        # Open NCBI BLAST without query
+        ncbi_url = "https://blast.ncbi.nlm.nih.gov/Blast.cgi?PROGRAM=blastp&PAGE_TYPE=BlastSearch"
+    else:
+        # Encode the query for URL
+        encoded_query = quote(clean_query)
+        ncbi_url = f"https://blast.ncbi.nlm.nih.gov/Blast.cgi?PROGRAM=blastp&PAGE_TYPE=BlastSearch&QUERY={encoded_query}"
+    
+    try:
+        webbrowser.open_new_tab(ncbi_url)
+        parent.statusBar().showMessage("Opening NCBI BLAST in web browser...")
+    except Exception as e:
+        QMessageBox.warning(parent, "Browser Error", f"Could not open web browser: {str(e)}")
+
+
+def open_blast_file(parent):
+    """Open a FASTA file and load it into the query input."""
+    
+    file_path, _ = QFileDialog.getOpenFileName(
+        parent, "Open Sequence File", "", "FASTA Files (*.fasta *.fa *.fas);;All Files (*)"
+    )
+    
+    if file_path:
+        try:
+            with open(file_path, 'r') as f:
+                content = f.read()
+            
+            parent.blastp_file_label.setText(os.path.basename(file_path))
+            parent.blastp_query_input.setText(content)
+            
+            # Validate the loaded sequence
+            is_valid, message = validate_sequence(content, "protein")
+            if not is_valid:
+                QMessageBox.warning(
+                    parent, 
+                    "Invalid Sequence", 
+                    f"The loaded file contains invalid sequence data:\n\n{message}"
+                )
+        except Exception as e:
+            QMessageBox.critical(
+                parent, 
+                "File Error", 
+                f"Could not read the selected file:\n\n{str(e)}"
+            )
+
+
+def show_blast_help(parent):
+    """Show BLAST help dialog."""
+    
+    help_dialog = QDialog(parent)
+    help_dialog.setWindowTitle("Online BLAST Help")
+    help_dialog.setMinimumSize(600, 500)
+    
+    layout = QVBoxLayout(help_dialog)
+    
+    help_text = QTextEdit()
+    help_text.setReadOnly(True)
+    help_text.setHtml("""
+    <h2>🧬 Online BLAST Help</h2>
+    
+    <h3>📖 Overview</h3>
+    <p>This tool uses NCBI's online BLAST service to search protein databases. 
+    No local BLAST+ installation is required!</p>
+    
+    <h3>⚙️ Parameters Guide</h3>
+    
+    <h4>E-value Threshold</h4>
+    <ul>
+        <li><b>10</b> - Default, finds most matches</li>
+        <li><b>0.001</b> - More stringent, fewer false positives</li>
+        <li><b>1e-10</b> - Very stringent, only close matches</li>
+    </ul>
+    
+    <h4>Word Size</h4>
+    <ul>
+        <li><b>3</b> - Default for proteins, good balance</li>
+        <li><b>2</b> - More sensitive, slower</li>
+        <li><b>6</b> - Less sensitive, faster</li>
+    </ul>
+    
+    <h4>Scoring Matrix</h4>
+    <ul>
+        <li><b>BLOSUM62</b> - Default, good for most searches</li>
+        <li><b>BLOSUM45</b> - More sensitive for distant relationships</li>
+        <li><b>BLOSUM80</b> - Less sensitive, for close relationships</li>
+    </ul>
+    
+    <h4>Gap Costs</h4>
+    <ul>
+        <li><b>Existence 11, Extension 1</b> - Default, common for protein alignments</li>
+        <li>Adjust to control penalties for opening and extending gaps.</li>
+    </ul>
+
+    <h4>Compositional Adjustments</h4>
+    <ul>
+        <li><b>No adjustment</b> - For sequences with typical amino acid composition.</li>
+        <li><b>Composition-based statistics</b> - Adjusts scores for sequences with unusual compositions.</li>
+        <li><b>Conditional compositional score matrix adjustment</b> - Default, suitable for most protein searches.</li>
+        <li><b>Universal compositional score matrix adjustment</b> - More aggressive adjustment.</li>
+    </ul>
+
+    <h4>Word Score Threshold</h4>
+    <ul>
+        <li><b>11</b> - Default, determines how significant a match must be to be considered a "word".</li>
+        <li>Lower values increase sensitivity but also search time.</li>
+    </ul>
+
+    <h4>Query Genetic Code</h4>
+    <ul>
+        <li>Specifies the genetic code to use for translating the query sequence.</li>
+        <li>Important for accurate searches if the query is a nucleotide sequence that needs translation (though this is blastp, it's a general BLAST option).</li>
+    </ul>
+
+    <h4>Ungapped Alignment Only</h4>
+    <ul>
+        <li>If checked, only ungapped alignments will be reported.</li>
+        <li>Useful for very fast searches or specific types of analyses where gaps are not expected.</li>
+    </ul>
+    
+    <h4>Databases</h4>
+    <ul>
+        <li><b>nr</b> - Non-redundant protein sequences (largest)</li>
+        <li><b>refseq_protein</b> - High-quality reference proteins</li>
+        <li><b>swissprot</b> - Manually annotated, high quality</li>
+        <li><b>pdb</b> - Protein structures from PDB</li>
+    </ul>
+    
+    <h3>⏱️ Search Times</h3>
+    <p>Online searches typically take 30 seconds to 2 minutes depending on:</p>
+    <ul>
+        <li>Sequence length</li>
+        <li>Database size</li>
+        <li>NCBI server load</li>
+        <li>Search parameters</li>
+    </ul>
+    
+    <h3>📏 Limitations</h3>
+    <ul>
+        <li>Maximum sequence length: 20,000 amino acids</li>
+        <li>Requires internet connection</li>
+        <li>Subject to NCBI usage policies</li>
+    </ul>
+    
+    <h3>💡 Tips</h3>
+    <ul>
+        <li>Start with default parameters</li>
+        <li>Use organism filter to narrow results</li>
+        <li>Save results before starting new searches</li>
+        <li>Check sequence format if search fails</li>
+    </ul>
+    """)
+    layout.addWidget(help_text)
+    
+    button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+    button_box.accepted.connect(help_dialog.accept)
+    layout.addWidget(button_box)
+    
+    help_dialog.exec_()
+
+
