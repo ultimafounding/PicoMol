@@ -27,6 +27,7 @@ from PyQt5.QtGui import QFont, QPalette
 
 # Import the worker class from the original blast_utils
 from .blast_utils import OnlineBlastWorker, validate_sequence, clean_fasta_sequence, format_blast_output
+from .accession_validator import is_accession_number
 
 
 def create_ncbi_style_blastp_tab(parent):
@@ -1678,21 +1679,7 @@ def create_results_section(parent, program_type):
     clear_button.clicked.connect(lambda: getattr(parent, f'{program_type}_results_display').clear())
     toolbar_layout.addWidget(clear_button)
     
-    ncbi_button = QPushButton("🌐 View on NCBI")
-    ncbi_button.setStyleSheet("""
-        QPushButton {
-            background-color: #f8f9fa;
-            border: 1px solid #ccc;
-            padding: 6px 12px;
-            border-radius: 3px;
-            font-size: 12px;
-        }
-        QPushButton:hover {
-            background-color: #e9ecef;
-        }
-    """)
-    ncbi_button.clicked.connect(lambda: open_ncbi_blast(parent, program_type))
-    toolbar_layout.addWidget(ncbi_button)
+    # View on NCBI button removed
     
     toolbar_layout.addStretch()
     layout.addLayout(toolbar_layout)

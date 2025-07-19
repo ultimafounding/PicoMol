@@ -153,7 +153,39 @@ class OnlineBlastWorker(QThread):
             
             # Gap costs (for all programs that support them)
             if self.parameters.get('gapopen') and self.parameters.get('gapextend'):
-                params['GAPCOSTS'] = f"{self.parameters.get('gapopen', '11')} {self.parameters.get('gapextend', '1')}"
+                gapopen = self.parameters.get('gapopen', '11')
+                gapextend = self.parameters.get('gapextend', '1')
+                
+                # For nucleotide searches, validate gap costs against match/mismatch scores
+                if self.program in ['blastn', 'tblastx']:
+                    match_scores = self.parameters.get('match_scores', '2,-3')
+                    # Use NCBI-compatible gap cost combinations
+                    if match_scores == '2,-3':
+                        # Valid combinations for 2,-3: (5,2), (4,4), (2,4), (0,4)
+                        if f"{gapopen} {gapextend}" not in ["5 2", "4 4", "2 4", "0 4"]:
+                            gapopen, gapextend = "5", "2"  # Use default compatible values
+                    elif match_scores == '1,-2':
+                        # Valid combinations for 1,-2: (2,1), (1,1), (0,1)
+                        if f"{gapopen} {gapextend}" not in ["2 1", "1 1", "0 1"]:
+                            gapopen, gapextend = "2", "1"
+                    elif match_scores == '1,-3':
+                        # Valid combinations for 1,-3: (2,1), (1,1), (0,1)
+                        if f"{gapopen} {gapextend}" not in ["2 1", "1 1", "0 1"]:
+                            gapopen, gapextend = "2", "1"
+                    elif match_scores == '1,-4':
+                        # Valid combinations for 1,-4: (1,1), (0,1)
+                        if f"{gapopen} {gapextend}" not in ["1 1", "0 1"]:
+                            gapopen, gapextend = "1", "1"
+                    elif match_scores == '4,-5':
+                        # Valid combinations for 4,-5: (12,8), (8,6), (6,5), (4,4)
+                        if f"{gapopen} {gapextend}" not in ["12 8", "8 6", "6 5", "4 4"]:
+                            gapopen, gapextend = "12", "8"
+                    elif match_scores == '1,-1':
+                        # Valid combinations for 1,-1: (3,1), (2,1), (1,1)
+                        if f"{gapopen} {gapextend}" not in ["3 1", "2 1", "1 1"]:
+                            gapopen, gapextend = "3", "1"
+                
+                params['GAPCOSTS'] = f"{gapopen} {gapextend}"
             
             # Genetic code (for translated searches)
             if self.program in ['blastx', 'tblastn', 'tblastx']:
@@ -188,12 +220,30 @@ class OnlineBlastWorker(QThread):
             with urlopen(request, timeout=30) as response:
                 result = response.read().decode('utf-8')
             
-            # Extract request ID from response
+            # Extract request ID from response - try multiple patterns
+            rid = None
+            
+            # Pattern 1: RID = value
             for line in result.split('\n'):
                 if 'RID =' in line:
-                    return line.split('=')[1].strip()
+                    rid = line.split('=')[1].strip()
+                    break
             
-            return None
+            # Pattern 2: RID=value (no spaces)
+            if not rid:
+                for line in result.split('\n'):
+                    if 'RID=' in line and 'RID =' not in line:
+                        rid = line.split('=')[1].strip()
+                        break
+            
+            # Pattern 3: Look for RID in HTML attributes
+            if not rid:
+                import re
+                rid_match = re.search(r'RID[\s]*=[\s]*["\']?([A-Z0-9]+)["\']?', result, re.IGNORECASE)
+                if rid_match:
+                    rid = rid_match.group(1)
+            
+            return rid
             
         except (URLError, HTTPError, Exception) as e:
             raise Exception(f"Failed to submit BLAST search: {str(e)}")
@@ -303,19 +353,54 @@ BLAST_CONFIG = {
         "31": "Blastocrithidia Nuclear (31)"
     },
     "matrices": ["PAM30", "PAM70", "BLOSUM90", "BLOSUM80", "BLOSUM62", "BLOSUM50", "BLOSUM45", "PAM250"],
-    "gap_costs": [
-        {"value": "11 2", "description": "Existence: 11 Extension: 2"},
-        {"value": "10 2", "description": "Existence: 10 Extension: 2"},
-        {"value": "9 2", "description": "Existence: 9 Extension: 2"},
-        {"value": "8 2", "description": "Existence: 8 Extension: 2"},
-        {"value": "7 2", "description": "Existence: 7 Extension: 2"},
-        {"value": "6 2", "description": "Existence: 6 Extension: 2"},
-        {"value": "13 1", "description": "Existence: 13 Extension: 1"},
-        {"value": "12 1", "description": "Existence: 12 Extension: 1"},
-        {"value": "11 1", "description": "Existence: 11 Extension: 1"},
-        {"value": "10 1", "description": "Existence: 10 Extension: 1"},
-        {"value": "9 1", "description": "Existence: 9 Extension: 1"}
-    ],
+    "gap_costs": {
+        "protein": [
+            {"value": "11 2", "description": "Existence: 11 Extension: 2"},
+            {"value": "10 2", "description": "Existence: 10 Extension: 2"},
+            {"value": "9 2", "description": "Existence: 9 Extension: 2"},
+            {"value": "8 2", "description": "Existence: 8 Extension: 2"},
+            {"value": "7 2", "description": "Existence: 7 Extension: 2"},
+            {"value": "6 2", "description": "Existence: 6 Extension: 2"},
+            {"value": "13 1", "description": "Existence: 13 Extension: 1"},
+            {"value": "12 1", "description": "Existence: 12 Extension: 1"},
+            {"value": "11 1", "description": "Existence: 11 Extension: 1"},
+            {"value": "10 1", "description": "Existence: 10 Extension: 1"},
+            {"value": "9 1", "description": "Existence: 9 Extension: 1"}
+        ],
+        "nucleotide": {
+            "2,-3": [
+                {"value": "5 2", "description": "Existence: 5 Extension: 2"},
+                {"value": "4 4", "description": "Existence: 4 Extension: 4"},
+                {"value": "2 4", "description": "Existence: 2 Extension: 4"},
+                {"value": "0 4", "description": "Existence: 0 Extension: 4"}
+            ],
+            "1,-2": [
+                {"value": "2 1", "description": "Existence: 2 Extension: 1"},
+                {"value": "1 1", "description": "Existence: 1 Extension: 1"},
+                {"value": "0 1", "description": "Existence: 0 Extension: 1"}
+            ],
+            "1,-3": [
+                {"value": "2 1", "description": "Existence: 2 Extension: 1"},
+                {"value": "1 1", "description": "Existence: 1 Extension: 1"},
+                {"value": "0 1", "description": "Existence: 0 Extension: 1"}
+            ],
+            "1,-4": [
+                {"value": "1 1", "description": "Existence: 1 Extension: 1"},
+                {"value": "0 1", "description": "Existence: 0 Extension: 1"}
+            ],
+            "4,-5": [
+                {"value": "12 8", "description": "Existence: 12 Extension: 8"},
+                {"value": "8 6", "description": "Existence: 8 Extension: 6"},
+                {"value": "6 5", "description": "Existence: 6 Extension: 5"},
+                {"value": "4 4", "description": "Existence: 4 Extension: 4"}
+            ],
+            "1,-1": [
+                {"value": "3 1", "description": "Existence: 3 Extension: 1"},
+                {"value": "2 1", "description": "Existence: 2 Extension: 1"},
+                {"value": "1 1", "description": "Existence: 1 Extension: 1"}
+            ]
+        }
+    },
     "compositional_adjustments": [
         {"value": "0", "description": "No adjustment"},
         {"value": "1", "description": "Composition-based statistics"},
@@ -458,7 +543,7 @@ def create_blastp_tab(parent):
     
     # Gap costs
     parent.blastp_gap_costs = QComboBox()
-    for gap_cost in BLAST_CONFIG["gap_costs"]:
+    for gap_cost in BLAST_CONFIG["gap_costs"]["protein"]:
         parent.blastp_gap_costs.addItem(gap_cost["description"])
     parent.blastp_gap_costs.setCurrentText("Existence: 11 Extension: 1")
     parent.blastp_gap_costs.setToolTip("Gap opening and extension penalties")
@@ -667,7 +752,7 @@ def run_online_blast_search(parent):
     
     # Parse gap costs
     gap_text = parent.blastp_gap_costs.currentText()
-    for gap_cost in BLAST_CONFIG["gap_costs"]:
+    for gap_cost in BLAST_CONFIG["gap_costs"]["protein"]:
         if gap_cost["description"] == gap_text:
             gap_values = gap_cost["value"].split(' ')
             if len(gap_values) >= 2:
@@ -1172,13 +1257,31 @@ def create_blastn_tab(parent):
     parent.blastn_match_scores.setToolTip("Reward and penalty for matching and mismatching bases")
     params_layout.addRow("Match/Mismatch scores:", parent.blastn_match_scores)
     
-    # Gap costs
+    # Gap costs (will be populated based on match/mismatch scores)
     parent.blastn_gap_costs = QComboBox()
-    for gap_cost in BLAST_CONFIG["gap_costs"]:
+    # Default to 2,-3 match/mismatch scores gap costs
+    for gap_cost in BLAST_CONFIG["gap_costs"]["nucleotide"]["2,-3"]:
         parent.blastn_gap_costs.addItem(gap_cost["description"])
-    parent.blastn_gap_costs.setCurrentText("Existence: 11 Extension: 1")
+    parent.blastn_gap_costs.setCurrentText("Existence: 5 Extension: 2")
     parent.blastn_gap_costs.setToolTip("Gap opening and extension penalties")
     params_layout.addRow("Gap costs:", parent.blastn_gap_costs)
+    
+    # Function to update gap costs when match/mismatch scores change
+    def update_gap_costs():
+        """Update gap costs dropdown based on selected match/mismatch scores."""
+        match_scores = parent.blastn_match_scores.currentText().split(" ")[0]
+        parent.blastn_gap_costs.clear()
+        
+        if match_scores in BLAST_CONFIG["gap_costs"]["nucleotide"]:
+            for gap_cost in BLAST_CONFIG["gap_costs"]["nucleotide"][match_scores]:
+                parent.blastn_gap_costs.addItem(gap_cost["description"])
+            # Set default to first option
+            if parent.blastn_gap_costs.count() > 0:
+                parent.blastn_gap_costs.setCurrentIndex(0)
+    
+    # Connect match/mismatch scores change to gap costs update
+    parent.blastn_match_scores.currentTextChanged.connect(update_gap_costs)
+    setattr(parent, 'blastn_update_gap_costs', update_gap_costs)
     
     input_layout.addWidget(params_group)
     
@@ -1383,7 +1486,19 @@ def run_online_blast_search_generic(parent, program_type):
     if hasattr(parent, f'{program_type}_gap_costs'):
         gap_costs = getattr(parent, f'{program_type}_gap_costs')
         gap_text = gap_costs.currentText()
-        for gap_cost in BLAST_CONFIG["gap_costs"]:
+        
+        # Determine which gap costs list to use
+        if program_type in ["blastp", "blastx", "tblastn"]:
+            gap_costs_list = BLAST_CONFIG["gap_costs"]["protein"]
+        else:
+            # For nucleotide searches, get the match/mismatch scores first
+            match_scores = parameters.get('match_scores', '2,-3')
+            if match_scores in BLAST_CONFIG["gap_costs"]["nucleotide"]:
+                gap_costs_list = BLAST_CONFIG["gap_costs"]["nucleotide"][match_scores]
+            else:
+                gap_costs_list = BLAST_CONFIG["gap_costs"]["nucleotide"]["2,-3"]  # Default
+        
+        for gap_cost in gap_costs_list:
             if gap_cost["description"] == gap_text:
                 gap_values = gap_cost["value"].split(' ')
                 if len(gap_values) >= 2:
