@@ -345,7 +345,6 @@ class BlastResultsParser:
         
         # Create the main results table with improved formatting
         result += "📋 HITS TABLE (sorted by E-value):\n"
-        result += "─" * 120 + "\n"
         
         # Enhanced table headers with better spacing
         headers = [
@@ -362,28 +361,51 @@ class BlastResultsParser:
                 headers.insert(-2, "S.Frame")
         
         # Improved column widths for better readability and alignment
+        # Base widths for standard columns
         col_widths = [6, 22, 12, 11, 12, 6, 9, 9, 9, 9, 13, 11, 10]
-        if "Q.Frame" in headers:
-            col_widths.insert(-2, 8)
-        if "S.Frame" in headers:
-            col_widths.insert(-2, 8)
         
-        # Print headers with better formatting
+        # Add frame columns with adequate width for translated searches
+        if "Q.Frame" in headers:
+            col_widths.insert(-2, 10)  # Width for Q.Frame column
+        if "S.Frame" in headers:
+            col_widths.insert(-2, 10)  # Width for S.Frame column
+        
+        # Build the header row first to get the exact table structure
         header_line = "│"
         for i, header in enumerate(headers):
-            # Ensure header fits exactly in column width
             header_str = str(header)
             max_header_width = col_widths[i] - 2  # Account for spaces and borders
             if len(header_str) > max_header_width:
                 header_str = header_str[:max_header_width-3] + "..."
             header_line += f" {header_str:<{col_widths[i]-1}} │"
+        
+        # Calculate the exact table width from the header line
+        table_width = len(header_line)
+        
+        # Calculate border positions by analyzing the header structure
+        border_positions = []
+        for i, char in enumerate(header_line):
+            if char == '│':  # Find all vertical bar positions
+                border_positions.append(i)
+        
+        # Create top border
+        top_line = ['─'] * table_width
+        top_line[0] = '┌'
+        top_line[-1] = '┐'
+        for pos in border_positions[1:-1]:  # Skip first and last
+            top_line[pos] = '┬'
+        result += "".join(top_line) + "\n"
+        
+        # Add the header line
         result += header_line + "\n"
         
-        # Add separator line
-        separator_line = "├"
-        for i, width in enumerate(col_widths):
-            separator_line += "─" * width + ("┼" if i < len(col_widths) - 1 else "┤")
-        result += separator_line + "\n"
+        # Create separator line
+        separator_line = ['─'] * table_width
+        separator_line[0] = '├'
+        separator_line[-1] = '┤'
+        for pos in border_positions[1:-1]:  # Skip first and last
+            separator_line[pos] = '┼'
+        result += "".join(separator_line) + "\n"
         
         # Print data rows with improved formatting
         for i, hit in enumerate(sorted_hits[:50], 1):  # Limit to top 50 hits
@@ -431,11 +453,13 @@ class BlastResultsParser:
                 row_line += f" {data_str:<{col_widths[j]-1}} │"
             result += row_line + "\n"
         
-        # Close table
-        bottom_line = "└"
-        for i, width in enumerate(col_widths):
-            bottom_line += "─" * width + ("┴" if i < len(col_widths) - 1 else "┘")
-        result += bottom_line + "\n\n"
+        # Close table with bottom border that matches exactly
+        bottom_line = ['─'] * table_width
+        bottom_line[0] = '└'
+        bottom_line[-1] = '┘'
+        for pos in border_positions[1:-1]:  # Skip first and last
+            bottom_line[pos] = '┴'
+        result += "".join(bottom_line) + "\n\n"
         
         # Add detailed alignments for top hits with full descriptions
         result += "🔍 DETAILED ALIGNMENTS (Top 10 Hits with Full Descriptions):\n"
