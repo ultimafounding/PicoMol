@@ -287,6 +287,39 @@ class BlastResultsParser:
         
         return hits
     
+    def _get_current_timestamp(self) -> str:
+        """Get current timestamp for results."""
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    def _parse_description(self, description: str) -> tuple:
+        """Parse description to extract organism and gene information."""
+        if not description:
+            return description, None, None
+            
+        # Common patterns for organism extraction
+        organism = None
+        gene_name = None
+        
+        # Extract organism from OS= pattern (UniProt style)
+        os_match = re.search(r'OS=([^=]+?)(?:\s+OX=|\s+GN=|\s+PE=|$)', description)
+        if os_match:
+            organism = os_match.group(1).strip()
+        
+        # Extract gene name from GN= pattern (UniProt style)
+        gn_match = re.search(r'GN=([^=\s]+)', description)
+        if gn_match:
+            gene_name = gn_match.group(1).strip()
+        
+        # Alternative organism extraction for other formats
+        if not organism:
+            # Look for [Organism name] pattern
+            bracket_match = re.search(r'\[([^\]]+)\]\s*$', description)
+            if bracket_match:
+                organism = bracket_match.group(1).strip()
+        
+        return description, organism, gene_name
+    
     def format_results_table(self, hits: List[BlastHit], program_type: str = "blast") -> str:
         """Format BLAST hits as a comprehensive table with all standard columns."""
         
@@ -296,54 +329,75 @@ class BlastResultsParser:
         # Sort hits by E-value (best first)
         sorted_hits = sorted(hits, key=lambda x: x.evalue)
         
-        # Create header
-        result = " BLAST Search Results\n"
+        # Create header with improved formatting
+        result = "🧬 " + "=" * 78 + "\n"
+        result += "   BLAST SEARCH RESULTS - ENHANCED FORMAT\n"
         result += "=" * 80 + "\n\n"
         
-        # Add search summary
-        result += " Search Summary:\n"
-        result += f"   Program: {self.program or program_type.upper()}\n"
-        result += f"   Database: {self.database or 'Unknown'}\n"
-        result += f"   Query: {self.query_id or 'Unknown'} (Length: {self.query_length})\n"
-        result += f"   Total Hits: {len(sorted_hits)}\n\n"
+        # Add search summary with better formatting
+        result += "📊 SEARCH SUMMARY:\n"
+        result += "─" * 40 + "\n"
+        result += f"   Program:      {self.program or program_type.upper()}\n"
+        result += f"   Database:     {self.database or 'Unknown'}\n"
+        result += f"   Query:        {self.query_id or 'Unknown'} (Length: {self.query_length:,} residues)\n"
+        result += f"   Total Hits:   {len(sorted_hits):,}\n"
+        result += f"   Date:         {self._get_current_timestamp()}\n\n"
         
-        # Create the main results table
-        result += " Hits Table (sorted by E-value):\n"
-        result += "-" * 80 + "\n"
+        # Create the main results table with improved formatting
+        result += "📋 HITS TABLE (sorted by E-value):\n"
+        result += "─" * 120 + "\n"
         
-        # Table headers
+        # Enhanced table headers with better spacing
         headers = [
-            "#", "Subject ID", "% Identity", "Align Length", 
-            "Mismatches", "Gap Opens", "Query Start", "Query End",
-            "Subject Start", "Subject End", "E-value", "Bit Score"
+            "Rank", "Subject ID", "% Identity", "Align Len", 
+            "Mismatches", "Gaps", "Q.Start", "Q.End",
+            "S.Start", "S.End", "E-value", "Bit Score", "Coverage"
         ]
         
         # Add frame columns for translated searches
         if program_type.lower() in ['blastx', 'tblastn', 'tblastx']:
             if program_type.lower() in ['blastx', 'tblastx']:
-                headers.insert(-2, "Query Frame")
+                headers.insert(-2, "Q.Frame")
             if program_type.lower() in ['tblastn', 'tblastx']:
-                headers.insert(-2, "Subject Frame")
+                headers.insert(-2, "S.Frame")
         
-        # Format table with proper spacing
-        col_widths = [3, 15, 10, 12, 10, 9, 11, 9, 13, 11, 12, 10]
-        if "Query Frame" in headers:
-            col_widths.insert(-2, 11)
-        if "Subject Frame" in headers:
-            col_widths.insert(-2, 13)
+        # Improved column widths for better readability and alignment
+        col_widths = [6, 22, 12, 11, 12, 6, 9, 9, 9, 9, 13, 11, 10]
+        if "Q.Frame" in headers:
+            col_widths.insert(-2, 8)
+        if "S.Frame" in headers:
+            col_widths.insert(-2, 8)
         
-        # Print headers
-        header_line = ""
+        # Print headers with better formatting
+        header_line = "│"
         for i, header in enumerate(headers):
-            header_line += f"{header:<{col_widths[i]}} "
+            # Ensure header fits exactly in column width
+            header_str = str(header)
+            max_header_width = col_widths[i] - 2  # Account for spaces and borders
+            if len(header_str) > max_header_width:
+                header_str = header_str[:max_header_width-3] + "..."
+            header_line += f" {header_str:<{col_widths[i]-1}} │"
         result += header_line + "\n"
-        result += "-" * len(header_line) + "\n"
         
-        # Print data rows
+        # Add separator line
+        separator_line = "├"
+        for i, width in enumerate(col_widths):
+            separator_line += "─" * width + ("┼" if i < len(col_widths) - 1 else "┤")
+        result += separator_line + "\n"
+        
+        # Print data rows with improved formatting
         for i, hit in enumerate(sorted_hits[:50], 1):  # Limit to top 50 hits
+            # Calculate query coverage for display
+            query_cov = hit.query_coverage if hit.query_coverage > 0 else 0
+            
+            # Ensure subject ID fits exactly in the allocated space (22 chars - 2 for padding = 20)
+            subject_id_display = hit.subject_id if hit.subject_id else "N/A"
+            if len(subject_id_display) > 20:
+                subject_id_display = subject_id_display[:17] + "..."
+            
             row_data = [
                 str(i),
-                hit.subject_id[:14] if hit.subject_id else "N/A",
+                subject_id_display,
                 f"{hit.percent_identity:.1f}%",
                 str(hit.alignment_length),
                 str(hit.mismatches),
@@ -352,77 +406,127 @@ class BlastResultsParser:
                 str(hit.query_end),
                 str(hit.subject_start),
                 str(hit.subject_end),
-                f"{hit.evalue:.2e}" if hit.evalue < 0.01 else f"{hit.evalue:.3f}",
-                f"{hit.bit_score:.1f}"
+                f"{hit.evalue:.1e}" if hit.evalue < 0.01 else f"{hit.evalue:.3f}",
+                f"{hit.bit_score:.1f}",
+                f"{query_cov:.1f}%"
             ]
             
             # Add frame information for translated searches
-            if program_type.lower() in ['blastx', 'tblastx'] and "Query Frame" in headers:
-                frame_pos = headers.index("Query Frame")
+            if program_type.lower() in ['blastx', 'tblastx'] and "Q.Frame" in headers:
+                frame_pos = headers.index("Q.Frame")
                 row_data.insert(frame_pos, str(hit.query_frame) if hit.query_frame else "N/A")
             
-            if program_type.lower() in ['tblastn', 'tblastx'] and "Subject Frame" in headers:
-                frame_pos = headers.index("Subject Frame")
+            if program_type.lower() in ['tblastn', 'tblastx'] and "S.Frame" in headers:
+                frame_pos = headers.index("S.Frame")
                 row_data.insert(frame_pos, str(hit.subject_frame) if hit.subject_frame else "N/A")
             
-            # Format row
-            row_line = ""
+            # Format row with table borders - ensure exact column width alignment
+            row_line = "│"
             for j, data in enumerate(row_data):
-                row_line += f"{data:<{col_widths[j]}} "
+                # Truncate data if it's too long for the column
+                data_str = str(data)
+                max_data_width = col_widths[j] - 2  # Account for spaces and borders
+                if len(data_str) > max_data_width:
+                    data_str = data_str[:max_data_width-3] + "..."
+                row_line += f" {data_str:<{col_widths[j]-1}} │"
             result += row_line + "\n"
         
-        # Add detailed alignments for top hits
-        result += "\n" + "=" * 80 + "\n"
-        result += " Detailed Alignments (Top 10 Hits):\n"
+        # Close table
+        bottom_line = "└"
+        for i, width in enumerate(col_widths):
+            bottom_line += "─" * width + ("┴" if i < len(col_widths) - 1 else "┘")
+        result += bottom_line + "\n\n"
+        
+        # Add detailed alignments for top hits with full descriptions
+        result += "🔍 DETAILED ALIGNMENTS (Top 10 Hits with Full Descriptions):\n"
         result += "=" * 80 + "\n\n"
         
         for i, hit in enumerate(sorted_hits[:10], 1):
-            result += f"Hit #{i}: {hit.subject_id}\n"
-            result += f"Description: {hit.subject_title[:70]}...\n" if len(hit.subject_title) > 70 else f"Description: {hit.subject_title}\n"
-            result += f"Length: {hit.subject_length}\n"
-            result += f"Score: {hit.bit_score:.1f} bits ({hit.score:.0f}), E-value: {hit.evalue:.2e}\n"
-            result += f"Identities: {hit.percent_identity:.1f}% ({int(hit.percent_identity * hit.alignment_length / 100)}/{hit.alignment_length})\n"
+            result += f"🎯 HIT #{i}:\n"
+            result += "─" * 50 + "\n"
+            result += f"Subject ID:    {hit.subject_id}\n"
+            
+            # Parse and display full description with organism info
+            full_desc, organism, gene_name = self._parse_description(hit.subject_title)
+            result += f"Description:   {full_desc}\n"
+            if organism:
+                result += f"Organism:      {organism}\n"
+            if gene_name:
+                result += f"Gene:          {gene_name}\n"
+            
+            result += f"Length:        {hit.subject_length:,} residues\n"
+            result += f"Score:         {hit.bit_score:.1f} bits ({hit.score:.0f})\n"
+            result += f"E-value:       {hit.evalue:.2e}\n"
+            result += f"Identities:    {hit.percent_identity:.1f}% ({int(hit.percent_identity * hit.alignment_length / 100)}/{hit.alignment_length})\n"
             
             if hit.query_coverage > 0:
-                result += f"Query Coverage: {hit.query_coverage:.1f}%\n"
+                result += f"Query Cov:     {hit.query_coverage:.1f}%\n"
             if hit.subject_coverage > 0:
-                result += f"Subject Coverage: {hit.subject_coverage:.1f}%\n"
+                result += f"Subject Cov:   {hit.subject_coverage:.1f}%\n"
             
             # Add frame information for translated searches
             if program_type.lower() in ['blastx', 'tblastx'] and hit.query_frame:
-                result += f"Query Frame: {hit.query_frame}\n"
+                result += f"Query Frame:   {hit.query_frame}\n"
             if program_type.lower() in ['tblastn', 'tblastx'] and hit.subject_frame:
                 result += f"Subject Frame: {hit.subject_frame}\n"
             
-            result += f"\nQuery: {hit.query_start:>6} {hit.query_sequence} {hit.query_end}\n"
-            if hit.alignment_midline:
-                result += f"       {' ' * 6} {hit.alignment_midline}\n"
-            result += f"Sbjct: {hit.subject_start:>6} {hit.subject_sequence} {hit.subject_end}\n\n"
+            # Alignment display with better formatting
+            result += "\nAlignment:\n"
+            if hit.query_sequence and hit.subject_sequence:
+                result += f"Query: {hit.query_start:>6} {hit.query_sequence} {hit.query_end}\n"
+                if hit.alignment_midline:
+                    result += f"       {' ' * 6} {hit.alignment_midline}\n"
+                result += f"Sbjct: {hit.subject_start:>6} {hit.subject_sequence} {hit.subject_end}\n"
+            else:
+                result += "       [Alignment sequences not available]\n"
+            
+            result += "\n" + "─" * 50 + "\n\n"
         
-        # Add summary statistics
+        # Add summary statistics with better formatting
         if len(sorted_hits) > 10:
-            result += f"... and {len(sorted_hits) - 10} more hits\n\n"
+            result += f"📈 ... and {len(sorted_hits) - 10:,} more hits (showing top 10 detailed alignments)\n\n"
         
-        result += " Search Statistics:\n"
-        result += f"   Best E-value: {sorted_hits[0].evalue:.2e}\n"
-        result += f"   Best Bit Score: {sorted_hits[0].bit_score:.1f}\n"
-        result += f"   Average Identity: {sum(h.percent_identity for h in sorted_hits) / len(sorted_hits):.1f}%\n"
+        result += "📊 SEARCH STATISTICS:\n"
+        result += "─" * 30 + "\n"
+        result += f"   Best E-value:      {sorted_hits[0].evalue:.2e}\n"
+        result += f"   Best Bit Score:    {sorted_hits[0].bit_score:.1f}\n"
+        result += f"   Average Identity:  {sum(h.percent_identity for h in sorted_hits) / len(sorted_hits):.1f}%\n"
+        result += f"   Hits with E < 1e-5: {sum(1 for h in sorted_hits if h.evalue < 1e-5):,}\n"
+        result += f"   Hits with ID > 50%: {sum(1 for h in sorted_hits if h.percent_identity > 50):,}\n\n"
+        
+        result += "💡 TIP: Use Ctrl+F to search for specific organisms, genes, or accession numbers\n"
+        result += "=" * 80 + "\n"
         
         return result
     
     def _format_no_hits_message(self) -> str:
         """Format a message when no hits are found."""
-        result = " BLAST Search Results\n"
-        result += "=" * 50 + "\n\n"
-        result += " No significant hits found.\n\n"
-        result += " Suggestions to improve your search:\n"
-        result += "   • Increase the E-value threshold (try 1.0 or 10.0)\n"
-        result += "   • Use a different scoring matrix\n"
-        result += "   • Check your query sequence for errors\n"
-        result += "   • Try a different database\n"
-        result += "   • Reduce word size for more sensitive search\n"
-        result += "   • Remove low complexity filtering\n\n"
+        result = "🧬 " + "=" * 78 + "\n"
+        result += "   BLAST SEARCH RESULTS - NO HITS FOUND\n"
+        result += "=" * 80 + "\n\n"
+        result += "❌ No significant hits found for your query sequence.\n\n"
+        result += "💡 SUGGESTIONS TO IMPROVE YOUR SEARCH:\n"
+        result += "─" * 40 + "\n"
+        result += "   🔧 Parameter Adjustments:\n"
+        result += "      • Increase E-value threshold (try 1.0 or 10.0)\n"
+        result += "      • Use a different scoring matrix (try BLOSUM45 for distant homologs)\n"
+        result += "      • Reduce word size for more sensitive search\n"
+        result += "      • Remove low complexity filtering\n\n"
+        result += "   🔍 Sequence Verification:\n"
+        result += "      • Check your query sequence for errors or unusual characters\n"
+        result += "      • Verify the sequence type (protein vs nucleotide)\n"
+        result += "      • Try searching a subset of your sequence\n\n"
+        result += "   🗄️ Database Options:\n"
+        result += "      • Try a different database (e.g., RefSeq, SwissProt)\n"
+        result += "      • Search organism-specific databases\n"
+        result += "      • Consider translated searches (BLASTX, TBLASTN)\n\n"
+        result += "   📚 Alternative Approaches:\n"
+        result += "      • Try PSI-BLAST for distant homologs\n"
+        result += "      • Use domain-specific databases (Pfam, CDD)\n"
+        result += "      • Consider structure-based searches\n\n"
+        result += "=" * 80 + "\n"
         return result
+
 
 def enhanced_format_blast_output(raw_output: str, program_type: str = "blast") -> str:
     """Enhanced BLAST output formatter with comprehensive table parsing."""

@@ -21,7 +21,7 @@ from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
     QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
-    QTabWidget, QSizePolicy, QColorDialog, QFormLayout
+    QTabWidget, QSizePolicy, QColorDialog, QFormLayout, QScrollArea
 )
 
 
@@ -29,14 +29,33 @@ class AboutDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("About PicoMol")
-        self.setMinimumWidth(500)
-        layout = QVBoxLayout(self)
+        self.setMinimumWidth(600)
+        self.setMinimumHeight(700)
+        
+        # Create scroll area to handle overflow
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        
+        # Create the widget that contains the content
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        
         about_text = QLabel(
             """
+            <style>
+                body { font-family: Arial, sans-serif; line-height: 1.5; }
+                h2 { color: #2c3e50; margin-top: 0.5em; }
+                h3 { color: #3498db; margin-top: 1em; }
+                a { color: #2980b9; text-decoration: none; }
+                a:hover { text-decoration: underline; }
+                ul { margin: 0.5em 0; padding-left: 1.5em; }
+                li { margin-bottom: 0.3em; }
+                .citation { font-size: 0.9em; margin: 0.5em 0; }
+            </style>
+            
             <h2>🧬 PicoMol</h2>
             <p><b>Version:</b> 0.0.3 (2025-07-18)</p>
-            <p>A comprehensive molecular visualization and bioinformatics suite for protein structures and sequence analysis.<br>
-            Built with PyQt5 and NGL.js, powered by Biopython.</p>
+            <p>A comprehensive molecular visualization and bioinformatics suite for protein structures and sequence analysis.</p>
             
             <h3>🔬 Core Features</h3>
             <ul>
@@ -45,7 +64,6 @@ class AboutDialog(QDialog):
               <li><b>PDB Support:</b> Fetch from PDB database or load local files</li>
               <li><b>Sequence Analysis:</b> View and analyze protein/nucleotide sequences</li>
               <li><b>Export Tools:</b> Save screenshots and structure files</li>
-              <li><b>User-Friendly:</b> Drag-and-drop, undo/redo, recent files, and more</li>
             </ul>
             
             <h3>🛠️ Technology Stack</h3>
@@ -53,7 +71,7 @@ class AboutDialog(QDialog):
               <li><b>GUI Framework:</b> <a href='https://riverbankcomputing.com/software/pyqt/intro'>PyQt5</a> with QWebEngine</li>
               <li><b>3D Visualization:</b> <a href='https://github.com/arose/ngl'>NGL.js</a> (MIT License)</li>
               <li><b>Bioinformatics:</b> <a href='https://biopython.org/'>Biopython</a></li>
-              <li><b>BLAST Services:</b> NCBI BLAST API integration</li>
+              <li><b>BLAST:</b> NCBI BLAST API integration</li>
             </ul>
             
             <p><b>Developer:</b> Jack Magson<br>
@@ -61,14 +79,64 @@ class AboutDialog(QDialog):
             <b>Repository:</b> <a href='https://github.com/ultimafounding/PicoMol'>GitHub</a></p>
             
             <h3>📚 Citations</h3>
-            <p><b>NGL.js:</b><br>
-            • AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. NGL viewer: web-based molecular graphics for large complexes. <i>Bioinformatics</i>: bty419, 2018. <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a><br>
-            • AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. <i>Nucleic Acids Res</i> 43 (W1): W576-W579, 2015. <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a></p>
             
-            <p><b>BLAST:</b><br>
-            • Altschul, S.F., Gish, W., Miller, W., Myers, E.W. & Lipman, D.J. Basic local alignment search tool. <i>Journal of Molecular Biology</i> 215, 403-410, 1990.</p>
+            <p><b>NGL.js:</b></p>
+            <div class="citation">
+            AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. 
+            NGL viewer: web-based molecular graphics for large complexes. 
+            <i>Bioinformatics</i> 34(21): 3755-3758, 2018. 
+            <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a>
+            </div>
+            
+            <div class="citation">
+            AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. 
+            <i>Nucleic Acids Research</i> 43(W1): W576-W579, 2015. 
+            <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a>
+            </div>
+            
+            <p><b>BLAST:</b></p>
+            <div class="citation">
+            Altschul SF, Gish W, Miller W, Myers EW, Lipman DJ. 
+            Basic local alignment search tool. 
+            <i>Journal of Molecular Biology</i> 215(3): 403-410, 1990.
+            <a href='https://doi.org/10.1016/S0022-2836(05)80360-2'>doi:10.1016/S0022-2836(05)80360-2</a>
+            </div>
+            
+            <div class="citation">
+            Altschul SF, Madden TL, Schäffer AA, Zhang J, Zhang Z, Miller W, Lipman DJ. 
+            Gapped BLAST and PSI-BLAST: a new generation of protein database search programs. 
+            <i>Nucleic Acids Research</i> 25(17): 3389-3402, 1997.
+            <a href='https://doi.org/10.1093/nar/25.17.3389'>doi:10.1093/nar/25.17.3389</a>
+            </div>
+            
+            <p><b>PDB Format:</b></p>
+            <div class="citation">
+            Berman HM, Westbrook J, Feng Z, Gilliland G, Bhat TN, Weissig H, 
+            Shindyalov IN, Bourne PE. 
+            The Protein Data Bank. 
+            <i>Nucleic Acids Research</i> 28(1): 235-242, 2000.
+            <a href='https://doi.org/10.1093/nar/28.1.235'>doi:10.1093/nar/28.1.235</a>
+            </div>
             """
         )
+        about_text.setWordWrap(True)
+        about_text.setOpenExternalLinks(True)
+        about_text.setTextFormat(Qt.RichText)
+        about_text.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        
+        layout.addWidget(about_text)
+        
+        # Set the scroll area's widget
+        scroll.setWidget(content)
+        
+        # Create main layout with scroll area and button box
+        main_layout = QVBoxLayout(self)
+        main_layout.addWidget(scroll)
+        
+        # Add OK button at the bottom
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(self.accept)
+        main_layout.addWidget(button_box)
         about_text.setOpenExternalLinks(True)
         about_text.setWordWrap(True)
         layout.addWidget(about_text)

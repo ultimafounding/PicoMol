@@ -109,11 +109,16 @@ PicoMol/
 ## Technical Details
 
 ### Architecture
-PicoMol combines several technologies for a seamless experience:
+## 🧩 Technology Stack
+
+PicoMol combines several powerful technologies:
 
 - **PyQt5:** Cross-platform GUI framework providing the main interface
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
+- **Biopython:** Bioinformatics tools for sequence and structure analysis
+- **NCBI BLAST+:** Local BLAST searches and sequence analysis
+- **PDBx/mmCIF:** Structure file format support
 - **Biopython:** Molecular biology tools for PDB parsing and sequence handling
 - **Local HTTP Server:** Serves molecular data to the embedded browser
 
@@ -140,15 +145,53 @@ We welcome contributions! Please feel free to:
 - Submit pull requests for improvements
 - Share feedback and suggestions
 
-## License
+## 📚 Citations
 
-This project is licensed under the GNU General Public License v3.0. See the `LICENSE` file for details.
+If you use PicoMol in your research, please cite the following:
+
+### NGL.js
+```
+Rose AS, Bradley AR, Valasatava Y, Duarte JM, Prlić A, Rose PW.
+NGL viewer: web-based molecular graphics for large complexes.
+Bioinformatics 34(21): 3755-3758, 2018.
+doi:10.1093/bioinformatics/bty419
+
+Rose AS, Hildebrand PW.
+NGL Viewer: a web application for molecular visualization.
+Nucleic Acids Research 43(W1): W576-W579, 2015.
+doi:10.1093/nar/gkv402
+```
+
+### BLAST
+```
+Altschul SF, Gish W, Miller W, Myers EW, Lipman DJ.
+Basic local alignment search tool.
+Journal of Molecular Biology 215(3): 403-410, 1990.
+doi:10.1016/S0022-2836(05)80360-2
+
+Altschul SF, Madden TL, Schäffer AA, Zhang J, Zhang Z, Miller W, Lipman DJ.
+Gapped BLAST and PSI-BLAST: a new generation of protein database search programs.
+Nucleic Acids Research 25(17): 3389-3402, 1997.
+doi:10.1093/nar/25.17.3389
+```
+
+### PDB Format
+```
+Berman HM, Westbrook J, Feng Z, Gilliland G, Bhat TN, Weissig H, 
+Shindyalov IN, Bourne PE.
+The Protein Data Bank.
+Nucleic Acids Research 28(1): 235-242, 2000.
+doi:10.1093/nar/28.1.235
+```
+
+## 📄 License
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ### Third-Party Licenses
 - **NGL.js:** MIT License (compatible with GPL v3.0)
 - **Biopython:** Biopython License (compatible with GPL v3.0)
 
-## Citations
 
 When using PicoMol in your research, please cite:
 
