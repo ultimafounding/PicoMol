@@ -142,12 +142,6 @@ class AboutDialog(QDialog):
         button_box = QDialogButtonBox(QDialogButtonBox.Ok)
         button_box.accepted.connect(self.accept)
         main_layout.addWidget(button_box)
-        about_text.setOpenExternalLinks(True)
-        about_text.setWordWrap(True)
-        layout.addWidget(about_text)
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
-        button_box.accepted.connect(self.accept)
-        layout.addWidget(button_box)
 
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
@@ -214,47 +208,46 @@ class ProteinViewerApp(QMainWindow):
             self._welcome_dialog.show()
 
         # Create directories if not exist
-        self.pulled_structures_dir = os.path.join(os.getcwd(), "data", "pulled_structures")
+        project_root = os.path.dirname(os.path.abspath(__file__))
+        self.pulled_structures_dir = os.path.join(project_root, "data", "pulled_structures")
         os.makedirs(self.pulled_structures_dir, exist_ok=True)
-        self.ngl_assets_dir = os.path.join(os.getcwd(), "assets", "ngl_assets")
+        self.ngl_assets_dir = os.path.join(project_root, "assets", "ngl_assets")
         os.makedirs(self.ngl_assets_dir, exist_ok=True)
 
         ngl_min_js_path = os.path.join(self.ngl_assets_dir, "ngl.min.js")
+        
+        # Check if file exists
         if not os.path.exists(ngl_min_js_path):
-            QMessageBox.information(self, "NGL.js Missing", "ngl.min.js not found. Attempting to run setup_ngl.py...")
+            QMessageBox.information(self, "NGL.js Missing", "NGL.js not found. Attempting to download...")
             try:
-                # Check if requests is installed
-                try:
-                    import requests
-                except ImportError:
-                    self.show_error_dialog(
-                        "Dependency Missing",
-                        "The 'requests' library is required to download ngl.js.",
-                        suggestion="Please install it using 'pip install requests' and restart the application."
-                    )
-                    sys.exit(1)
-
-                subprocess.run([sys.executable, os.path.join(os.getcwd(), "setup_ngl.py")], check=True)
-                QMessageBox.information(self, "NGL.js Setup", "ngl.min.js downloaded successfully. Please restart the application.")
-                sys.exit(0)
-            except subprocess.CalledProcessError as e:
-                self.show_error_dialog(
-                    "NGL.js Setup Failed",
-                    "Failed to run setup_ngl.py.",
-                    suggestion="Please download ngl.min.js manually or check your internet connection.",
-                    details=str(e)
-                )
-                sys.exit(1)
+                # Try to import the setup_ngl function directly
+                sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+                from setup_ngl import setup_ngl
+                
+                if not setup_ngl():
+                    raise Exception("Failed to download NGL.js")
+                    
+                if not os.path.exists(ngl_min_js_path):
+                    raise Exception("Downloaded file not found")
+                    
+                QMessageBox.information(self, "Success", "Successfully downloaded NGL.js")
+                    
             except Exception as e:
                 self.show_error_dialog(
-                    "Error",
-                    "An unexpected error occurred during NGL.js setup.",
+                    "NGL.js Setup Failed",
+                    "Failed to download NGL.js.",
+                    suggestion="Please check your internet connection and try again.",
                     details=str(e)
                 )
                 sys.exit(1)
 
-        # Copy ngl.min.js to pulled_structures_dir
-        shutil.copy(ngl_min_js_path, self.pulled_structures_dir)
+        # Copy ngl.min.js to pulled_structures_dir if it doesn't exist there
+        dest_path = os.path.join(self.pulled_structures_dir, "ngl.min.js")
+        if not os.path.exists(dest_path):
+            try:
+                shutil.copy(ngl_min_js_path, self.pulled_structures_dir)
+            except Exception as e:
+                print(f"Warning: Could not copy ngl.min.js to {self.pulled_structures_dir}: {e}")
 
         self.pdb_parser = PDBParser()
         self.pdb_list = PDBList()
@@ -295,75 +288,7 @@ class ProteinViewerApp(QMainWindow):
         layout.addWidget(btn_box)
         dlg.exec_()
 
-        # Undo/redo stacks
-        self._undo_stack = []
-        self._redo_stack = []
-        self._is_restoring_state = False
 
-        super().__init__()
-        self.setWindowTitle("Basic Protein Structure Viewer")
-        self.setGeometry(100, 100, 1000, 800)
-        self.setAcceptDrops(True)
-
-        # Show welcome screen if user wants it
-        settings = QSettings("PicoMolApp", "PicoMol")
-        show_welcome = settings.value("show_welcome", False, type=bool)
-        if show_welcome:
-            self._welcome_dialog = WelcomeDialog(self)
-            self._welcome_dialog.setModal(True)
-            def handle_close():
-                settings.setValue("show_welcome", self._welcome_dialog.should_show_next_time())
-                self._welcome_dialog.deleteLater()
-            self._welcome_dialog.finished.connect(handle_close)
-            self._welcome_dialog.show()
-
-        # Create directories if not exist
-        self.pulled_structures_dir = os.path.join(os.getcwd(), "data", "pulled_structures")
-        os.makedirs(self.pulled_structures_dir, exist_ok=True)
-        self.ngl_assets_dir = os.path.join(os.getcwd(), "assets", "ngl_assets")
-        os.makedirs(self.ngl_assets_dir, exist_ok=True)
-
-        ngl_min_js_path = os.path.join(self.ngl_assets_dir, "ngl.min.js")
-        if not os.path.exists(ngl_min_js_path):
-            QMessageBox.information(self, "NGL.js Missing", "ngl.min.js not found. Attempting to run setup_ngl.py...")
-            try:
-                # Check if requests is installed
-                try:
-                    import requests
-                except ImportError:
-                    self.show_error_dialog(
-    "Dependency Missing",
-    "The 'requests' library is required to download ngl.js.",
-    suggestion="Please install it using 'pip install requests' and restart the application."
-)
-                    sys.exit(1)
-
-                subprocess.run([sys.executable, os.path.join(os.getcwd(), "setup_ngl.py")], check=True)
-                QMessageBox.information(self, "NGL.js Setup", "ngl.min.js downloaded successfully. Please restart the application.")
-                sys.exit(0)
-            except subprocess.CalledProcessError as e:
-                self.show_error_dialog(
-    "NGL.js Setup Failed",
-    "Failed to run setup_ngl.py.",
-    suggestion="Please download ngl.min.js manually or check your internet connection.",
-    details=str(e)
-)
-                sys.exit(1)
-            except Exception as e:
-                self.show_error_dialog(
-    "Error",
-    "An unexpected error occurred during NGL.js setup.",
-    details=str(e)
-)
-                sys.exit(1)
-
-        # Copy ngl.min.js to pulled_structures_dir
-        shutil.copy(ngl_min_js_path, self.pulled_structures_dir)
-
-        self.pdb_parser = PDBParser()
-        self.pdb_list = PDBList()
-
-        self.init_ui()
 
     def capture_state(self):
         """Capture the current user-facing state for undo/redo."""
@@ -1478,7 +1403,9 @@ def main():
 
     settings = QWebEngineSettings.defaultSettings()
 
-    server_thread = ServerThread(directory=os.getcwd())
+    # Use the project root directory for serving files
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    server_thread = ServerThread(directory=project_root)
     server_thread.start()
 
     # Wait for server to start and get port
