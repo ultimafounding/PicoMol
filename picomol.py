@@ -1080,7 +1080,7 @@ class ProteinViewerApp(QMainWindow):
         # Extract and display sequence
         try:
             # Read the PDB file content into a string buffer
-            with open(pdb_path, 'r') as f:
+            with open(pdb_path, 'r', encoding='utf-8') as f:
                 pdb_content = f.read()
             pdb_buffer = StringIO(pdb_content)
 
@@ -1295,7 +1295,7 @@ class ProteinViewerApp(QMainWindow):
 
         # Write the HTML file, with error handling
         try:
-            with open(html_path, "w") as f:
+            with open(html_path, "w", encoding='utf-8') as f:
                 f.write(html_content)
         except Exception as e:
             self.show_error_dialog(
@@ -1311,7 +1311,7 @@ class ProteinViewerApp(QMainWindow):
         color_scheme = self.color_combo.currentText() if hasattr(self, 'color_combo') else 'atomindex'
         html_content = html_content.replace("</head>", f"<script>window.initialColorScheme = '{color_scheme}';</script></head>")
         
-        with open(html_path, "w") as f:
+        with open(html_path, "w", encoding='utf-8') as f:
             f.write(html_content)
         
         self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/data/pulled_structures/{html_filename}"))

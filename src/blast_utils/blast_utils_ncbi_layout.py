@@ -1947,7 +1947,7 @@ def open_blast_file(parent, program_type):
     
     if file_path:
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             file_label = getattr(parent, f'{program_type}_file_label')
@@ -1969,7 +1969,7 @@ def open_subject_file(parent, program_type):
     
     if file_path:
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             
             file_label = getattr(parent, f'{program_type}_subject_file_label')
@@ -2000,7 +2000,7 @@ def save_blast_results(parent, program_type):
     
     if file_path:
         try:
-            with open(file_path, 'w') as f:
+            with open(file_path, 'w', encoding='utf-8') as f:
                 f.write(results_display.toPlainText())
             QMessageBox.information(parent, "Results Saved", f"Results saved to: {file_path}")
         except Exception as e:
