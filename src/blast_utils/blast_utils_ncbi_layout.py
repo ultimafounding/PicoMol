@@ -37,7 +37,7 @@ def create_ncbi_style_blastp_tab(parent):
 
 def create_ncbi_style_blastn_tab(parent):
     """Create BLASTN tab with exact NCBI layout."""
-    return create_ncbi_style_blastn_tab_unified(parent)
+    return create_ncbi_style_blast_tab(parent, "blastn", "Standard Nucleotide BLAST", "nucleotide")
 
 
 def create_ncbi_style_blastx_tab(parent):
