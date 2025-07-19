@@ -320,7 +320,7 @@ class BlastResultsParser:
         
         return description, organism, gene_name
     
-    def format_results_table(self, hits: List[BlastHit], program_type: str = "blast") -> str:
+    def format_results_table(self, hits: List[BlastHit], program_type: str = "blast", job_title: str = None, request_id: str = None) -> str:
         """Format BLAST hits as a comprehensive table with all standard columns."""
         
         if not hits:
@@ -340,6 +340,10 @@ class BlastResultsParser:
         result += f"   Program:      {self.program or program_type.upper()}\n"
         result += f"   Database:     {self.database or 'Unknown'}\n"
         result += f"   Query:        {self.query_id or 'Unknown'} (Length: {self.query_length:,} residues)\n"
+        if job_title:
+            result += f"   Job Title:    {job_title}\n"
+        if request_id:
+            result += f"   Request ID:   {request_id}\n"
         result += f"   Total Hits:   {len(sorted_hits):,}\n"
         result += f"   Date:         {self._get_current_timestamp()}\n\n"
         
@@ -552,7 +556,7 @@ class BlastResultsParser:
         return result
 
 
-def enhanced_format_blast_output(raw_output: str, program_type: str = "blast") -> str:
+def enhanced_format_blast_output(raw_output: str, program_type: str = "blast", job_title: str = None, request_id: str = None) -> str:
     """Enhanced BLAST output formatter with comprehensive table parsing."""
     
     if not raw_output or not raw_output.strip():
@@ -566,7 +570,7 @@ def enhanced_format_blast_output(raw_output: str, program_type: str = "blast") -
     else:
         hits = parser.parse_text_results(raw_output)
     
-    return parser.format_results_table(hits, program_type)
+    return parser.format_results_table(hits, program_type, job_title, request_id)
 
 
 if __name__ == "__main__":

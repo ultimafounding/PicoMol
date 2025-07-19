@@ -1900,7 +1900,14 @@ def cancel_ncbi_blast_search(parent, program_type):
 def on_ncbi_blast_finished(parent, program_type, result):
     """Handle successful BLAST completion."""
     
-    formatted_result = format_blast_output(result, program_type)
+    # Get job title and request ID
+    job_title_input = getattr(parent, f'{program_type}_job_title', None)
+    job_title = job_title_input.text().strip() if job_title_input else None
+    
+    worker = getattr(parent, f'{program_type}_worker', None)
+    request_id = worker.request_id if worker else None
+    
+    formatted_result = format_blast_output(result, program_type, job_title, request_id)
     results_display = getattr(parent, f'{program_type}_results_display')
     results_display.setText(formatted_result)
     
