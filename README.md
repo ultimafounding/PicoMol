@@ -1,6 +1,6 @@
 # PicoMol: The Miniature Molecular Visualization and Bioinformatics Suite
 
-PicoMol is a powerful, user-friendly desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a comprehensive suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
+PicoMol is a powerful, user-friendly desktop application for molecular visualization, structural analysis, and comprehensive bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
 
 ## Features
 
@@ -21,18 +21,39 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
 - **Sequence Validation:** Built-in sequence validation and formatting
 - **Multiple Database Support:** Access to all major NCBI databases (nr, nt, RefSeq, etc.)
 
-### 📊 Sequence Analysis
-- **Sequence Display:** View amino acid or nucleotide sequences extracted from PDB structures
-- **FASTA Support:** Import and export sequences in FASTA format
-- **Sequence Validation:** Automatic validation for protein and nucleotide sequences
+### 🧪 Advanced Bioinformatics Tools
+- **Comprehensive Sequence Analysis:** Detailed analysis for proteins, DNA, and RNA sequences
+  - **Protein Analysis:** Molecular weight, isoelectric point, hydropathy (GRAVY), aromaticity, instability index
+  - **Secondary Structure Prediction:** Helix, turn, and sheet content estimation
+  - **Charge Analysis:** Net charge calculations at different pH values (5, 7, 9)
+  - **Amino Acid Composition:** Complete breakdown with counts and percentages
+- **Nucleic Acid Analysis:** 
+  - **GC Content:** Accurate calculation for DNA and RNA sequences
+  - **Complement Sequences:** Both complement and reverse complement generation
+  - **Translation Analysis:** All 6 reading frames for DNA, direct translation for RNA
+  - **Nucleotide Composition:** Detailed breakdown in conventional order (A, T/U, G, C, N)
+- **FASTA Format Support:** 
+  - **Smart Parsing:** Handles both pasted FASTA text and file uploads
+  - **Multi-sequence Files:** Interactive sequence selection dialog for files with multiple sequences
+  - **Automatic Type Detection:** Intelligent sequence type recognition (protein/DNA/RNA)
+  - **Sequence Validation:** Real-time validation with helpful error messages
+- **Fallback Analysis:** Basic analysis available even without Biopython installation
 
-### 🎨 User Experience
-- **Tabbed Interface:** Organized workspace with separate tabs for visualization, BLAST, and analysis tools
+### 📊 Sequence Management
+- **Sequence Display:** View amino acid or nucleotide sequences extracted from PDB structures
+- **FASTA Export:** Export sequences in standard FASTA format
+- **Cross-Platform Integration:** Load sequences from structures into analysis tools
+- **Partial Codon Handling:** Intelligent handling of incomplete codons with user notifications
+
+### 🎨 User Experience & Interface
+- **Modern Tabbed Interface:** Organized workspace with separate tabs for visualization, BLAST, and bioinformatics
+- **Theme System:** Multiple built-in themes (System Default, Light, Dark, Blue, Green)
+- **Customizable Preferences:** Comprehensive settings dialog for appearance and behavior
 - **Robust Error Handling:** User-friendly error dialogs with actionable suggestions
 - **Undo/Redo System:** Full undo/redo support for visualization changes
 - **Recent Files:** Quick access to recently opened structures
-- **Customizable Settings:** Adjustable background colors, spin controls, and more
-- **Welcome Screen:** Optional welcome dialog for new users
+- **Welcome Screen:** Optional welcome dialog for new users with feature overview
+- **Responsive Design:** Adaptive layouts that work well on different screen sizes
 
 ## Installation
 
@@ -60,6 +81,14 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
 
 The application will automatically download NGL.js on first run if needed.
 
+**Note:** PicoMol features an organized project structure with source code in `src/`, assets in `assets/`, data files in `data/`, and documentation in `docs/`. The main application file (`picomol.py`) remains in the root directory for easy execution.
+
+### Enhanced Installation (Recommended)
+For full bioinformatics functionality, install Biopython:
+```bash
+pip install biopython
+```
+
 ### Manual Dependency Installation
 If you prefer to install dependencies manually:
 ```bash
@@ -71,56 +100,87 @@ pip install PyQt5 PyQtWebEngine biopython requests
 ### Getting Started
 1. **Launch PicoMol:** Run `python picomol.py`
 2. **Load a Structure:**
-   - Enter a PDB ID (e.g., `1CRN`, `4HHB`) and click "Fetch"
-   - Use "Open Local PDB File" to load your own structures
+   - Enter a PDB ID (e.g., `1CRN`, `4HHB`) and click \"Fetch\"
+   - Use \"Open Local PDB File\" to load your own structures
    - Drag and drop `.pdb` or `.ent` files directly onto the window
 
 ### 3D Visualization
 - **Change Representation:** Use the dropdown to switch between cartoon, ball+stick, surface, etc.
 - **Adjust Colors:** Select different coloring schemes or use uniform colors
 - **Control View:** Toggle auto-rotation, change background color
-- **Save Images:** Click "Save Screenshot" to export the current view
+- **Save Images:** Click \"Save Screenshot\" to export the current view
 
 ### BLAST Searches
-1. **Navigate to BLAST Tab:** Click on the "BLAST" tab in the main interface
+1. **Navigate to BLAST Tab:** Click on the \"BLAST\" tab in the main interface
 2. **Choose BLAST Type:** Select from BLASTP, BLASTN, BLASTX, TBLASTN, or TBLASTX
 3. **Enter Query:** Paste your sequence or upload a FASTA file
 4. **Configure Search:** Select database, adjust parameters as needed
-5. **Run Search:** Click "BLAST" to submit your search to NCBI
+5. **Run Search:** Click \"BLAST\" to submit your search to NCBI
 6. **View Results:** Comprehensive results with alignments and statistics
+
+### Bioinformatics Analysis
+1. **Navigate to Bioinformatics Tab:** Click on the \"Bioinformatics\" tab
+2. **Sequence Analysis Sub-tab:** Access comprehensive sequence analysis tools
+3. **Input Methods:**
+   - **Direct Entry:** Paste sequences (plain text or FASTA format)
+   - **Load from Structure:** Use sequence from currently loaded PDB structure
+   - **Load from File:** Import from FASTA files with multi-sequence support
+4. **Analysis Options:**
+   - **Automatic Type Detection:** Sequences are automatically classified
+   - **Manual Override:** Change sequence type if needed
+   - **Comprehensive Results:** Detailed analysis with exportable data
 
 ## Project Structure
 
 ```
 PicoMol/
-├── picomol.py                  # Main application
-├── setup_ngl.py               # NGL.js setup utility
-├── requirements.txt           # Python dependencies
-├── blast_utils/               # BLAST functionality package
-│   ├── __init__.py           # Package initialization
-│   ├── blast_utils.py        # Core BLAST functionality
-│   ├── blast_utils_ncbi_layout.py  # NCBI-style UI layouts
-│   └── blast_results_parser.py     # Results parsing and formatting
-├── ngl_assets/               # NGL.js library storage
-├── pulled_structures/        # Downloaded PDB files and generated viewers
-└── release_notes/           # Version history and release notes
+├── picomol.py                     # Main application entry point
+├── setup_ngl.py                   # NGL.js setup utility
+├── requirements.txt               # Python dependencies
+├── README.md                      # This file
+├── LICENSE                        # GPL v3.0 license
+├── .gitignore                     # Git ignore rules
+├── src/                          # Source code modules
+│   ├── core/                     # Core functionality
+│   │   ├── bioinformatics_tools.py  # Comprehensive bioinformatics analysis suite
+│   │   └── preferences.py           # Settings and preferences management
+│   ├── gui/                      # User interface components
+│   │   ├── theme_manager.py         # Theme system and UI customization
+│   │   └── welcome_dialog.py        # Welcome screen dialog
+│   └── blast_utils/              # BLAST functionality package
+│       ├── __init__.py              # Package initialization
+│       ├── blast_utils.py           # Core BLAST functionality
+│       ├── blast_utils_ncbi_layout.py  # NCBI-style UI layouts
+│       └── blast_results_parser.py     # Results parsing and formatting
+├── assets/                       # Static resources
+│   └── ngl_assets/              # NGL.js library storage
+├── data/                         # Data files and runtime storage
+│   └── pulled_structures/       # Downloaded PDB files and generated viewers
+└── docs/                         # Documentation
+    ├── CHANGELOG.md             # Version history and changes
+    ├── KNOWN_BUGS.md            # Known issues and limitations
+    ├── next_release.md          # Upcoming features and changes
+    └── release_notes/           # Detailed release notes
 ```
 
 ## Technical Details
 
 ### Architecture
-## 🧩 Technology Stack
-
 PicoMol combines several powerful technologies:
 
 - **PyQt5:** Cross-platform GUI framework providing the main interface
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
-- **Biopython:** Bioinformatics tools for sequence and structure analysis
-- **NCBI BLAST+:** Local BLAST searches and sequence analysis
-- **PDBx/mmCIF:** Structure file format support
-- **Biopython:** Molecular biology tools for PDB parsing and sequence handling
-- **Local HTTP Server:** Serves molecular data to the embedded browser
+- **Biopython:** Comprehensive bioinformatics tools for sequence and structure analysis
+- **NCBI BLAST+:** Online BLAST searches and sequence analysis
+- **Theme System:** Customizable appearance with multiple built-in themes
+
+### Bioinformatics Implementation
+- **Dual-Mode Analysis:** Full-featured analysis with Biopython, basic analysis without
+- **Smart FASTA Parsing:** Handles both Biopython and manual parsing methods
+- **Sequence Validation:** Real-time validation with detailed error reporting
+- **Multi-threading:** Background analysis prevents UI freezing
+- **Extensible Design:** Easy to add new analysis tools and features
 
 ### BLAST Implementation
 - **Online Integration:** Direct connection to NCBI BLAST servers
@@ -133,7 +193,7 @@ PicoMol combines several powerful technologies:
 - **Python:** 3.7+
 - **PyQt5:** 5.15.0+
 - **PyQtWebEngine:** 5.15.0+
-- **Biopython:** 1.79+
+- **Biopython:** 1.79+ (recommended for full bioinformatics features)
 - **Requests:** 2.25.0+
 
 See `requirements.txt` for complete dependency list.
@@ -191,16 +251,6 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ### Third-Party Licenses
 - **NGL.js:** MIT License (compatible with GPL v3.0)
 - **Biopython:** Biopython License (compatible with GPL v3.0)
-
-
-When using PicoMol in your research, please cite:
-
-**For NGL.js visualization:**
-- AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. NGL viewer: web-based molecular graphics for large complexes. *Bioinformatics*: bty419, 2018. [doi:10.1093/bioinformatics/bty419](https://doi.org/10.1093/bioinformatics/bty419)
-- AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. *Nucleic Acids Research* 43 (W1): W576-W579, 2015. [doi:10.1093/nar/gkv402](https://doi.org/10.1093/nar/gkv402)
-
-**For BLAST functionality:**
-- Altschul, S.F., Gish, W., Miller, W., Myers, E.W. & Lipman, D.J. Basic local alignment search tool. *Journal of Molecular Biology* 215, 403-410, 1990.
 
 ## Support
 

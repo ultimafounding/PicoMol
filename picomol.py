@@ -11,11 +11,16 @@ import sys
 import warnings
 import webbrowser
 
-from blast_utils import (
+from src.blast_utils import (
     create_ncbi_style_blastp_tab, create_ncbi_style_blastn_tab,
     create_ncbi_style_blastx_tab, create_ncbi_style_tblastn_tab,
     create_ncbi_style_tblastx_tab
 )
+
+from src.core.preferences import PreferencesDialog, PreferencesManager
+from src.gui.theme_manager import apply_theme
+from src.core.bioinformatics_tools import create_bioinformatics_tab
+from src.gui.welcome_dialog import WelcomeDialog
 
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -147,6 +152,7 @@ class AboutDialog(QDialog):
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import QUrl, Qt
+from PyQt5.QtGui import QFont
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
@@ -180,40 +186,6 @@ class ServerThread(threading.Thread):
             print("Server stopped.")
 
 
-class WelcomeDialog(QDialog):
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Welcome to PicoMol!")
-        self.setMinimumWidth(400)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        welcome_label = QLabel(
-            "<h2>Welcome to PicoMol!</h2>"
-            "<p>This is a simple molecular visualization tool for protein structures.</p>"
-            "<ul>"
-            "<li>Fetch PDB structures using their ID</li>"
-            "<li>Open local PDB files</li>"
-            "<li>Adjust visualization and color schemes</li>"
-            "<li>Take screenshots and more!</li>"
-            "</ul>"
-            "<p>Hover over any control for tooltips and inline help.</p>"
-        )
-        welcome_label.setWordWrap(True)
-        layout.addWidget(welcome_label)
-
-        self.checkbox = QCheckBox("Show this welcome screen on startup")
-        self.checkbox.setChecked(True)
-        layout.addWidget(self.checkbox)
-
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
-        button_box.accepted.connect(self.accept)
-        layout.addWidget(button_box)
-
-    def should_show_next_time(self):
-        return self.checkbox.isChecked()
-
-
 
 class ProteinViewerApp(QMainWindow):
     def __init__(self, port):
@@ -222,9 +194,12 @@ class ProteinViewerApp(QMainWindow):
         self._undo_stack = []
         self._redo_stack = []
         self._is_restoring_state = False
-        self.setWindowTitle("Basic Protein Structure Viewer")
+        self.setWindowTitle("PicoMol - Molecular Visualization Suite")
         self.setGeometry(100, 100, 1000, 800)
         self.setAcceptDrops(True)
+        
+        # Initialize preferences manager
+        self.preferences_manager = PreferencesManager()
 
         # Show welcome screen if user wants it
         settings = QSettings("PicoMolApp", "PicoMol")
@@ -239,9 +214,9 @@ class ProteinViewerApp(QMainWindow):
             self._welcome_dialog.show()
 
         # Create directories if not exist
-        self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
+        self.pulled_structures_dir = os.path.join(os.getcwd(), "data", "pulled_structures")
         os.makedirs(self.pulled_structures_dir, exist_ok=True)
-        self.ngl_assets_dir = os.path.join(os.getcwd(), "ngl_assets")
+        self.ngl_assets_dir = os.path.join(os.getcwd(), "assets", "ngl_assets")
         os.makedirs(self.ngl_assets_dir, exist_ok=True)
 
         ngl_min_js_path = os.path.join(self.ngl_assets_dir, "ngl.min.js")
@@ -343,9 +318,9 @@ class ProteinViewerApp(QMainWindow):
             self._welcome_dialog.show()
 
         # Create directories if not exist
-        self.pulled_structures_dir = os.path.join(os.getcwd(), "pulled_structures")
+        self.pulled_structures_dir = os.path.join(os.getcwd(), "data", "pulled_structures")
         os.makedirs(self.pulled_structures_dir, exist_ok=True)
-        self.ngl_assets_dir = os.path.join(os.getcwd(), "ngl_assets")
+        self.ngl_assets_dir = os.path.join(os.getcwd(), "assets", "ngl_assets")
         os.makedirs(self.ngl_assets_dir, exist_ok=True)
 
         ngl_min_js_path = os.path.join(self.ngl_assets_dir, "ngl.min.js")
@@ -429,7 +404,10 @@ class ProteinViewerApp(QMainWindow):
                 finally:
                     self.custom_color_entry.blockSignals(False)
                     self._is_restoring_state = False
-                self.web_view.page().runJavaScript(f"setCustomColor('{val}');")
+                if hasattr(self, 'current_structure_id') and self.current_structure_id:
+                    self.web_view.page().runJavaScript(f"if (typeof setCustomColor === 'function') setCustomColor('{val}');")
+                else:
+                    print(f"[DEBUG] Restore state: setCustomColor called but no structure loaded")
             # Structure reload if needed
             if state.get('structure_id') and hasattr(self, 'pulled_structures_dir'):
                 pdb_path = os.path.join(self.pulled_structures_dir, f"{state['structure_id']}.pdb")
@@ -507,8 +485,24 @@ class ProteinViewerApp(QMainWindow):
         reset_view_action.triggered.connect(self.reset_view_to_defaults)
         edit_menu.addAction(reset_view_action)
 
-        # Help menu with About
+        # Tools menu with Preferences
+        tools_menu = menubar.addMenu("Tools")
+        preferences_action = QAction("Preferences...", self)
+        preferences_action.setShortcut("Ctrl+,")
+        preferences_action.setToolTip("Open application preferences")
+        preferences_action.triggered.connect(self.show_preferences_dialog)
+        tools_menu.addAction(preferences_action)
+        
+        # Help menu with About and Welcome
         help_menu = menubar.addMenu("Help")
+        
+        welcome_action = QAction("Show Welcome Screen", self)
+        welcome_action.setToolTip("Show the welcome screen with feature overview and quick start guide.")
+        welcome_action.triggered.connect(self.show_welcome_dialog)
+        help_menu.addAction(welcome_action)
+        
+        help_menu.addSeparator()
+        
         about_action = QAction("About PicoMol", self)
         about_action.setToolTip("Show version info, credits, and license.")
         about_action.triggered.connect(self.show_about_dialog)
@@ -694,20 +688,8 @@ class ProteinViewerApp(QMainWindow):
         # Add visualization tab to main tabs
         self.main_tabs.addTab(visualization_tab, "3D Viewer")
         
-        # Create bioinformatics tab
-        bioinformatics_tab = QWidget()
-        bio_layout = QVBoxLayout(bioinformatics_tab)
-        bio_layout.setContentsMargins(5, 5, 5, 5)
-        
-        # Add placeholder for bioinformatics tools
-        placeholder = QLabel("Bioinformatics tools coming soon!\n\n"
-                           "This tab will contain various bioinformatics tools including:\n"
-                           "• Sequence analysis\n"
-                           "• Structure analysis\n"
-                           "• Alignment tools\n"
-                           "• And more...")
-        placeholder.setAlignment(Qt.AlignCenter)
-        bio_layout.addWidget(placeholder)
+        # Create bioinformatics tab with comprehensive tools
+        bioinformatics_tab = create_bioinformatics_tab(self)
         
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
@@ -763,6 +745,9 @@ class ProteinViewerApp(QMainWindow):
         self._undo_stack = []
         self._redo_stack = []
         self.push_undo()
+        
+        # Apply preferences on startup
+        self.apply_preferences()
 
     # BLAST methods are now handled by blast_utils module with online functionality
 
@@ -834,23 +819,93 @@ class ProteinViewerApp(QMainWindow):
     def show_about_dialog(self):
         dlg = AboutDialog(self)
         dlg.exec_()
+    
+    def show_welcome_dialog(self):
+        """Show the welcome dialog."""
+        dlg = WelcomeDialog(self)
+        dlg.exec_()
+    
+    def show_preferences_dialog(self):
+        """Show the preferences dialog."""
+        dlg = PreferencesDialog(self)
+        dlg.preferences_applied.connect(self.apply_preferences)
+        dlg.exec_()
+    
+    def apply_preferences(self):
+        """Apply preferences to the current application state."""
+        # Get visualization defaults and apply them
+        viz_defaults = self.preferences_manager.get_visualization_defaults()
+        
+        # Apply default representation if no structure is loaded
+        if hasattr(self, 'representation_combo'):
+            current_rep = self.representation_combo.currentText()
+            default_rep = viz_defaults['representation']
+            if current_rep == 'cartoon':  # Only change if still at default
+                self.representation_combo.setCurrentText(default_rep)
+        
+        # Apply default color scheme
+        if hasattr(self, 'color_combo'):
+            current_color = self.color_combo.currentText()
+            default_color = viz_defaults['color_scheme']
+            if current_color == 'chainid':  # Only change if still at default
+                self.color_combo.setCurrentText(default_color)
+        
+        # Apply default background color
+        if hasattr(self, 'background_color_entry'):
+            default_bg = viz_defaults['background_color']
+            self.background_color_entry.setText(default_bg)
+            self.update_background_color()
+        
+        # Apply auto-spin setting
+        if hasattr(self, 'spin_checkbox'):
+            default_spin = viz_defaults['auto_spin']
+            self.spin_checkbox.setChecked(default_spin)
+            self.toggle_spin()
+        
+        # Apply interface settings
+        interface_settings = self.preferences_manager.get_interface_settings()
+        
+        # Apply theme
+        theme = interface_settings['theme']
+        apply_theme(theme)
+        
+        # Apply font if specified
+        font_family = interface_settings['font_family']
+        font_size = interface_settings['font_size']
+        if font_family and font_size:
+            font = QFont(font_family, font_size)
+            QApplication.instance().setFont(font)
+        
+        # Update tooltips visibility
+        show_tooltips = interface_settings['show_tooltips']
+        if not show_tooltips:
+            # Disable tooltips for all widgets
+            for widget in self.findChildren(QWidget):
+                widget.setToolTip("")
+        
+        self.statusBar().showMessage("Preferences applied successfully.", 3000)
 
     def update_custom_color(self):
-        color = self.custom_color_entry.text()
-        print(f"[UNDO] update_custom_color: Applying color {color}")
-        self.web_view.page().runJavaScript(f"setCustomColor('{color}');")
-        if not self._is_restoring_state:
-            prev_color = None
-            if self._undo_stack:
-                prev_color = self._undo_stack[-1].get('custom_color', None)
-            if color != prev_color:
-                self.push_undo()
-                self._last_custom_color = color
+        if hasattr(self, 'custom_color_entry'):
+            color = self.custom_color_entry.text()
+            print(f"[UNDO] update_custom_color: Applying color {color}")
+            # Only call JavaScript if a structure is loaded
+            if hasattr(self, 'current_structure_id') and self.current_structure_id:
+                self.web_view.page().runJavaScript(f"if (typeof setCustomColor === 'function') setCustomColor('{color}');")
+            if not self._is_restoring_state:
+                prev_color = None
+                if self._undo_stack:
+                    prev_color = self._undo_stack[-1].get('custom_color', None)
+                if color != prev_color:
+                    self.push_undo()
+                    self._last_custom_color = color
 
     def update_background_color(self):
         color = self.background_color_entry.text()
         print(f"[UNDO] update_background_color: Applying color {color}")
-        self.web_view.page().runJavaScript(f"setBackgroundColor('{color}');")
+        # Only call JavaScript if a structure is loaded
+        if hasattr(self, 'current_structure_id') and self.current_structure_id:
+            self.web_view.page().runJavaScript(f"if (typeof setBackgroundColor === 'function') setBackgroundColor('{color}');")
         if not self._is_restoring_state:
             prev_color = None
         if self._undo_stack:
@@ -861,11 +916,18 @@ class ProteinViewerApp(QMainWindow):
     def update_representation(self):
         self.push_undo()
         representation = self.representation_combo.currentText()
-        # This will call a JavaScript function in the web view
-        self.web_view.page().runJavaScript(f"setRepresentation('{representation}');")
+        # Only call JavaScript if a structure is loaded
+        if hasattr(self, 'current_structure_id') and self.current_structure_id:
+            self.web_view.page().runJavaScript(f"if (typeof setRepresentation === 'function') setRepresentation('{representation}');")
+        else:
+            print(f"[DEBUG] Representation changed to {representation} but no structure loaded")
 
     def clear_all_representations(self):
-        self.web_view.page().runJavaScript("clearAllRepresentations();")
+        # Only call JavaScript if a structure is loaded
+        if hasattr(self, 'current_structure_id') and self.current_structure_id:
+            self.web_view.page().runJavaScript("if (typeof clearAllRepresentations === 'function') clearAllRepresentations();")
+        else:
+            print("[DEBUG] Clear representations called but no structure loaded")
 
     def pick_uniform_color(self):
         """Open a color dialog to pick a uniform color"""
@@ -875,8 +937,11 @@ class ProteinViewerApp(QMainWindow):
             color_hex = color.name()
             # Update button color
             self.uniform_color_button.setStyleSheet(f"background-color: {color_hex}; border: 1px solid #999;")
-            # Apply the color to the structure
-            self.web_view.page().runJavaScript(f"setUniformColor('{color_hex}');")
+            # Apply the color to the structure only if loaded
+            if hasattr(self, 'current_structure_id') and self.current_structure_id:
+                self.web_view.page().runJavaScript(f"if (typeof setUniformColor === 'function') setUniformColor('{color_hex}');")
+            else:
+                print(f"[DEBUG] Uniform color changed to {color_hex} but no structure loaded")
     
     def update_color_scheme(self):
         self.push_undo()
@@ -885,22 +950,28 @@ class ProteinViewerApp(QMainWindow):
         # Show/hide color picker based on selection
         self.uniform_color_button.setVisible(color_scheme == "uniform")
         
-        # This will call a JavaScript function in the web view
-        self.web_view.page().runJavaScript(f"setColorScheme('{color_scheme}');")
-        
-        # If switching to uniform, apply the current button color
-        if color_scheme == "uniform" and self.uniform_color_button.styleSheet():
-            # Extract current color from button style
-            style = self.uniform_color_button.styleSheet()
-            if 'background-color:' in style:
-                color = style.split('background-color:')[1].split(';')[0].strip()
-                self.web_view.page().runJavaScript(f"setUniformColor('{color}');")
+        # Only call JavaScript if a structure is loaded
+        if hasattr(self, 'current_structure_id') and self.current_structure_id:
+            self.web_view.page().runJavaScript(f"if (typeof setColorScheme === 'function') setColorScheme('{color_scheme}');")
+            
+            # If switching to uniform, apply the current button color
+            if color_scheme == "uniform" and self.uniform_color_button.styleSheet():
+                # Extract current color from button style
+                style = self.uniform_color_button.styleSheet()
+                if 'background-color:' in style:
+                    color = style.split('background-color:')[1].split(';')[0].strip()
+                    self.web_view.page().runJavaScript(f"if (typeof setUniformColor === 'function') setUniformColor('{color}');")
+        else:
+            print(f"[DEBUG] Color scheme changed to {color_scheme} but no structure loaded")
 
     def toggle_spin(self):
         self.push_undo()
         spin_enabled = self.spin_checkbox.isChecked()
-        # This will call a JavaScript function in the web view
-        self.web_view.page().runJavaScript(f"setSpin({str(spin_enabled).lower()});")
+        # Only call JavaScript if a structure is loaded
+        if hasattr(self, 'current_structure_id') and self.current_structure_id:
+            self.web_view.page().runJavaScript(f"if (typeof setSpin === 'function') setSpin({str(spin_enabled).lower()});")
+        else:
+            print(f"[DEBUG] Spin changed to {spin_enabled} but no structure loaded")
 
     def fetch_pdb_id(self):
         pdb_id = self.pdb_id_entry.text().strip().upper()
@@ -939,6 +1010,7 @@ class ProteinViewerApp(QMainWindow):
                 raise FileNotFoundError(f"Failed to create PDB file for {pdb_id}")
 
             structure = self.pdb_parser.get_structure(pdb_id, pdb_path)
+            self.current_structure_id = pdb_id  # Set the current structure ID
             self.display_structure(structure)
             self.statusBar().showMessage(f"Displayed {pdb_id}")
             self.add_to_recent_files(pdb_path)
@@ -975,6 +1047,7 @@ class ProteinViewerApp(QMainWindow):
                 
             self.statusBar().showMessage(f"Loading structure from {os.path.basename(file_path)}...")
             structure = self.pdb_parser.get_structure(structure_id, target_path)
+            self.current_structure_id = structure_id  # Set the current structure ID
             self.display_structure(structure)
             self.statusBar().showMessage(f"Displayed {structure_id}")
             self.add_to_recent_files(target_path)
@@ -1050,84 +1123,178 @@ class ProteinViewerApp(QMainWindow):
             padding: 0;
             overflow: hidden;
         }}
+        #loading {{
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-family: Arial, sans-serif;
+            font-size: 18px;
+            color: #666;
+        }}
     </style>
 </head>
 <body>
     <div id="viewport"></div>
+    <div id="loading">Loading structure...</div>
     <script>
+        // Global variables
+        var stage = null;
+        var currentComponent = null;
+        var isLoaded = false;
+        
         document.addEventListener('DOMContentLoaded', function() {{
-            var stage = new NGL.Stage( "viewport" );
-            var currentComponent = null;
+            try {{
+                stage = new NGL.Stage("viewport");
+                
+                function loadAndRepresent(pdbFilename, representation) {{
+                    stage.removeAllComponents();
+                    return stage.loadFile(pdbFilename, {{ defaultRepresentation: false }}).then(function (comp) {{
+                        currentComponent = comp;
+                        comp.addRepresentation(representation);
+                        stage.setSpin(false);
+                        stage.autoView();
+                        isLoaded = true;
+                        
+                        // Hide loading indicator
+                        var loading = document.getElementById('loading');
+                        if (loading) loading.style.display = 'none';
+                        
+                        // Set color scheme after component is loaded
+                        if (window.initialColorScheme) {{
+                            currentComponent.eachRepresentation(function (repr) {{
+                                repr.setColor(window.initialColorScheme);
+                            }});
+                        }}
+                        
+                        console.log('Structure loaded successfully');
+                        return comp;
+                    }}).catch(function(error) {{
+                        console.error('Error loading structure:', error);
+                        var loading = document.getElementById('loading');
+                        if (loading) loading.textContent = 'Error loading structure';
+                    }});
+                }}
 
-            function loadAndRepresent(pdbFilename, representation) {{
-                stage.removeAllComponents();
-                stage.loadFile( pdbFilename, {{ defaultRepresentation: false }} ).then(function (comp) {{
-                    currentComponent = comp;
-                    comp.addRepresentation(representation);
-                    stage.setSpin(false);
-                    stage.autoView();
-                    // Set color scheme after component is loaded
-                    if (window.initialColorScheme) {{
-                        currentComponent.eachRepresentation(function (repr) {{
-                            repr.setColor(window.initialColorScheme);
-                        }});
+                // Initial load
+                loadAndRepresent("{pdb_filename}", "cartoon");
+
+                // Define global functions for external control
+                window.setRepresentation = function(representation) {{
+                    if (!isLoaded || !currentComponent) {{
+                        console.warn('Structure not loaded yet, cannot set representation');
+                        return;
                     }}
-                }});
-            }}
-
-            // Initial load
-            loadAndRepresent("{pdb_filename}", "cartoon");
-
-            window.setRepresentation = function(representation) {{
-                if (currentComponent) {{
-                    currentComponent.removeAllRepresentations(); // Clear existing representations
-                    currentComponent.addRepresentation(representation);
-                    // Update color scheme if we have one
-                    if (window.initialColorScheme) {{
-                        currentComponent.eachRepresentation(function (repr) {{
-                            repr.setColor(window.initialColorScheme);
-                        }});
+                    try {{
+                        currentComponent.removeAllRepresentations();
+                        currentComponent.addRepresentation(representation);
+                        // Update color scheme if we have one
+                        if (window.initialColorScheme) {{
+                            currentComponent.eachRepresentation(function (repr) {{
+                                repr.setColor(window.initialColorScheme);
+                            }});
+                        }}
+                        console.log('Representation set to:', representation);
+                    }} catch (error) {{
+                        console.error('Error setting representation:', error);
                     }}
-                }} else {{
-                    loadAndRepresent("{pdb_filename}", representation);
-                }}
-            }};
+                }};
 
-            window.setColorScheme = function(colorScheme) {{
-                if (currentComponent) {{
-                    currentComponent.eachRepresentation(function (repr) {{
-                        repr.setColor(colorScheme);
-                    }});
-                }}
+                window.setColorScheme = function(colorScheme) {{
+                    if (!isLoaded || !currentComponent) {{
+                        console.warn('Structure not loaded yet, cannot set color scheme');
+                        return;
+                    }}
+                    try {{
+                        currentComponent.eachRepresentation(function (repr) {{
+                            repr.setColor(colorScheme);
+                        }});
+                        console.log('Color scheme set to:', colorScheme);
+                    }} catch (error) {{
+                        console.error('Error setting color scheme:', error);
+                    }}
+                }};
+
+                window.setUniformColor = function(color) {{
+                    if (!isLoaded || !currentComponent) {{
+                        console.warn('Structure not loaded yet, cannot set uniform color');
+                        return;
+                    }}
+                    try {{
+                        currentComponent.eachRepresentation(function (repr) {{
+                            repr.setColor(color);
+                        }});
+                        console.log('Uniform color set to:', color);
+                    }} catch (error) {{
+                        console.error('Error setting uniform color:', error);
+                    }}
+                }};
+
+                window.setCustomColor = function(color) {{
+                    if (!isLoaded || !currentComponent) {{
+                        console.warn('Structure not loaded yet, cannot set custom color');
+                        return;
+                    }}
+                    try {{
+                        currentComponent.eachRepresentation(function (repr) {{
+                            repr.setColor(color);
+                        }});
+                        console.log('Custom color set to:', color);
+                    }} catch (error) {{
+                        console.error('Error setting custom color:', error);
+                    }}
+                }};
+
+                window.setSpin = function(spinEnabled) {{
+                    if (!stage) {{
+                        console.warn('Stage not initialized yet, cannot set spin');
+                        return;
+                    }}
+                    try {{
+                        stage.setSpin(spinEnabled);
+                        console.log('Spin set to:', spinEnabled);
+                    }} catch (error) {{
+                        console.error('Error setting spin:', error);
+                    }}
+                }};
+
+                window.setBackgroundColor = function(color) {{
+                    if (!stage) {{
+                        console.warn('Stage not initialized yet, cannot set background color');
+                        return;
+                    }}
+                    try {{
+                        stage.viewer.setBackground(color);
+                        console.log('Background color set to:', color);
+                    }} catch (error) {{
+                        console.error('Error setting background color:', error);
+                    }}
+                }};
+                
+                window.clearAllRepresentations = function() {{
+                    if (!isLoaded || !currentComponent) {{
+                        console.warn('Structure not loaded yet, cannot clear representations');
+                        return;
+                    }}
+                    try {{
+                        currentComponent.removeAllRepresentations();
+                        console.log('All representations cleared');
+                    }} catch (error) {{
+                        console.error('Error clearing representations:', error);
+                    }}
+                }};
+
+                window.addEventListener('resize', function(event) {{
+                    if (stage) {{
+                        stage.handleResize();
+                    }}
+                }}, false);
+                
+            }} catch (error) {{
+                console.error('Error initializing NGL viewer:', error);
+                var loading = document.getElementById('loading');
+                if (loading) loading.textContent = 'Error initializing viewer';
             }}
-
-            window.setUniformColor = function(color) {{
-                if (currentComponent) {{
-                    currentComponent.eachRepresentation(function (repr) {{
-                        repr.setColor(color);
-                    }});
-                }}
-            }}
-
-            window.setCustomColor = function(color) {{
-                if (currentComponent) {{
-                    currentComponent.eachRepresentation(function (repr) {{
-                        repr.setColor(color);
-                    }});
-                }}
-            }};
-
-            window.setSpin = function(spinEnabled) {{
-                stage.setSpin(spinEnabled);
-            }};
-
-            window.setBackgroundColor = function(color) {{
-                stage.viewer.setBackground(color);
-            }};
-
-            window.addEventListener( "resize", function( event ) {{
-                stage.handleResize();
-            }}, false );
         }});
     </script>
 </body>
@@ -1155,16 +1322,36 @@ class ProteinViewerApp(QMainWindow):
         with open(html_path, "w") as f:
             f.write(html_content)
         
-        self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/pulled_structures/{html_filename}"))
+        self.web_view.setUrl(QUrl(f"http://localhost:{self.port}/data/pulled_structures/{html_filename}"))
         # Wait for page to load before updating color scheme
         def on_load_finished(success):
             if success:
-                # Ensure we have a color combo
-                if hasattr(self, 'color_combo'):
-                    current_scheme = self.color_combo.currentText()
-                    # Only update if it's different from initial
-                    if current_scheme != color_scheme:
-                        self.web_view.page().runJavaScript(f"setColorScheme('{current_scheme}');")
+                # Add a small delay to ensure NGL is fully initialized
+                def apply_initial_settings():
+                    # Apply current settings from UI
+                    if hasattr(self, 'color_combo'):
+                        current_scheme = self.color_combo.currentText()
+                        if current_scheme != color_scheme:
+                            self.web_view.page().runJavaScript(f"if (typeof setColorScheme === 'function') setColorScheme('{current_scheme}');")
+                    
+                    if hasattr(self, 'background_color_entry'):
+                        bg_color = self.background_color_entry.text()
+                        if bg_color:
+                            self.web_view.page().runJavaScript(f"if (typeof setBackgroundColor === 'function') setBackgroundColor('{bg_color}');")
+                    
+                    if hasattr(self, 'spin_checkbox'):
+                        spin_enabled = self.spin_checkbox.isChecked()
+                        self.web_view.page().runJavaScript(f"if (typeof setSpin === 'function') setSpin({str(spin_enabled).lower()});")
+                    
+                    if hasattr(self, 'representation_combo'):
+                        representation = self.representation_combo.currentText()
+                        if representation != 'cartoon':  # Only change if different from default
+                            self.web_view.page().runJavaScript(f"if (typeof setRepresentation === 'function') setRepresentation('{representation}');")
+                
+                # Use QTimer to delay the application of settings
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(1000, apply_initial_settings)  # 1 second delay
+        
         # Disconnect any existing signal handler first
         try:
             self.web_view.page().loadFinished.disconnect()
