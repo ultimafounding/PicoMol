@@ -721,15 +721,7 @@ class ProteinViewerApp(QMainWindow):
         
         self.main_tabs.addTab(blast_tab, "BLAST")
         
-        # Create Sequence Analysis tab (empty for now, will be implemented later)
-        seq_tab = QWidget()
-        seq_layout = QVBoxLayout(seq_tab)
-        seq_label = QLabel("Sequence Analysis Tools (Coming Soon)")
-        seq_label.setAlignment(Qt.AlignCenter)
-        seq_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
-        seq_layout.addWidget(seq_label)
-        seq_layout.addStretch()
-        self.main_tabs.addTab(seq_tab, "Sequence Tools")
+
         
         # Create Structural Analysis tab
         struct_tab = QWidget()
