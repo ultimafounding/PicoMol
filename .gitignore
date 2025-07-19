@@ -1,10 +1,31 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# NGL.js assets (downloaded)
-ngl_assets/ngl.min.js
+# Project specific
+assets/ngl_assets/ngl.min.js
+data/pulled_structures/
 
-# Pulled structures and generated HTML
-pulled_structures/
-blast.html
+
+# Local development
+*.log
+*.sqlite
+local_settings.py
+
+# Virtual Environment
+venv/
+.env
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
