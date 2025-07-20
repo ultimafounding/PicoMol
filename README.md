@@ -1,76 +1,57 @@
 # PicoMol: The Miniature Molecular Visualization and Bioinformatics Suite
 
-PicoMol is a powerful, user-friendly desktop application for molecular visualization, structural analysis, and comprehensive bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+PicoMol is a comprehensive desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
 
 ## Features
 
-### 🧬 Core Molecular Visualization
-- **Fetch PDB Structures:** Download protein data directly from the Protein Data Bank (PDB) using a PDB ID
-- **Open Local PDB Files:** Load and visualize protein structures from `.pdb` or `.ent` files
-- **Drag-and-Drop Support:** Instantly open files by dragging them onto the PicoMol window
-- **Interactive 3D Visualization:** High-quality, interactive 3D rendering powered by NGL.js
-- **Multiple Representations:** Switch between cartoon, ball+stick, surface, licorice, and more
-- **Flexible Coloring:** Apply various coloring schemes (chain ID, residue type, secondary structure, etc.)
-- **Screenshot Export:** Save high-quality images of your molecular structures
+### 🧬 Core Visualization
+- **3D Molecular Viewer**: Interactive visualization powered by NGL.js
+- **Multiple Representations**: Cartoon, ball+stick, surface, and more
+- **Flexible Coloring**: By chain, residue, secondary structure, etc.
+- **PDB Integration**: Direct download and local file support
+- **Screenshot Export**: Save high-quality images of your structures
 
-### 🔬 BLAST Integration
-- **Complete BLAST Suite:** Full implementation of BLASTP, BLASTN, BLASTX, TBLASTN, and TBLASTX
-- **NCBI-Style Interface:** Authentic user experience matching the official NCBI BLAST interface
-- **Online BLAST Searches:** Connect directly to NCBI's BLAST servers for real-time searches
-- **Comprehensive Results:** Detailed results with alignment tables, statistics, and downloadable outputs
-- **Sequence Validation:** Built-in sequence validation and formatting
-- **Multiple Database Support:** Access to all major NCBI databases (nr, nt, RefSeq, etc.)
+### 🔬 Bioinformatics Tools
+- **Sequence Analysis**:
+  - Protein properties (MW, pI, hydrophobicity, aromaticity, instability index)
+  - Nucleic acid analysis (GC content, translation in all 6 frames, complements)
+  - Secondary structure prediction (helix, turn, sheet content)
+  - Amino acid and nucleotide composition analysis
+- **Motif & Domain Analysis**:
+  - InterPro integration for comprehensive domain annotation
+  - PROSITE pattern matching with official API
+  - Interactive visualization of domains and motifs
+  - Sequence context display with highlighting
+  - Export capabilities (CSV, Excel, HTML, PDF)
+- **Structural Analysis**:
+  - Bond angle and distance calculations
+  - Secondary structure analysis
+  - Ramachandran plot generation
+  - Contact map visualization
+  - Advanced structural metrics
 
-### 🧪 Advanced Bioinformatics Tools
-- **Comprehensive Sequence Analysis:** Detailed analysis for proteins, DNA, and RNA sequences
-  - **Protein Analysis:** Molecular weight, isoelectric point, hydropathy (GRAVY), aromaticity, instability index
-  - **Secondary Structure Prediction:** Helix, turn, and sheet content estimation
-  - **Charge Analysis:** Net charge calculations at different pH values (5, 7, 9)
-  - **Amino Acid Composition:** Complete breakdown with counts and percentages
-- **Nucleic Acid Analysis:** 
-  - **GC Content:** Accurate calculation for DNA and RNA sequences
-  - **Complement Sequences:** Both complement and reverse complement generation
-  - **Translation Analysis:** All 6 reading frames for DNA, direct translation for RNA
-  - **Nucleotide Composition:** Detailed breakdown in conventional order (A, T/U, G, C, N)
-- **Protein Motif and Domain Analysis:**
-  - **InterPro Integration:** Comprehensive domain annotation using InterPro API (includes Pfam, SMART, PROSITE, CDD, and more)
-  - **PROSITE Motif Search:** Official PROSITE ScanProsite API integration with local pattern fallback
-  - **Domain Visualization:** Interactive visualization of protein domains and motifs with intelligent layout
-  - **Sequence Context Display:** View motif sequences in their surrounding context with highlighting
-  - **Functional Annotation:** GO terms, pathways, and functional site identification
-  - **Filtering Options:** Exclude high-probability motifs, customize search parameters
-  - **Export Capabilities:** Save results in multiple formats with detailed reports
-  - **Progress Tracking:** Smart progress bar that tracks multiple concurrent searches
-- **FASTA Format Support:** 
-  - **Smart Parsing:** Handles both pasted FASTA text and file uploads
-  - **Multi-sequence Files:** Interactive sequence selection dialog for files with multiple sequences
-  - **Automatic Type Detection:** Intelligent sequence type recognition (protein/DNA/RNA)
-  - **Sequence Validation:** Real-time validation with helpful error messages
-- **Fallback Analysis:** Basic analysis available even without Biopython installation
+### 🧪 BLAST Integration
+- **All BLAST Variants**: BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX
+- **NCBIBLAST-like Interface**: Familiar experience for users
+- **Multiple Database Support**: Access to major NCBI databases
+- **Comprehensive Results**: Detailed alignments and statistics
 
-### 📊 Sequence Management
-- **Sequence Display:** View amino acid or nucleotide sequences extracted from PDB structures
-- **FASTA Export:** Export sequences in standard FASTA format
-- **Cross-Platform Integration:** Load sequences from structures into analysis tools
-- **Partial Codon Handling:** Intelligent handling of incomplete codons with user notifications
+### 🎨 User Experience
+- **Modern Interface**: Clean, tabbed layout with dark/light themes
+- **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Performance Optimized**: Handles large structures efficiently
+- **Drag & Drop**: Easy file loading with drag-and-drop support
 
-### 🎨 User Experience & Interface
-- **Streamlined Tabbed Interface:** Clean workspace with three main tabs: 3D Viewer, Bioinformatics, and BLAST
-- **Integrated Bioinformatics:** All sequence analysis and motif tools organized under a single Bioinformatics tab
-- **Theme System:** Multiple built-in themes (System Default, Light, Dark, Blue, Green)
-- **Customizable Preferences:** Comprehensive settings dialog for appearance and behavior
-- **Robust Error Handling:** User-friendly error dialogs with actionable suggestions
-- **Undo/Redo System:** Full undo/redo support for visualization changes
-- **Recent Files:** Quick access to recently opened structures
-- **Welcome Screen:** Optional welcome dialog for new users with feature overview
-- **Responsive Design:** Adaptive layouts that work well on different screen sizes
-- **Drag-and-Drop Support:** Instant file loading by dragging PDB/ENT files onto the application
-
-## Installation
+## 🚀 Installation
 
 ### Prerequisites
-- Python 3.7 or higher
-- Internet connection (for downloading NGL.js and BLAST functionality)
+- Python 3.7 or higher (Python 3.8+ recommended)
+- Internet connection (for downloading NGL.js and online BLAST functionality)
+- At least 100MB of free disk space
 
 ### Quick Install
 
@@ -170,6 +151,9 @@ PicoMol/
 │   ├── core/                     # Core functionality
 │   │   ├── bioinformatics_tools.py  # Comprehensive bioinformatics analysis suite
 │   │   ├── motif_analysis.py        # Protein motif and domain analysis tools
+│   │   ├── structural_analysis.py   # Structural analysis and calculations
+│   │   ├── enhanced_pdb_puller.py   # Enhanced PDB fetching and metadata
+│   │   ├── pdb_fetch_worker.py      # Optimized PDB fetch worker
 │   │   └── preferences.py           # Settings and preferences management
 │   ├── gui/                      # User interface components
 │   │   ├── theme_manager.py         # Theme system and UI customization
@@ -178,7 +162,8 @@ PicoMol/
 │       ├── __init__.py              # Package initialization
 │       ├── blast_utils.py           # Core BLAST functionality
 │       ├── blast_utils_ncbi_layout.py  # NCBI-style UI layouts
-│       └── blast_results_parser.py     # Results parsing and formatting
+│       ├── blast_results_parser.py     # Results parsing and formatting
+│       └── accession_validator.py      # Sequence and accession validation
 ├── assets/                       # Static resources
 │   └── ngl_assets/              # NGL.js library storage
 ├── data/                         # Data files and runtime storage
@@ -195,12 +180,25 @@ PicoMol/
 ### Architecture
 PicoMol combines several powerful technologies:
 
+**Core Technologies:**
 - **PyQt5:** Cross-platform GUI framework providing the main interface
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
 - **Biopython:** Comprehensive bioinformatics tools for sequence and structure analysis
 - **NCBI BLAST+:** Online BLAST searches and sequence analysis
+
+**Enhanced Features (Optional Dependencies):**
+- **NumPy:** Scientific computing for structural calculations
+- **Matplotlib:** Advanced plotting and visualization capabilities
+- **Pandas:** Data manipulation and export functionality
+- **OpenPyXL:** Excel file format support
+- **WeasyPrint:** PDF generation capabilities
+
+**Design Principles:**
+- **Modular Architecture:** Clean separation of concerns with organized source structure
+- **Graceful Degradation:** Core functionality works without optional dependencies
 - **Theme System:** Customizable appearance with multiple built-in themes
+- **Asynchronous Processing:** Non-blocking operations for better user experience
 
 ### Bioinformatics Implementation
 - **Dual-Mode Analysis:** Full-featured analysis with Biopython, basic analysis without
