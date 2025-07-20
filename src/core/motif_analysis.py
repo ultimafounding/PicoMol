@@ -2038,55 +2038,284 @@ class MotifAnalysisTab(QWidget):
             QMessageBox.warning(self, "Error", "Cannot access sequence display.")
     
     def load_from_file(self):
-        """Load sequence from a FASTA file."""
+        """Load sequence from a FASTA file with comprehensive support."""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Open Sequence File", "", 
-            "FASTA Files (*.fasta *.fa *.fas);;Text Files (*.txt);;All Files (*)"
+            "FASTA Files (*.fasta *.fa *.fas *.fna *.faa);;Text Files (*.txt);;All Files (*)"
         )
         
         if file_path:
             try:
-                # Simple FASTA parsing
-                with open(file_path, 'r') as f:
-                    content = f.read()
+                # Parse FASTA file
+                sequences = self.parse_fasta_file(file_path)
                 
-                # Extract sequence (remove headers and whitespace)
-                lines = content.split('\n')
-                sequence_lines = [line.strip() for line in lines if not line.startswith('>') and line.strip()]
-                sequence = ''.join(sequence_lines).upper()
+                if not sequences:
+                    QMessageBox.warning(self, "No Sequences", "No valid sequences found in the file.")
+                    return
                 
-                if sequence:
-                    self.sequence_input.setPlainText(sequence)
-                    self.current_sequence = sequence
-                    if hasattr(self.parent_app, 'statusBar'):
-                        self.parent_app.statusBar().showMessage(f"Sequence loaded from {os.path.basename(file_path)}")
+                # Handle single vs multiple sequences
+                if len(sequences) == 1:
+                    # Single sequence - load directly
+                    seq_id, sequence = sequences[0]
+                    self.load_sequence_to_input(sequence, seq_id, file_path)
                 else:
-                    QMessageBox.warning(self, "No Sequence", "No valid sequence found in the file.")
+                    # Multiple sequences - show selection dialog
+                    selected_sequence = self.show_sequence_selection_dialog(sequences, file_path)
+                    if selected_sequence:
+                        seq_id, sequence = selected_sequence
+                        self.load_sequence_to_input(sequence, seq_id, file_path)
                     
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Failed to load sequence file:\n{str(e)}")
     
-    def validate_sequence(self):
-        """Validate the input sequence."""
-        sequence = self.sequence_input.toPlainText().strip().upper()
+    def parse_fasta_file(self, file_path):
+        """Parse FASTA file and return list of (id, sequence) tuples."""
+        sequences = []
         
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Handle different line endings
+            content = content.replace('\r\n', '\n').replace('\r', '\n')
+            
+            # Split into potential FASTA entries
+            entries = content.split('>')
+            
+            for entry in entries:
+                entry = entry.strip()
+                if not entry:
+                    continue
+                
+                lines = entry.split('\n')
+                if not lines:
+                    continue
+                
+                # First line is the header
+                header = lines[0].strip()
+                
+                # Remaining lines are sequence
+                sequence_lines = [line.strip() for line in lines[1:] if line.strip()]
+                sequence = ''.join(sequence_lines).upper()
+                
+                # Validate sequence
+                if sequence and self.is_valid_protein_sequence(sequence):
+                    # Extract meaningful ID from header
+                    seq_id = self.extract_sequence_id(header)
+                    sequences.append((seq_id, sequence))
+                elif sequence:
+                    # Check if it might be a nucleotide sequence
+                    if self.is_nucleotide_sequence(sequence):
+                        QMessageBox.information(
+                            self, "Nucleotide Sequence Detected", 
+                            f"The sequence '{header[:50]}...' appears to be a nucleotide sequence.\n"
+                            "This tool is designed for protein sequences. Please use a protein sequence or "
+                            "translate your nucleotide sequence first."
+                        )
+                    else:
+                        print(f"[DEBUG] Invalid sequence found: {header[:50]}...")
+            
+            return sequences
+            
+        except Exception as e:
+            print(f"[ERROR] Error parsing FASTA file: {e}")
+            raise
+    
+    def extract_sequence_from_text(self, text):
+        """Extract protein sequence from text, handling FASTA format."""
+        lines = text.split('\n')
+        sequence_lines = []
+        
+        for line in lines:
+            line = line.strip()
+            # Skip FASTA headers and empty lines
+            if line.startswith('>') or not line:
+                continue
+            # Skip comment lines
+            if line.startswith('#') or line.startswith(';'):
+                continue
+            sequence_lines.append(line)
+        
+        # Join all sequence lines and remove whitespace
+        sequence = ''.join(sequence_lines)
+        sequence = ''.join(sequence.split())  # Remove all whitespace
+        
+        return sequence.upper()
+    
+    def is_valid_protein_sequence(self, sequence):
+        """Check if sequence contains valid protein amino acid codes."""
         if not sequence:
+            return False
+        
+        # Standard amino acid codes + ambiguous codes
+        valid_chars = set('ACDEFGHIKLMNPQRSTVWYXBZJUO*-')
+        sequence_chars = set(sequence.upper())
+        
+        # Allow sequence if at least 80% of characters are valid amino acids
+        valid_count = len(sequence_chars.intersection(valid_chars))
+        total_count = len(sequence_chars)
+        
+        return (valid_count / total_count) >= 0.8 if total_count > 0 else False
+    
+    def is_nucleotide_sequence(self, sequence):
+        """Check if sequence appears to be nucleotide sequence."""
+        if not sequence:
+            return False
+        
+        nucleotide_chars = set('ATCGRYSWKMBDHVN-')
+        sequence_chars = set(sequence.upper())
+        
+        # Consider it nucleotide if >90% are nucleotide characters
+        nucleotide_count = len(sequence_chars.intersection(nucleotide_chars))
+        total_count = len(sequence_chars)
+        
+        return (nucleotide_count / total_count) >= 0.9 if total_count > 0 else False
+    
+    def extract_sequence_id(self, header):
+        """Extract a meaningful sequence ID from FASTA header."""
+        if not header:
+            return "Unknown"
+        
+        # Try to extract common ID patterns
+        import re
+        
+        # UniProt pattern: >sp|P12345|PROTEIN_HUMAN or >tr|A0A123|PROTEIN_HUMAN
+        uniprot_match = re.search(r'>?(?:sp|tr)\|([^|]+)\|([^\s]+)', header)
+        if uniprot_match:
+            return f"{uniprot_match.group(1)} ({uniprot_match.group(2)})"
+        
+        # NCBI pattern: >gi|123456|ref|NP_123456.1| or >NP_123456.1
+        ncbi_match = re.search(r'>?(?:gi\|\d+\|)?(?:ref\|)?([A-Z]{2}_\d+(?:\.\d+)?)', header)
+        if ncbi_match:
+            return ncbi_match.group(1)
+        
+        # PDB pattern: >1ABC_A or >pdb|1ABC|A
+        pdb_match = re.search(r'>?(?:pdb\|)?([0-9][A-Z0-9]{3})(?:\|([A-Z]))?', header)
+        if pdb_match:
+            chain = f"_{pdb_match.group(2)}" if pdb_match.group(2) else ""
+            return f"{pdb_match.group(1)}{chain}"
+        
+        # Generic pattern: take first word after >
+        generic_match = re.search(r'>?([^\s|]+)', header)
+        if generic_match:
+            return generic_match.group(1)
+        
+        # Fallback: use first 20 characters
+        return header[:20].replace('>', '')
+    
+    def show_sequence_selection_dialog(self, sequences, file_path):
+        """Show dialog for selecting sequence from multiple sequences."""
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Select Sequence - {os.path.basename(file_path)}")
+        dialog.setMinimumSize(600, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Info label
+        info_label = QLabel(f"Found {len(sequences)} sequences in the file. Please select one:")
+        layout.addWidget(info_label)
+        
+        # Sequence list
+        sequence_list = QListWidget()
+        
+        for i, (seq_id, sequence) in enumerate(sequences):
+            # Create descriptive item text
+            item_text = f"{seq_id} ({len(sequence)} amino acids)"
+            if len(sequence) > 50:
+                preview = sequence[:50] + "..."
+            else:
+                preview = sequence
+            
+            item = QListWidgetItem(f"{item_text}\n{preview}")
+            item.setData(Qt.UserRole, (seq_id, sequence))  # Store sequence data
+            sequence_list.addItem(item)
+        
+        sequence_list.setCurrentRow(0)  # Select first item by default
+        layout.addWidget(sequence_list)
+        
+        # Buttons
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        # Show dialog and get result
+        if dialog.exec_() == QDialog.Accepted:
+            current_item = sequence_list.currentItem()
+            if current_item:
+                return current_item.data(Qt.UserRole)
+        
+        return None
+    
+    def load_sequence_to_input(self, sequence, seq_id, file_path):
+        """Load sequence into the input field with proper formatting."""
+        # Create FASTA format for display
+        fasta_text = f">{seq_id}\n{sequence}"
+        
+        self.sequence_input.setPlainText(fasta_text)
+        self.current_sequence = sequence
+        
+        if hasattr(self.parent_app, 'statusBar'):
+            self.parent_app.statusBar().showMessage(
+                f"Loaded sequence '{seq_id}' ({len(sequence)} amino acids) from {os.path.basename(file_path)}"
+            )
+    
+    def validate_sequence(self):
+        """Validate the input sequence with enhanced FASTA support."""
+        raw_text = self.sequence_input.toPlainText().strip()
+        
+        if not raw_text:
             QMessageBox.warning(self, "No Sequence", "Please enter a protein sequence.")
             return None
         
-        # Remove whitespace and newlines
-        sequence = ''.join(sequence.split())
+        # Parse sequence (handle FASTA format)
+        sequence = self.extract_sequence_from_text(raw_text)
+        
+        if not sequence:
+            QMessageBox.warning(self, "No Sequence", "No valid sequence found in the input.")
+            return None
         
         # Check for valid protein sequence
-        valid_chars = set('ACDEFGHIKLMNPQRSTVWYXBZJUO*')
-        invalid_chars = set(sequence) - valid_chars
+        valid_chars = set('ACDEFGHIKLMNPQRSTVWYXBZJUO*-')
+        sequence_chars = set(sequence.upper())
+        invalid_chars = sequence_chars - valid_chars
         
         if invalid_chars:
+            # Check if it might be a nucleotide sequence
+            if self.is_nucleotide_sequence(sequence):
+                QMessageBox.warning(
+                    self, "Nucleotide Sequence Detected", 
+                    "This appears to be a nucleotide sequence. This tool is designed for protein sequences.\n"
+                    "Please use a protein sequence or translate your nucleotide sequence first."
+                )
+            else:
+                QMessageBox.warning(
+                    self, "Invalid Sequence", 
+                    f"Invalid characters for protein sequence: {', '.join(sorted(invalid_chars))}\n\n"
+                    "Valid amino acid codes: A, C, D, E, F, G, H, I, K, L, M, N, P, Q, R, S, T, V, W, Y\n"
+                    "Ambiguous codes: X, B, Z, J, U, O\n"
+                    "Special characters: *, -"
+                )
+            return None
+        
+        # Check sequence length
+        if len(sequence) < 10:
             QMessageBox.warning(
-                self, "Invalid Sequence", 
-                f"Invalid characters for protein sequence: {', '.join(invalid_chars)}"
+                self, "Sequence Too Short", 
+                f"Sequence is only {len(sequence)} amino acids long. "
+                "Please enter a longer sequence for meaningful analysis."
             )
             return None
+        
+        if len(sequence) > 10000:
+            reply = QMessageBox.question(
+                self, "Long Sequence", 
+                f"This sequence is {len(sequence)} amino acids long. "
+                "Analysis may take a long time. Continue?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if reply != QMessageBox.Yes:
+                return None
         
         if len(sequence) < 10:
             QMessageBox.warning(self, "Sequence Too Short", "Sequence must be at least 10 amino acids long.")
@@ -2864,26 +3093,86 @@ class MotifAnalysisTab(QWidget):
         current_row = table.currentRow()
         if current_row >= 0 and current_row < len(motifs):
             motif = motifs[current_row]
-            context = motif.get('context', {})
             
-            if context:
-                context_seq = context['sequence']
-                motif_start = context['motif_start']
-                motif_end = context['motif_end']
+            # Get motif information
+            motif_name = motif.get('name', 'Unknown motif')
+            motif_id = motif.get('id', '')
+            motif_start = motif.get('start', 0)
+            motif_end = motif.get('end', 0)
+            motif_sequence = motif.get('sequence', '')
+            motif_description = motif.get('description', '')
+            motif_category = motif.get('category', '')
+            motif_function = motif.get('function', '')
+            
+            # Check if we have the current sequence and valid positions
+            if hasattr(self, 'current_sequence') and self.current_sequence and motif_start > 0 and motif_end > 0:
+                # Generate sequence context (20 amino acids before and after)
+                context_window = 20
+                seq_len = len(self.current_sequence)
                 
-                # Format with highlighting
-                before = context_seq[:motif_start]
-                motif_seq = context_seq[motif_start:motif_end]
-                after = context_seq[motif_end:]
+                # Calculate context boundaries
+                context_start = max(0, motif_start - 1 - context_window)  # Convert to 0-based indexing
+                context_end = min(seq_len, motif_end + context_window)
                 
-                formatted_text = f"{before}[{motif_seq}]{after}"
+                # Extract context sequence
+                full_context = self.current_sequence[context_start:context_end]
                 
-                self.context_display.setPlainText(
-                    f"Motif: {motif['name']} ({motif['id']})\n"
-                    f"Position: {motif['start']}-{motif['end']}\n"
-                    f"Context: {formatted_text}\n"
-                    f"Function: {motif.get('function', 'N/A')}"
-                )
+                # Calculate relative positions within the context
+                motif_rel_start = (motif_start - 1) - context_start  # Convert to 0-based
+                motif_rel_end = motif_end - context_start
+                
+                # Split context into before, motif, and after
+                before = full_context[:motif_rel_start]
+                motif_seq = full_context[motif_rel_start:motif_rel_end]
+                after = full_context[motif_rel_end:]
+                
+                # Format the context display
+                context_info = []
+                context_info.append(f"🔍 Motif: {motif_name}")
+                if motif_id:
+                    context_info.append(f"📋 ID: {motif_id}")
+                if motif_description:
+                    context_info.append(f"📝 Description: {motif_description}")
+                if motif_category:
+                    context_info.append(f"🏷️ Category: {motif_category}")
+                if motif_function:
+                    context_info.append(f"⚙️ Function: {motif_function}")
+                context_info.append(f"📍 Position: {motif_start}-{motif_end} (length: {motif_end - motif_start + 1})")
+                context_info.append("")
+                context_info.append("🧬 Sequence Context:")
+                
+                # Create formatted sequence with position markers
+                pos_start = context_start + 1  # Convert back to 1-based for display
+                pos_end = context_end
+                
+                context_info.append(f"Position {pos_start}-{pos_end}:")
+                context_info.append(f"{before}[{motif_seq}]{after}")
+                context_info.append("")
+                context_info.append("Legend: [motif sequence] in brackets")
+                
+                formatted_context = "\n".join(context_info)
+                self.context_display.setPlainText(formatted_context)
+            else:
+                # Fallback display with available information
+                fallback_info = []
+                fallback_info.append(f"🔍 Motif: {motif_name}")
+                if motif_id:
+                    fallback_info.append(f"📋 ID: {motif_id}")
+                if motif_description:
+                    fallback_info.append(f"📝 Description: {motif_description}")
+                if motif_category:
+                    fallback_info.append(f"🏷️ Category: {motif_category}")
+                if motif_function:
+                    fallback_info.append(f"⚙️ Function: {motif_function}")
+                if motif_start > 0 and motif_end > 0:
+                    fallback_info.append(f"📍 Position: {motif_start}-{motif_end}")
+                if motif_sequence:
+                    fallback_info.append(f"🧬 Motif Sequence: {motif_sequence}")
+                fallback_info.append("")
+                fallback_info.append("⚠️ Full sequence context not available.")
+                fallback_info.append("Please ensure a sequence is loaded for detailed context view.")
+                
+                self.context_display.setPlainText("\n".join(fallback_info))
     
     def save_prosite_results(self):
         """Save PROSITE results to file."""
