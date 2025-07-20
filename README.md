@@ -94,12 +94,6 @@ The application will automatically download NGL.js on first run if needed.
 
 **Note:** PicoMol features an organized project structure with source code in `src/`, assets in `assets/`, data files in `data/`, and documentation in `docs/`. The main application file (`picomol.py`) remains in the root directory for easy execution.
 
-### Enhanced Installation (Recommended)
-For full bioinformatics functionality, install Biopython:
-```bash
-pip install biopython
-```
-
 ### Manual Dependency Installation
 If you prefer to install dependencies manually:
 ```bash
@@ -228,23 +222,11 @@ PicoMol combines several powerful technologies:
 - **InterPro API:** Official EBI InterPro web service integration
 - **PROSITE API:** Direct connection to ExPASy PROSITE ScanProsite service
 - **Hybrid Approach:** API-first with local pattern fallback for reliability
-- **Advanced Visualization:** Dynamic domain/motif layout with collision detection
 - **Sequence Context Display:** Interactive motif context viewer with highlighting
 - **Progress Management:** Smart progress tracking for concurrent searches
 - **Result Caching:** Efficient storage and retrieval of analysis results
 - **Export System:** Multiple output formats including HTML reports
 - **Error Handling:** Robust error recovery and user feedback
-
-## Requirements
-
-- **Python:** 3.7+
-- **PyQt5:** 5.15.0+
-- **PyQtWebEngine:** 5.15.0+
-- **Biopython:** 1.79+ (recommended for full bioinformatics features)
-- **Requests:** 2.25.0+ (for API integrations)
-- **XML Support:** Built-in xml.etree.ElementTree for API response parsing
-
-See `requirements.txt` for complete dependency list.
 
 ## Contributing
 
@@ -255,7 +237,7 @@ We welcome contributions! Please feel free to:
 
 ## 📚 Citations
 
-If you use PicoMol in your research, please cite the following:
+Here are the citations for projects and tools included in PicoMol:
 
 ### NGL.js
 ```
