@@ -1505,8 +1505,8 @@ def create_scoring_parameters_group(parent, program_type):
         
         layout.addLayout(matrix_layout)
     
-    # Match/Mismatch scores (for nucleotide searches)
-    if program_type in ["blastn", "tblastx"]:
+    # Match/Mismatch scores (for nucleotide searches, not for tblastx)
+    if program_type == "blastn":
         match_layout = QHBoxLayout()
         match_label = QLabel("Match/Mismatch Scores")
         match_label.setFixedWidth(150)
@@ -1524,35 +1524,36 @@ def create_scoring_parameters_group(parent, program_type):
         
         layout.addLayout(match_layout)
     
-    # Gap costs
-    gap_layout = QHBoxLayout()
-    gap_label = QLabel("Gap Costs")
-    gap_label.setFixedWidth(150)
-    gap_layout.addWidget(gap_label)
-    
-    gap_combo = QComboBox()
-    gap_combo.setFixedWidth(200)
-    gap_costs = [
-        "Existence: 11 Extension: 2",
-        "Existence: 10 Extension: 2", 
-        "Existence: 9 Extension: 2",
-        "Existence: 8 Extension: 2",
-        "Existence: 7 Extension: 2",
-        "Existence: 6 Extension: 2",
-        "Existence: 13 Extension: 1",
-        "Existence: 12 Extension: 1",
-        "Existence: 11 Extension: 1",
-        "Existence: 10 Extension: 1",
-        "Existence: 9 Extension: 1"
-    ]
-    gap_combo.addItems(gap_costs)
-    gap_combo.setCurrentText("Existence: 11 Extension: 1")
-    gap_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
-    setattr(parent, f'{program_type}_gap_costs', gap_combo)
-    gap_layout.addWidget(gap_combo)
-    gap_layout.addStretch()
-    
-    layout.addLayout(gap_layout)
+    # Gap costs (not for tblastx)
+    if program_type != "tblastx":
+        gap_layout = QHBoxLayout()
+        gap_label = QLabel("Gap Costs")
+        gap_label.setFixedWidth(150)
+        gap_layout.addWidget(gap_label)
+        
+        gap_combo = QComboBox()
+        gap_combo.setFixedWidth(200)
+        gap_costs = [
+            "Existence: 11 Extension: 2",
+            "Existence: 10 Extension: 2", 
+            "Existence: 9 Extension: 2",
+            "Existence: 8 Extension: 2",
+            "Existence: 7 Extension: 2",
+            "Existence: 6 Extension: 2",
+            "Existence: 13 Extension: 1",
+            "Existence: 12 Extension: 1",
+            "Existence: 11 Extension: 1",
+            "Existence: 10 Extension: 1",
+            "Existence: 9 Extension: 1"
+        ]
+        gap_combo.addItems(gap_costs)
+        gap_combo.setCurrentText("Existence: 11 Extension: 1")
+        gap_combo.setStyleSheet("border: 1px solid #ccc; padding: 2px;")
+        setattr(parent, f'{program_type}_gap_costs', gap_combo)
+        gap_layout.addWidget(gap_combo)
+        gap_layout.addStretch()
+        
+        layout.addLayout(gap_layout)
     
     # Compositional adjustments (only for protein-based searches, not tblastx)
     if program_type in ["blastp", "blastx", "tblastn"]:
@@ -1797,12 +1798,12 @@ def run_ncbi_blast_search(parent, program_type):
         matrix = getattr(parent, f'{program_type}_matrix')
         parameters['matrix'] = matrix.currentText()
     
-    # Match/Mismatch scores (for nucleotide searches)
+    # Match/Mismatch scores (for nucleotide searches, not for tblastx)
     if hasattr(parent, f'{program_type}_match_scores'):
         match_scores = getattr(parent, f'{program_type}_match_scores')
         parameters['match_scores'] = match_scores.currentText().split(" ")[0]
     
-    # Gap costs
+    # Gap costs (not available for tblastx)
     if hasattr(parent, f'{program_type}_gap_costs'):
         gap_costs = getattr(parent, f'{program_type}_gap_costs')
         gap_text = gap_costs.currentText()

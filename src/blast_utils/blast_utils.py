@@ -135,14 +135,8 @@ class OnlineBlastWorker(QThread):
                     params['UNGAPPED_ALIGNMENT'] = 'T' if self.parameters.get('ungapped_alignment', False) else 'F'
             
             elif self.program == 'tblastx':
-                # TBLASTX: matrix only, no compositional adjustments
+                # TBLASTX: matrix only, no compositional adjustments, no gap costs, no match/mismatch scores
                 params['MATRIX_NAME'] = self.parameters.get('matrix', 'BLOSUM62')
-                # TBLASTX also uses nucleotide-style match/mismatch scores
-                if self.parameters.get('match_scores'):
-                    match_scores = self.parameters.get('match_scores', '2,-3')
-                    if ',' in match_scores:
-                        match, mismatch = match_scores.split(',', 1)
-                        params['MATCH_SCORES'] = f"{match},{mismatch}"
             
             elif self.program == 'blastn':
                 # Nucleotide-based searches
@@ -161,13 +155,13 @@ class OnlineBlastWorker(QThread):
                         params['TEMPLATE_TYPE'] = 'coding'
                         params['TEMPLATE_LENGTH'] = '18'
             
-            # Gap costs (for all programs that support them)
-            if self.parameters.get('gapopen') and self.parameters.get('gapextend'):
+            # Gap costs (for all programs that support them, except tblastx)
+            if self.program != 'tblastx' and self.parameters.get('gapopen') and self.parameters.get('gapextend'):
                 gapopen = self.parameters.get('gapopen', '11')
                 gapextend = self.parameters.get('gapextend', '1')
                 
                 # For nucleotide searches, validate gap costs against match/mismatch scores
-                if self.program in ['blastn', 'tblastx']:
+                if self.program in ['blastn']:
                     match_scores = self.parameters.get('match_scores', '2,-3')
                     # Use NCBI-compatible gap cost combinations
                     if match_scores == '2,-3':
@@ -1495,11 +1489,13 @@ def run_online_blast_search_generic(parent, program_type):
         matrix = getattr(parent, f'{program_type}_matrix')
         parameters['matrix'] = matrix.currentText()
     
-    if hasattr(parent, f'{program_type}_match_scores'):
+    # Match/Mismatch scores (not for tblastx)
+    if program_type != 'tblastx' and hasattr(parent, f'{program_type}_match_scores'):
         match_scores = getattr(parent, f'{program_type}_match_scores')
         parameters['match_scores'] = match_scores.currentText().split(" ")[0]
     
-    if hasattr(parent, f'{program_type}_gap_costs'):
+    # Gap costs (not for tblastx)
+    if program_type != 'tblastx' and hasattr(parent, f'{program_type}_gap_costs'):
         gap_costs = getattr(parent, f'{program_type}_gap_costs')
         gap_text = gap_costs.currentText()
         
@@ -1507,7 +1503,7 @@ def run_online_blast_search_generic(parent, program_type):
         if program_type in ["blastp", "blastx", "tblastn"]:
             gap_costs_list = BLAST_CONFIG["gap_costs"]["protein"]
         else:
-            # For nucleotide searches (including tblastx), get the match/mismatch scores first
+            # For nucleotide searches (excluding tblastx), get the match/mismatch scores first
             match_scores = parameters.get('match_scores', '2,-3')
             if match_scores in BLAST_CONFIG["gap_costs"]["nucleotide"]:
                 gap_costs_list = BLAST_CONFIG["gap_costs"]["nucleotide"][match_scores]
@@ -1792,14 +1788,9 @@ def show_blast_help_generic(parent, program_type):
     
     {"<h4>Scoring Matrix</h4><ul><li><b>BLOSUM62</b> - Default, good for most searches</li><li><b>BLOSUM45</b> - More sensitive for distant relationships</li><li><b>BLOSUM80</b> - Less sensitive, for close relationships</li></ul>" if program_type in ["blastp", "blastx", "tblastn", "tblastx"] else ""}
     
-    {"<h4>Match/Mismatch Scores</h4><ul><li>First number is reward for match</li><li>Second number is penalty for mismatch</li><li>Higher ratios are more stringent</li></ul>" if program_type in ["blastn", "tblastx"] else ""}
+    {"<h4>Match/Mismatch Scores</h4><ul><li>First number is reward for match</li><li>Second number is penalty for mismatch</li><li>Higher ratios are more stringent</li></ul>" if program_type == "blastn" else ""}
     
-    <h4>Gap Costs</h4>
-    <ul>
-        <li><b>Existence</b> - Penalty for opening a gap</li>
-        <li><b>Extension</b> - Penalty for extending a gap</li>
-        <li>Higher values discourage gaps</li>
-    </ul>
+    {"<h4>Gap Costs</h4><ul><li><b>Existence</b> - Penalty for opening a gap</li><li><b>Extension</b> - Penalty for extending a gap</li><li>Higher values discourage gaps</li></ul>" if program_type != "tblastx" else ""}
     
     {"<h4>Compositional Adjustments</h4><ul><li><b>Conditional</b> - Default, adjusts for unusual amino acid compositions</li><li><b>No adjustment</b> - For typical protein sequences</li></ul>" if program_type in ["blastp", "blastx", "tblastn"] else ""}
     
