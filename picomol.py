@@ -638,11 +638,6 @@ class ProteinViewerApp(QMainWindow):
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
         
-        # Create motif and domain analysis tab
-        from src.core.motif_analysis import MotifAnalysisTab
-        motif_analysis_tab = MotifAnalysisTab(self)
-        self.main_tabs.addTab(motif_analysis_tab, "Motifs & Domains")
-        
         # Create BLAST tab
         blast_tab = QWidget()
         blast_layout = QVBoxLayout(blast_tab)
@@ -669,18 +664,6 @@ class ProteinViewerApp(QMainWindow):
         blast_type_tabs.addTab(tblastx_tab, "tblastx")
         
         self.main_tabs.addTab(blast_tab, "BLAST")
-        
-
-        
-        # Create Structural Analysis tab
-        struct_tab = QWidget()
-        struct_layout = QVBoxLayout(struct_tab)
-        struct_label = QLabel("Structural Analysis (Coming in Next Release)")
-        struct_label.setAlignment(Qt.AlignCenter)
-        struct_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #666; margin-top: 20px;")
-        struct_layout.addWidget(struct_label)
-        struct_layout.addStretch()
-        self.main_tabs.addTab(struct_tab, "Structure")
         
         # Initialize undo stack
         self._undo_stack = []
