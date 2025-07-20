@@ -32,6 +32,13 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
   - **Complement Sequences:** Both complement and reverse complement generation
   - **Translation Analysis:** All 6 reading frames for DNA, direct translation for RNA
   - **Nucleotide Composition:** Detailed breakdown in conventional order (A, T/U, G, C, N)
+- **Protein Motif and Domain Analysis:**
+  - **InterPro Integration:** Comprehensive domain annotation using InterPro API (includes Pfam, SMART, PROSITE, CDD, and more)
+  - **PROSITE Motif Search:** Official PROSITE ScanProsite API integration with local pattern fallback
+  - **Domain Visualization:** Interactive visualization of protein domains and motifs with intelligent layout
+  - **Functional Annotation:** GO terms, pathways, and functional site identification
+  - **Filtering Options:** Exclude high-probability motifs, customize search parameters
+  - **Export Capabilities:** Save results in multiple formats with detailed reports
 - **FASTA Format Support:** 
   - **Smart Parsing:** Handles both pasted FASTA text and file uploads
   - **Multi-sequence Files:** Interactive sequence selection dialog for files with multiple sequences
@@ -130,6 +137,22 @@ pip install PyQt5 PyQtWebEngine biopython requests
    - **Manual Override:** Change sequence type if needed
    - **Comprehensive Results:** Detailed analysis with exportable data
 
+### Motif and Domain Analysis
+1. **Navigate to Motifs & Domains Tab:** Access protein motif and domain analysis tools
+2. **Sequence Input:**
+   - **Load from Current Structure:** Extract sequence from loaded PDB structure
+   - **Load from File:** Import FASTA sequences
+   - **Direct Entry:** Paste protein sequences with example provided
+3. **Search Options:**
+   - **InterPro Search:** Comprehensive domain annotation (Pfam, SMART, PROSITE, CDD)
+   - **PROSITE Search:** Motif pattern recognition with official API
+   - **Search All Databases:** Combined search for complete analysis
+4. **Advanced Features:**
+   - **Filtering:** Exclude high-probability motifs for cleaner results
+   - **Visualization:** Interactive domain and motif visualization
+   - **Export:** Save results and generate detailed HTML reports
+   - **Context Display:** View sequence context around identified motifs
+
 ## Project Structure
 
 ```
@@ -143,6 +166,7 @@ PicoMol/
 ├── src/                          # Source code modules
 │   ├── core/                     # Core functionality
 │   │   ├── bioinformatics_tools.py  # Comprehensive bioinformatics analysis suite
+│   │   ├── motif_analysis.py        # Protein motif and domain analysis tools
 │   │   └── preferences.py           # Settings and preferences management
 │   ├── gui/                      # User interface components
 │   │   ├── theme_manager.py         # Theme system and UI customization
@@ -180,6 +204,9 @@ PicoMol combines several powerful technologies:
 - **Smart FASTA Parsing:** Handles both Biopython and manual parsing methods
 - **Sequence Validation:** Real-time validation with detailed error reporting
 - **Multi-threading:** Background analysis prevents UI freezing
+- **API Integration:** Direct connection to InterPro and PROSITE web services
+- **Fallback Systems:** Local pattern matching when APIs are unavailable
+- **Intelligent Parsing:** Robust parsing of various API response formats
 - **Extensible Design:** Easy to add new analysis tools and features
 
 ### BLAST Implementation
@@ -188,13 +215,22 @@ PicoMol combines several powerful technologies:
 - **Result Parsing:** Comprehensive parsing of XML and text BLAST outputs
 - **NCBI Compliance:** Interface design matches official NCBI BLAST pages
 
+### Motif and Domain Analysis Implementation
+- **InterPro API:** Official EBI InterPro web service integration
+- **PROSITE API:** Direct connection to ExPASy PROSITE ScanProsite service
+- **Hybrid Approach:** API-first with local pattern fallback for reliability
+- **Advanced Visualization:** Dynamic domain/motif layout with collision detection
+- **Result Caching:** Efficient storage and retrieval of analysis results
+- **Export System:** Multiple output formats including HTML reports
+
 ## Requirements
 
 - **Python:** 3.7+
 - **PyQt5:** 5.15.0+
 - **PyQtWebEngine:** 5.15.0+
 - **Biopython:** 1.79+ (recommended for full bioinformatics features)
-- **Requests:** 2.25.0+
+- **Requests:** 2.25.0+ (for API integrations)
+- **XML Support:** Built-in xml.etree.ElementTree for API response parsing
 
 See `requirements.txt` for complete dependency list.
 

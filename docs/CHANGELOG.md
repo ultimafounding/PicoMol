@@ -5,7 +5,46 @@ All notable changes to PicoMol will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2025-01-15
+## [0.0.4] - 2025-07-20
+### Added
+- **Comprehensive Motif and Domain Analysis:** New dedicated tab for protein functional annotation
+  - **InterPro Integration:** Official EBI InterPro API integration for comprehensive domain annotation
+    - Includes Pfam, SMART, PROSITE, CDD, PRINTS, and many more databases
+    - GO terms and pathway annotation
+    - Detailed functional site identification
+  - **PROSITE Motif Search:** Official ExPASy PROSITE ScanProsite API integration
+    - Real-time motif pattern recognition
+    - Intelligent local pattern fallback for reliability
+    - Filtering options for high-probability motifs
+    - Comprehensive motif categorization
+  - **Advanced Visualization:** Interactive domain and motif visualization
+    - Dynamic layout with intelligent collision detection
+    - Multi-track display for complex proteins
+    - Scalable visualization adapting to sequence length
+  - **Export Capabilities:** Multiple output formats including detailed HTML reports
+  - **Search Options:** Individual database searches or comprehensive "Search All" functionality
+
+### Enhanced
+- **Welcome Dialog:** Updated with new motif analysis features and improved tips
+- **About Dialog:** Added InterPro and PROSITE citations and updated version information
+- **Documentation:** Comprehensive updates to README with motif analysis features
+- **User Interface:** Enhanced tooltips and help text throughout the application
+- **API Integration:** Robust web service connections with intelligent fallback systems
+
+### Technical Improvements
+- **Hybrid API Approach:** API-first with local pattern fallback for maximum reliability
+- **Advanced Parsing:** Robust parsing of various API response formats (XML, tab-separated, HTML)
+- **Multi-threading:** Background analysis prevents UI freezing during searches
+- **Error Handling:** Comprehensive error recovery and user feedback
+- **Result Caching:** Efficient storage and retrieval of analysis results
+
+### Fixed
+- **PROSITE API Integration:** Resolved parsing issues with tab-separated response format
+- **Result Display:** Fixed table population and result visualization
+- **Sequence Input:** Enhanced placeholder text and input validation
+- **UI Responsiveness:** Improved handling of long-running API requests
+
+## [1.0.0] - 2025-01-15 (Planned)
 ### Added
 - **Comprehensive Bioinformatics Suite:** Complete sequence analysis tools for proteins, DNA, and RNA
   - Protein analysis: molecular weight, isoelectric point, hydropathy (GRAVY), aromaticity, instability index

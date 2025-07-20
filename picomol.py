@@ -59,16 +59,17 @@ class AboutDialog(QDialog):
             </style>
             
             <h2>🧬 PicoMol</h2>
-            <p><b>Version:</b> 0.0.3 (2025-07-18)</p>
-            <p>A comprehensive molecular visualization and bioinformatics suite for protein structures and sequence analysis.</p>
+            <p><b>Version:</b> 0.0.4 (2025-07-20)</p>
+            <p>A comprehensive molecular visualization and bioinformatics suite for protein structures, sequence analysis, and functional annotation.</p>
             
             <h3>🔬 Core Features</h3>
             <ul>
               <li><b>3D Molecular Visualization:</b> Interactive protein structure viewing with multiple representations</li>
               <li><b>BLAST Integration:</b> Complete BLAST suite (BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX)</li>
+              <li><b>Motif & Domain Analysis:</b> InterPro and PROSITE integration for comprehensive functional annotation</li>
               <li><b>PDB Support:</b> Fetch from PDB database or load local files</li>
               <li><b>Sequence Analysis:</b> View and analyze protein/nucleotide sequences</li>
-              <li><b>Export Tools:</b> Save screenshots and structure files</li>
+              <li><b>Export Tools:</b> Save screenshots, structure files, and analysis reports</li>
             </ul>
             
             <h3>🛠️ Technology Stack</h3>
@@ -77,6 +78,8 @@ class AboutDialog(QDialog):
               <li><b>3D Visualization:</b> <a href='https://github.com/arose/ngl'>NGL.js</a> (MIT License)</li>
               <li><b>Bioinformatics:</b> <a href='https://biopython.org/'>Biopython</a></li>
               <li><b>BLAST:</b> NCBI BLAST API integration</li>
+              <li><b>InterPro:</b> EBI InterPro web service API</li>
+              <li><b>PROSITE:</b> ExPASy PROSITE ScanProsite API</li>
             </ul>
             
             <p><b>Developer:</b> Jack Magson<br>
@@ -112,6 +115,22 @@ class AboutDialog(QDialog):
             Gapped BLAST and PSI-BLAST: a new generation of protein database search programs. 
             <i>Nucleic Acids Research</i> 25(17): 3389-3402, 1997.
             <a href='https://doi.org/10.1093/nar/25.17.3389'>doi:10.1093/nar/25.17.3389</a>
+            </div>
+            
+            <p><b>InterPro:</b></p>
+            <div class="citation">
+            Paysan-Lafosse T, Blum M, Chuguransky S, Grego T, Pinto BL, Salazar GA, Bileschi ML, Bork P, Bridge A, Colwell L, et al. 
+            InterPro in 2022. 
+            <i>Nucleic Acids Research</i> 51(D1): D418-D427, 2023.
+            <a href='https://doi.org/10.1093/nar/gkac993'>doi:10.1093/nar/gkac993</a>
+            </div>
+            
+            <p><b>PROSITE:</b></p>
+            <div class="citation">
+            Sigrist CJA, de Castro E, Cerutti L, Cuche BA, Hulo N, Bridge A, Bougueleret L, Xenarios I. 
+            New and continuing developments at PROSITE. 
+            <i>Nucleic Acids Research</i> 41(D1): D344-D347, 2013.
+            <a href='https://doi.org/10.1093/nar/gks1067'>doi:10.1093/nar/gks1067</a>
             </div>
             
             <p><b>PDB Format:</b></p>
@@ -618,6 +637,11 @@ class ProteinViewerApp(QMainWindow):
         
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
+        
+        # Create motif and domain analysis tab
+        from src.core.motif_analysis import MotifAnalysisTab
+        motif_analysis_tab = MotifAnalysisTab(self)
+        self.main_tabs.addTab(motif_analysis_tab, "Motifs & Domains")
         
         # Create BLAST tab
         blast_tab = QWidget()

@@ -6,7 +6,7 @@ This module provides various bioinformatics analysis tools including:
 - Sequence analysis and statistics
 - Protein property calculations
 - Secondary structure prediction
-- Sequence alignment tools
+
 - Motif finding
 - And more...
 """
@@ -23,6 +23,9 @@ from PyQt5.QtWidgets import (
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
+
+# Import motif analysis module
+from .motif_analysis import create_motif_analysis_tab
 
 try:
     from Bio.Seq import Seq
@@ -1144,45 +1147,10 @@ def create_bioinformatics_tab(parent=None):
     bio_tabs.addTab(seq_analysis_tab, "Sequence Analysis")
     
     # Placeholder tabs for future tools
-    # Alignment tab
-    alignment_tab = QWidget()
-    alignment_layout = QVBoxLayout(alignment_tab)
-    alignment_placeholder = QLabel(
-        "<h3>Sequence Alignment Tools</h3>"
-        "<p>Coming soon:</p>"
-        "<ul>"
-        "<li>Pairwise sequence alignment</li>"
-        "<li>Multiple sequence alignment</li>"
-        "<li>Alignment visualization</li>"
-        "<li>Phylogenetic analysis</li>"
-        "</ul>"
-    )
-    alignment_placeholder.setAlignment(Qt.AlignTop)
-    alignment_placeholder.setWordWrap(True)
-    alignment_placeholder.setStyleSheet("color: #666; padding: 20px;")
-    alignment_layout.addWidget(alignment_placeholder)
-    alignment_layout.addStretch()
-    bio_tabs.addTab(alignment_tab, "Alignment")
     
-    # Motif Finding tab
-    motif_tab = QWidget()
-    motif_layout = QVBoxLayout(motif_tab)
-    motif_placeholder = QLabel(
-        "<h3>Motif and Pattern Analysis</h3>"
-        "<p>Coming soon:</p>"
-        "<ul>"
-        "<li>Motif discovery</li>"
-        "<li>Pattern matching</li>"
-        "<li>Regulatory element prediction</li>"
-        "<li>Domain analysis</li>"
-        "</ul>"
-    )
-    motif_placeholder.setAlignment(Qt.AlignTop)
-    motif_placeholder.setWordWrap(True)
-    motif_placeholder.setStyleSheet("color: #666; padding: 20px;")
-    motif_layout.addWidget(motif_placeholder)
-    motif_layout.addStretch()
-    bio_tabs.addTab(motif_tab, "Motifs")
+    # Motif Analysis tab - now fully functional!
+    motif_tab = create_motif_analysis_tab(parent)
+    bio_tabs.addTab(motif_tab, "Protein Motifs and Domains")
     
     # Structure Analysis tab
     structure_tab = QWidget()

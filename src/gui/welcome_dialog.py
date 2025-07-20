@@ -104,9 +104,11 @@ class WelcomeDialog(QDialog):
             ("🧪", "3D Molecular Visualization", "Interactive protein structure viewing with multiple representations, themes, and export options"),
             ("🔍", "BLAST Integration", "Complete BLAST suite (BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX) with direct NCBI connectivity"),
             ("🧬", "Bioinformatics Analysis", "Comprehensive sequence analysis for proteins, DNA, and RNA with detailed statistics"),
+            ("🎯", "Motif & Domain Analysis", "InterPro and PROSITE integration for protein domain annotation and motif identification"),
             ("📄", "FASTA Support", "Smart parsing of single and multi-sequence FASTA files with automatic type detection"),
             ("🎨", "Customizable Interface", "Multiple built-in themes, preferences system, and responsive design"),
-            ("💾", "Data Management", "PDB fetching, local file support, drag-and-drop, and export capabilities")
+            ("💾", "Data Management", "PDB fetching, local file support, drag-and-drop, and export capabilities"),
+            ("🌐", "API Integration", "Direct connections to NCBI, EBI InterPro, and ExPASy PROSITE web services")
         ]
         
         for i in range(0, len(features_data), 2):
@@ -138,8 +140,9 @@ class WelcomeDialog(QDialog):
             "1. **Load a Structure:** Enter a PDB ID (e.g., '1CRN') or drag & drop a local PDB file",
             "2. **Explore Visualization:** Use the 3D Viewer tab to adjust representations and colors",
             "3. **Analyze Sequences:** Switch to the Bioinformatics tab for comprehensive sequence analysis",
-            "4. **Run BLAST Searches:** Use the BLAST tab to search against NCBI databases",
-            "5. **Customize Experience:** Access Preferences (Tools → Preferences) to personalize your workflow"
+            "4. **Find Motifs & Domains:** Use the Motifs & Domains tab for protein functional annotation",
+            "5. **Run BLAST Searches:** Use the BLAST tab to search against NCBI databases",
+            "6. **Customize Experience:** Access Preferences (Tools → Preferences) to personalize your workflow"
         ]
         
         for step in quickstart_steps:
@@ -167,6 +170,8 @@ class WelcomeDialog(QDialog):
             "• Hover over any control for helpful tooltips<br>"
             "• Use Ctrl+Z/Ctrl+Y for undo/redo in the 3D viewer<br>"
             "• Access recent files through File → Recent Files<br>"
+            "• Try 'Search All Databases' for comprehensive motif analysis<br>"
+            "• Export analysis results in multiple formats<br>"
             "• Try different themes in Tools → Preferences"
             "</p>"
             "</div>"
