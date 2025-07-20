@@ -1841,6 +1841,7 @@ class MotifAnalysisTab(QWidget):
         self.current_sequence = ""
         self.interpro_worker = None
         self.prosite_worker = None
+        self.active_searches = 0  # Track number of active searches
         self.init_ui()
     
     def init_ui(self):
@@ -2330,7 +2331,7 @@ class MotifAnalysisTab(QWidget):
         if not sequence:
             return
         
-        self.set_search_state(True, "Searching InterPro...")
+        self.start_search("Searching InterPro...")
         
         self.interpro_worker = InterProSearchWorker(sequence)
         self.interpro_worker.search_complete.connect(self.handle_interpro_results)
@@ -2346,7 +2347,7 @@ class MotifAnalysisTab(QWidget):
         if not sequence:
             return
         
-        self.set_search_state(True, "Searching PROSITE...")
+        self.start_search("Searching PROSITE...")
         
         # Get filtering option
         exclude_high_prob = self.exclude_high_prob_checkbox.isChecked()
@@ -2369,17 +2370,49 @@ class MotifAnalysisTab(QWidget):
         # Start InterPro search after a short delay
         QTimer.singleShot(1000, self.search_interpro)
     
-    def set_search_state(self, searching, message=""):
-        """Set the UI state during search."""
-        self.interpro_btn.setEnabled(not searching)
-        self.prosite_btn.setEnabled(not searching)
-        self.search_all_btn.setEnabled(not searching)
+    def start_search(self, message=""):
+        """Start a new search and update UI state."""
+        self.active_searches += 1
         
-        self.progress_bar.setVisible(searching)
-        if searching:
-            self.progress_bar.setRange(0, 0)  # Indeterminate
+        # Disable buttons and show progress bar
+        self.interpro_btn.setEnabled(False)
+        self.prosite_btn.setEnabled(False)
+        self.search_all_btn.setEnabled(False)
+        
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate
         
         self.status_label.setText(message)
+    
+    def finish_search(self, message=""):
+        """Finish a search and update UI state if all searches are complete."""
+        self.active_searches = max(0, self.active_searches - 1)
+        
+        # Only hide progress bar and re-enable buttons when all searches are complete
+        if self.active_searches == 0:
+            self.interpro_btn.setEnabled(True)
+            self.prosite_btn.setEnabled(True)
+            self.search_all_btn.setEnabled(True)
+            self.progress_bar.setVisible(False)
+            
+            if message:
+                self.status_label.setText(message)
+            else:
+                self.status_label.setText("All searches completed")
+        else:
+            # Update status to show remaining searches
+            remaining_msg = f"{self.active_searches} search(es) still running..."
+            if message:
+                self.status_label.setText(f"{message} ({remaining_msg})")
+            else:
+                self.status_label.setText(remaining_msg)
+    
+    def set_search_state(self, searching, message=""):
+        """Legacy method for backward compatibility."""
+        if searching:
+            self.start_search(message)
+        else:
+            self.finish_search(message)
     
     def update_status(self, message):
         """Update status message."""
@@ -2387,7 +2420,7 @@ class MotifAnalysisTab(QWidget):
     
     def handle_interpro_results(self, results):
         """Handle InterPro search results."""
-        self.set_search_state(False)
+        self.finish_search("InterPro search completed")
         self.display_interpro_results(results)
         self.update_save_button_state()
     
@@ -2403,13 +2436,13 @@ class MotifAnalysisTab(QWidget):
                 for i, motif in enumerate(results['motifs'][:3]):  # Show first 3
                     print(f"[DEBUG] Motif {i+1}: {motif.get('id', 'No ID')} - {motif.get('name', 'No name')}")
         
-        self.set_search_state(False)
+        self.finish_search("PROSITE search completed")
         self.display_prosite_results(results)
         self.update_save_button_state()
     
     def handle_search_error(self, error_message):
         """Handle search errors."""
-        self.set_search_state(False)
+        self.finish_search("Search failed")
         QMessageBox.critical(self, "Search Error", error_message)
     
     def display_interpro_results(self, results):
