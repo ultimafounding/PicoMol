@@ -22,7 +22,7 @@ from PyQt5.QtWidgets import (
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QMessageBox, QFileDialog, QProgressBar, QSplitter, QDialog, QDialogButtonBox,
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget, QFrame,
-    QGridLayout, QTextBrowser, QApplication
+    QGridLayout, QTextBrowser, QApplication, QDoubleSpinBox
 )
 from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
 from PyQt5.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QPainterPath
@@ -106,7 +106,7 @@ class StructuralAnalysisWorker(QThread):
         self.structure_path = structure_path
         self.analysis_types = analysis_types or ['basic', 'secondary', 'geometry', 'quality']
         self.structure = None
-        self.surface_method = 'fast'  # Default surface analysis method
+        # Surface analysis uses SASA calculation
     
     def run(self):
         try:
@@ -140,17 +140,12 @@ class StructuralAnalysisWorker(QThread):
                 results['geometry'] = self.analyze_geometry()
             
             if 'surface' in self.analysis_types:
-                method_name = "fast neighbor counting" if self.surface_method == 'fast' else "accurate SASA calculation"
-                self.progress_update.emit(f"Calculating surface properties using {method_name}...")
-                results['surface'] = self.analyze_surface_properties(method=self.surface_method)
+                self.progress_update.emit("Calculating surface properties using SASA...")
+                results['surface'] = self.analyze_surface_properties()
             
             if 'quality' in self.analysis_types:
                 self.progress_update.emit("Assessing structural quality...")
                 results['quality'] = self.analyze_structural_quality()
-            
-            if 'cavities' in self.analysis_types:
-                self.progress_update.emit("Detecting binding sites and cavities...")
-                results['cavities'] = self.detect_cavities()
             
             self.progress_update.emit("Analysis complete!")
             self.analysis_complete.emit(results)
@@ -426,11 +421,11 @@ class StructuralAnalysisWorker(QThread):
         results['bond_lengths'] = bond_lengths[:100]  # Sample first 100
         results['bond_angles'] = bond_angles[:100]   # Sample first 100
     
-    def analyze_surface_properties(self, method='fast'):
-        """Analyze surface properties using optimized algorithms.
+    def analyze_surface_properties(self):
+        """Analyze surface properties using optimized SASA calculation.
         
-        Args:
-            method (str): 'fast' for neighbor counting, 'accurate' for optimized SASA
+        Uses an optimized Shrake-Rupley algorithm with NeighborSearch for
+        efficient and accurate surface area calculation.
         
         Returns:
             dict: Surface analysis results
@@ -438,126 +433,32 @@ class StructuralAnalysisWorker(QThread):
         import time
         start_time = time.time()
         
-        if method == 'fast':
-            results = self.analyze_surface_properties_fast()
-        else:
-            results = self.analyze_surface_properties_accurate()
+        results = self.analyze_surface_properties_sasa()
         
         # Add timing information
         calculation_time = time.time() - start_time
         results['calculation_time'] = calculation_time
-        results['method_used'] = method
+        results['method_used'] = 'SASA'
         
-        self.progress_update.emit(f"Surface analysis completed in {calculation_time:.2f} seconds using {method} method")
-        
-        return results
-    
-    def analyze_surface_properties_fast(self):
-        """Fast surface analysis using CA neighbor counting.
-        
-        This method is ~100x faster than full SASA calculation and provides
-        good surface/buried classification for most purposes.
-        """
-        results = {
-            'accessible_surface_area': 0.0,
-            'buried_surface_area': 0.0,
-            'surface_residues': [],
-            'buried_residues': [],
-            'surface_percentage': 0.0,
-            'buried_percentage': 0.0,
-            'total_sasa': 0.0,
-            'average_rsa': 0.0,
-            'neighbor_threshold': 16  # Threshold used for classification
-        }
-        
-        all_residues = []
-        total_estimated_sasa = 0.0
-        
-        # Get all CA atoms for neighbor search
-        ca_atoms = []
-        residue_to_ca = {}
-        
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue) and 'CA' in residue:
-                        ca_atom = residue['CA']
-                        ca_atoms.append(ca_atom)
-                        residue_to_ca[residue] = ca_atom
-        
-        # Use NeighborSearch for efficient neighbor finding
-        if ca_atoms:
-            try:
-                neighbor_search = NeighborSearch(ca_atoms)
-                
-                for model in self.structure:
-                    for chain in model:
-                        for residue in chain:
-                            if is_aa(residue) and residue in residue_to_ca:
-                                ca_atom = residue_to_ca[residue]
-                                
-                                # Count neighbors within 8Å
-                                neighbors = neighbor_search.search(ca_atom.get_coord(), 8.0)
-                                neighbor_count = len([n for n in neighbors if n != ca_atom])
-                                
-                                # Estimate SASA based on neighbor count
-                                res_name = residue.get_resname()
-                                max_sasa = MAX_SASA_VALUES.get(res_name, 150.0)
-                                
-                                # Empirical relationship: fewer neighbors = more surface exposed
-                                # This is a simplified model but works well in practice
-                                if neighbor_count < 16:  # Surface threshold
-                                    estimated_rsa = max(20.0, 100.0 - (neighbor_count * 5.0))
-                                else:  # Buried
-                                    estimated_rsa = max(0.0, 20.0 - ((neighbor_count - 16) * 2.0))
-                                
-                                estimated_sasa = (estimated_rsa / 100.0) * max_sasa
-                                
-                                residue_info = {
-                                    'residue': res_name,
-                                    'chain': chain.id,
-                                    'position': residue.id[1],
-                                    'sasa': estimated_sasa,
-                                    'rsa': estimated_rsa,
-                                    'max_sasa': max_sasa,
-                                    'neighbors': neighbor_count
-                                }
-                                
-                                all_residues.append(residue_info)
-                                total_estimated_sasa += estimated_sasa
-                                
-                                # Classification based on neighbor count
-                                if neighbor_count < 16:  # Surface
-                                    results['surface_residues'].append(residue_info)
-                                else:  # Buried
-                                    results['buried_residues'].append(residue_info)
-                                    
-            except Exception as e:
-                self.progress_update.emit(f"NeighborSearch failed, using fallback method: {e}")
-                # Fallback to simple distance calculation
-                return self._analyze_surface_fallback()
-        
-        # Calculate summary statistics
-        total_residues = len(all_residues)
-        if total_residues > 0:
-            surface_count = len(results['surface_residues'])
-            buried_count = len(results['buried_residues'])
-            
-            results['surface_percentage'] = (surface_count / total_residues) * 100
-            results['buried_percentage'] = (buried_count / total_residues) * 100
-            results['total_sasa'] = total_estimated_sasa
-            results['accessible_surface_area'] = sum(r['sasa'] for r in results['surface_residues'])
-            results['buried_surface_area'] = sum(r['sasa'] for r in results['buried_residues'])
-            results['average_rsa'] = sum(r['rsa'] for r in all_residues) / total_residues
+        self.progress_update.emit(f"Surface analysis completed in {calculation_time:.2f} seconds using SASA calculation")
         
         return results
     
-    def analyze_surface_properties_accurate(self):
-        """Accurate surface analysis using optimized SASA calculation.
+
+    
+    def analyze_surface_properties_sasa(self):
+        """Surface analysis using configurable SASA calculation.
         
         Uses an optimized Shrake-Rupley algorithm with NeighborSearch for
-        better performance while maintaining accuracy.
+        efficient and accurate surface area calculation.
         """
+        # Get SASA configuration
+        config = getattr(self, 'sasa_config', {
+            'probe_radius': 1.4,
+            'n_points': 30,
+            'rsa_threshold': 20.0,
+            'include_hydrogens': False
+        })
         results = {
             'accessible_surface_area': 0.0,
             'buried_surface_area': 0.0,
@@ -576,6 +477,11 @@ class StructuralAnalysisWorker(QThread):
                 for residue in chain:
                     if is_aa(residue):
                         for atom in residue:
+                            # Filter hydrogens if not included
+                            if not config['include_hydrogens']:
+                                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
+                                if element == 'H':
+                                    continue
                             all_atoms.append(atom)
         
         if not all_atoms:
@@ -609,8 +515,13 @@ class StructuralAnalysisWorker(QThread):
                             self.progress_update.emit(f"Calculating SASA: {progress:.1f}% ({residue_count}/{total_residues_to_process})")
                         
                         try:
-                            # Calculate optimized SASA for this residue
-                            residue_sasa = self.calculate_residue_sasa_optimized(residue, neighbor_search)
+                            # Calculate SASA for this residue with configuration
+                            residue_sasa = self.calculate_residue_sasa_optimized(
+                                residue, neighbor_search, 
+                                probe_radius=config['probe_radius'],
+                                n_points=config['n_points'],
+                                include_hydrogens=config['include_hydrogens']
+                            )
                             
                             # Calculate RSA
                             res_name = residue.get_resname()
@@ -630,8 +541,8 @@ class StructuralAnalysisWorker(QThread):
                             total_sasa += residue_sasa
                             total_rsa += rsa
                             
-                            # Classification based on RSA threshold
-                            if rsa < 20.0:
+                            # Classification based on configurable RSA threshold
+                            if rsa < config['rsa_threshold']:
                                 results['buried_residues'].append(residue_info)
                             else:
                                 results['surface_residues'].append(residue_info)
@@ -656,7 +567,10 @@ class StructuralAnalysisWorker(QThread):
         return results
     
     def _analyze_surface_fallback(self):
-        """Fallback surface analysis using simple distance calculations."""
+        """Fallback surface analysis when NeighborSearch fails.
+        
+        Uses a simplified approach but still calculates actual SASA values.
+        """
         results = {
             'accessible_surface_area': 0.0,
             'buried_surface_area': 0.0,
@@ -668,49 +582,81 @@ class StructuralAnalysisWorker(QThread):
             'average_rsa': 0.0
         }
         
+        # Get all atoms for fallback calculation
+        all_atoms = []
+        for model in self.structure:
+            for chain in model:
+                for residue in chain:
+                    if is_aa(residue):
+                        for atom in residue:
+                            # Filter hydrogens if not included
+                            if not config['include_hydrogens']:
+                                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
+                                if element == 'H':
+                                    continue
+                            all_atoms.append(atom)
+        
         all_residues = []
+        total_sasa = 0.0
+        total_rsa = 0.0
+        
+        residue_count = 0
+        total_residues_to_process = sum(1 for model in self.structure 
+                                      for chain in model 
+                                      for residue in chain if is_aa(residue))
         
         for model in self.structure:
             for chain in model:
                 for residue in chain:
-                    if is_aa(residue) and 'CA' in residue:
-                        ca_atom = residue['CA']
-                        neighbor_count = self.count_neighbors(ca_atom, model, radius=8.0, ca_only=True)
+                    if is_aa(residue):
+                        residue_count += 1
                         
-                        res_name = residue.get_resname()
-                        max_sasa = MAX_SASA_VALUES.get(res_name, 150.0)
+                        # Update progress
+                        if residue_count % 10 == 0:
+                            progress = (residue_count / total_residues_to_process) * 100
+                            self.progress_update.emit(f"Fallback SASA calculation: {progress:.1f}% ({residue_count}/{total_residues_to_process})")
                         
-                        # Simple classification
-                        if neighbor_count < 16:
-                            estimated_rsa = 50.0  # Surface
-                            estimated_sasa = 0.5 * max_sasa
-                            results['surface_residues'].append({
+                        try:
+                            # Calculate SASA using fallback method with configuration
+                            config = getattr(self, 'sasa_config', {
+                                'probe_radius': 1.4,
+                                'n_points': 100,  # Use more points for fallback accuracy
+                                'rsa_threshold': 20.0
+                            })
+                            residue_sasa = self.calculate_residue_sasa(
+                                residue, model,
+                                probe_radius=config['probe_radius'],
+                                n_points=config['n_points'],
+                                include_hydrogens=config['include_hydrogens']
+                            )
+                            
+                            # Calculate RSA
+                            res_name = residue.get_resname()
+                            max_sasa = MAX_SASA_VALUES.get(res_name, 150.0)
+                            rsa = (residue_sasa / max_sasa) * 100 if max_sasa > 0 else 0
+                            
+                            residue_info = {
                                 'residue': res_name,
                                 'chain': chain.id,
                                 'position': residue.id[1],
-                                'sasa': estimated_sasa,
-                                'rsa': estimated_rsa,
-                                'max_sasa': max_sasa,
-                                'neighbors': neighbor_count
-                            })
-                        else:
-                            estimated_rsa = 10.0  # Buried
-                            estimated_sasa = 0.1 * max_sasa
-                            results['buried_residues'].append({
-                                'residue': res_name,
-                                'chain': chain.id,
-                                'position': residue.id[1],
-                                'sasa': estimated_sasa,
-                                'rsa': estimated_rsa,
-                                'max_sasa': max_sasa,
-                                'neighbors': neighbor_count
-                            })
-                        
-                        all_residues.append({
-                            'residue': res_name,
-                            'sasa': estimated_sasa,
-                            'rsa': estimated_rsa
-                        })
+                                'sasa': residue_sasa,
+                                'rsa': rsa,
+                                'max_sasa': max_sasa
+                            }
+                            
+                            all_residues.append(residue_info)
+                            total_sasa += residue_sasa
+                            total_rsa += rsa
+                            
+                            # Classification based on configurable RSA threshold
+                            if rsa < config['rsa_threshold']:
+                                results['buried_residues'].append(residue_info)
+                            else:
+                                results['surface_residues'].append(residue_info)
+                                
+                        except Exception as e:
+                            self.progress_update.emit(f"Fallback SASA calculation failed for residue {residue}: {e}")
+                            continue
         
         # Calculate summary statistics
         total_residues = len(all_residues)
@@ -720,14 +666,14 @@ class StructuralAnalysisWorker(QThread):
             
             results['surface_percentage'] = (surface_count / total_residues) * 100
             results['buried_percentage'] = (buried_count / total_residues) * 100
-            results['total_sasa'] = sum(r['sasa'] for r in all_residues)
+            results['total_sasa'] = total_sasa
             results['accessible_surface_area'] = sum(r['sasa'] for r in results['surface_residues'])
             results['buried_surface_area'] = sum(r['sasa'] for r in results['buried_residues'])
-            results['average_rsa'] = sum(r['rsa'] for r in all_residues) / total_residues
+            results['average_rsa'] = total_rsa / total_residues
         
         return results
     
-    def calculate_residue_sasa_optimized(self, residue, neighbor_search, probe_radius=1.4, n_points=30):
+    def calculate_residue_sasa_optimized(self, residue, neighbor_search, probe_radius=1.4, n_points=30, include_hydrogens=False):
         """Calculate SASA for a residue using optimized Shrake-Rupley algorithm.
         
         Args:
@@ -735,6 +681,7 @@ class StructuralAnalysisWorker(QThread):
             neighbor_search: Pre-built NeighborSearch object for efficient neighbor finding
             probe_radius: Probe radius in Angstroms (1.4Å for water)
             n_points: Number of points to generate on each atom sphere (reduced for speed)
+            include_hydrogens: Whether to include hydrogen atoms
         
         Returns:
             float: SASA value in Ų
@@ -743,6 +690,12 @@ class StructuralAnalysisWorker(QThread):
         
         # Calculate SASA for each atom in the residue
         for atom in residue:
+            # Filter hydrogens if not included
+            if not include_hydrogens:
+                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
+                if element == 'H':
+                    continue
+            
             atom_sasa = self.calculate_atom_sasa_optimized(atom, neighbor_search, probe_radius, n_points)
             total_sasa += atom_sasa
         
@@ -811,7 +764,7 @@ class StructuralAnalysisWorker(QThread):
         
         return atom_sasa
     
-    def calculate_residue_sasa(self, residue, model, probe_radius=1.4, n_points=100):
+    def calculate_residue_sasa(self, residue, model, probe_radius=1.4, n_points=100, include_hydrogens=False):
         """Calculate SASA for a residue using Shrake-Rupley algorithm.
         
         DEPRECATED: Use calculate_residue_sasa_optimized for better performance.
@@ -821,6 +774,7 @@ class StructuralAnalysisWorker(QThread):
             model: The PDB model containing all atoms
             probe_radius: Probe radius in Angstroms (1.4Å for water)
             n_points: Number of points to generate on each atom sphere
+            include_hydrogens: Whether to include hydrogen atoms
         
         Returns:
             float: SASA value in Ų
@@ -832,10 +786,21 @@ class StructuralAnalysisWorker(QThread):
         for chain in model:
             for res in chain:
                 for atom in res:
+                    # Filter hydrogens if not included
+                    if not include_hydrogens:
+                        element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
+                        if element == 'H':
+                            continue
                     all_atoms.append(atom)
         
         # Calculate SASA for each atom in the residue
         for atom in residue:
+            # Filter hydrogens if not included
+            if not include_hydrogens:
+                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
+                if element == 'H':
+                    continue
+            
             atom_sasa = self.calculate_atom_sasa(atom, all_atoms, probe_radius, n_points)
             total_sasa += atom_sasa
         
@@ -968,6 +933,8 @@ class StructuralAnalysisWorker(QThread):
         
         return count
     
+
+    
     def analyze_structural_quality(self):
         """Analyze structural quality metrics."""
         results = {
@@ -1078,13 +1045,21 @@ class StructuralAnalysisWorker(QThread):
         Uses a combination of grid-based and probe-based approaches inspired by
         conventional cavity detection algorithms like CASTp and fpocket.
         """
+        import time
+        start_time = time.time()
+        
         results = {
             'potential_cavities': [],
             'surface_pockets': [],
             'cavity_volume': 0.0,
             'largest_cavity': None,
-            'druggable_cavities': []
+            'druggable_cavities': [],
+            'calculation_time': 0.0,
+            'total_grid_points': 0,
+            'cavity_points_found': 0
         }
+        
+        self.progress_update.emit("Cavity detection: Initializing...")
         
         # Get all protein atoms
         all_atoms = []
@@ -1096,29 +1071,53 @@ class StructuralAnalysisWorker(QThread):
                             all_atoms.append(atom)
         
         if not all_atoms:
+            self.progress_update.emit("Cavity detection: No protein atoms found")
             return results
+        
+        self.progress_update.emit(f"Cavity detection: Analyzing {len(all_atoms)} protein atoms...")
         
         # Use improved cavity detection with multiple probe sizes
         cavity_points = self.detect_cavity_points_improved(all_atoms)
+        results['cavity_points_found'] = len(cavity_points)
         
         if cavity_points:
             # Cluster cavity points into distinct cavities
             cavities = self.cluster_cavity_points_improved(cavity_points, all_atoms)
             
-            # Filter and characterize cavities
-            characterized_cavities = self.characterize_cavities(cavities, all_atoms)
-            
-            results['potential_cavities'] = characterized_cavities
-            
-            if characterized_cavities:
-                # Find largest cavity
-                largest = max(characterized_cavities, key=lambda c: c['volume'])
-                results['largest_cavity'] = largest
-                results['cavity_volume'] = sum(c['volume'] for c in characterized_cavities)
+            if cavities:
+                # Filter and characterize cavities
+                characterized_cavities = self.characterize_cavities(cavities, all_atoms)
                 
-                # Identify potentially druggable cavities
-                druggable = [c for c in characterized_cavities if self.is_druggable_cavity(c)]
-                results['druggable_cavities'] = druggable
+                results['potential_cavities'] = characterized_cavities
+                
+                if characterized_cavities:
+                    # Find largest cavity
+                    largest = max(characterized_cavities, key=lambda c: c['volume'])
+                    results['largest_cavity'] = largest
+                    results['cavity_volume'] = sum(c['volume'] for c in characterized_cavities)
+                    
+                    # Identify potentially druggable cavities
+                    druggable = [c for c in characterized_cavities if self.is_druggable_cavity(c)]
+                    results['druggable_cavities'] = druggable
+                    
+                    # Final summary
+                    calculation_time = time.time() - start_time
+                    results['calculation_time'] = calculation_time
+                    
+                    self.progress_update.emit(
+                        f"Cavity detection complete! Found {len(characterized_cavities)} cavities "
+                        f"({len(druggable)} druggable) in {calculation_time:.1f}s"
+                    )
+                else:
+                    self.progress_update.emit("Cavity detection: No significant cavities found after characterization")
+            else:
+                self.progress_update.emit("Cavity detection: No cavity clusters found")
+        else:
+            self.progress_update.emit("Cavity detection: No cavity points detected")
+        
+        # Add timing information
+        calculation_time = time.time() - start_time
+        results['calculation_time'] = calculation_time
         
         return results
     
@@ -1133,6 +1132,8 @@ class StructuralAnalysisWorker(QThread):
         Returns:
             list: List of cavity points
         """
+        self.progress_update.emit("Cavity detection: Setting up grid...")
+        
         # Get protein bounds
         coords = np.array([atom.get_coord() for atom in all_atoms])
         min_coords = np.min(coords, axis=0) - probe_radius - 3.0
@@ -1156,11 +1157,16 @@ class StructuralAnalysisWorker(QThread):
             x_range = np.arange(min_coords[0], max_coords[0], grid_spacing)
             y_range = np.arange(min_coords[1], max_coords[1], grid_spacing)
             z_range = np.arange(min_coords[2], max_coords[2], grid_spacing)
+            total_points = len(x_range) * len(y_range) * len(z_range)
+        
+        self.progress_update.emit(f"Cavity detection: Scanning {total_points:,} grid points...")
         
         sample_count = 0
-        for x in x_range:
-            for y in y_range:
-                for z in z_range:
+        last_progress = 0
+        
+        for i, x in enumerate(x_range):
+            for j, y in enumerate(y_range):
+                for k, z in enumerate(z_range):
                     point = np.array([x, y, z])
                     
                     # Check if point is in a cavity using improved criteria
@@ -1168,6 +1174,13 @@ class StructuralAnalysisWorker(QThread):
                         cavity_points.append(point)
                     
                     sample_count += 1
+                    
+                    # Update progress every 5%
+                    progress = (sample_count / min(total_points, max_grid_points)) * 100
+                    if progress - last_progress >= 5:
+                        self.progress_update.emit(f"Cavity detection: {progress:.0f}% complete ({len(cavity_points)} potential points found)")
+                        last_progress = progress
+                    
                     if sample_count >= max_grid_points:
                         break
                 if sample_count >= max_grid_points:
@@ -1175,6 +1188,7 @@ class StructuralAnalysisWorker(QThread):
             if sample_count >= max_grid_points:
                 break
         
+        self.progress_update.emit(f"Cavity detection: Found {len(cavity_points)} potential cavity points")
         return cavity_points
     
     def is_cavity_point_improved(self, point, all_atoms, probe_radius):
@@ -1225,12 +1239,18 @@ class StructuralAnalysisWorker(QThread):
         if not points:
             return []
         
+        self.progress_update.emit(f"Cavity clustering: Processing {len(points)} points...")
+        
         points = np.array(points)
         clusters = []
         used = set()
+        total_points = len(points)
+        processed_points = 0
+        last_progress = 0
         
         for i, point in enumerate(points):
             if i in used:
+                processed_points += 1
                 continue
             
             # Start new cluster with breadth-first search
@@ -1260,7 +1280,16 @@ class StructuralAnalysisWorker(QThread):
                     'points': cluster_points,
                     'indices': cluster
                 })
+            
+            processed_points += len(cluster)
+            
+            # Update progress every 10%
+            progress = (processed_points / total_points) * 100
+            if progress - last_progress >= 10:
+                self.progress_update.emit(f"Cavity clustering: {progress:.0f}% complete ({len(clusters)} clusters found)")
+                last_progress = progress
         
+        self.progress_update.emit(f"Cavity clustering: Found {len(clusters)} potential cavities")
         return clusters
     
     def characterize_cavities(self, clusters, all_atoms):
@@ -1274,9 +1303,19 @@ class StructuralAnalysisWorker(QThread):
             list: List of characterized cavities
         """
         characterized = []
+        total_clusters = len(clusters)
+        
+        if total_clusters == 0:
+            return characterized
+        
+        self.progress_update.emit(f"Cavity characterization: Analyzing {total_clusters} cavities...")
         
         for i, cluster in enumerate(clusters):
             cluster_points = cluster['points']
+            
+            # Update progress
+            progress = ((i + 1) / total_clusters) * 100
+            self.progress_update.emit(f"Cavity characterization: {progress:.0f}% complete (cavity {i+1}/{total_clusters})")
             
             # Calculate geometric properties
             center = np.mean(cluster_points, axis=0)
@@ -1315,6 +1354,8 @@ class StructuralAnalysisWorker(QThread):
         
         # Sort by volume (largest first)
         characterized.sort(key=lambda x: x['volume'], reverse=True)
+        
+        self.progress_update.emit(f"Cavity characterization: Complete! Found {len(characterized)} characterized cavities")
         
         return characterized
     
@@ -1393,6 +1434,222 @@ class StructuralAnalysisWorker(QThread):
                 len(cavity['lining_residues']) >= 5)  # Sufficient lining residues
 
 
+class SASAConfigDialog(QDialog):
+    """Dialog for configuring SASA calculation parameters."""
+    
+    def __init__(self, parent=None, config=None):
+        super().__init__(parent)
+        self.setWindowTitle("SASA Configuration")
+        self.setModal(True)
+        self.resize(500, 450)  # Slightly larger for better usability
+        
+        # Default configuration
+        self.config = config or {
+            'probe_radius': 1.4,
+            'n_points': 30,
+            'rsa_threshold': 20.0,
+            'include_hydrogens': False,
+            'preset': 'balanced'
+        }
+        
+        self.init_ui()
+        self.load_config()
+    
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Title
+        title = QLabel("<h3>SASA Calculation Configuration</h3>")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Preset selection
+        preset_group = QGroupBox("Presets")
+        preset_layout = QVBoxLayout(preset_group)
+        
+        self.preset_combo = QComboBox()
+        self.preset_combo.addItems(["Fast", "Balanced", "Accurate", "Research", "Custom"])
+        self.preset_combo.currentTextChanged.connect(self.on_preset_changed)
+        preset_layout.addWidget(self.preset_combo)
+        
+        # Preset descriptions
+        preset_desc = QLabel(
+            "<b>Fast:</b> Quick calculation (10 points, 1.4Å probe)<br>"
+            "<b>Balanced:</b> Good speed/accuracy trade-off (30 points)<br>"
+            "<b>Accurate:</b> High accuracy (60 points)<br>"
+            "<b>Research:</b> Publication quality (100 points)<br>"
+            "<b>Custom:</b> User-defined parameters"
+        )
+        preset_desc.setWordWrap(True)
+        preset_desc.setStyleSheet("color: #666; font-size: 10px; margin: 5px;")
+        preset_layout.addWidget(preset_desc)
+        
+        layout.addWidget(preset_group)
+        
+        # Parameters group
+        params_group = QGroupBox("Parameters")
+        params_layout = QFormLayout(params_group)
+        
+        # Probe radius
+        self.probe_radius_spin = QDoubleSpinBox()
+        self.probe_radius_spin.setRange(0.5, 3.0)
+        self.probe_radius_spin.setSingleStep(0.1)
+        self.probe_radius_spin.setDecimals(2)
+        self.probe_radius_spin.setSuffix(" Å")
+        self.probe_radius_spin.setToolTip("Probe radius for SASA calculation (1.4Å = water)")
+        self.probe_radius_spin.valueChanged.connect(self.on_parameter_changed)
+        params_layout.addRow("Probe Radius:", self.probe_radius_spin)
+        
+        # Number of sphere points
+        self.n_points_spin = QSpinBox()
+        self.n_points_spin.setRange(10, 1000)
+        self.n_points_spin.setSingleStep(10)
+        self.n_points_spin.setToolTip("Number of points on sphere surface (more = accurate but slower)")
+        self.n_points_spin.valueChanged.connect(self.on_parameter_changed)
+        params_layout.addRow("Sphere Points:", self.n_points_spin)
+        
+        # RSA threshold
+        self.rsa_threshold_spin = QDoubleSpinBox()
+        self.rsa_threshold_spin.setRange(0.0, 100.0)
+        self.rsa_threshold_spin.setSingleStep(1.0)
+        self.rsa_threshold_spin.setDecimals(1)
+        self.rsa_threshold_spin.setSuffix("%")
+        self.rsa_threshold_spin.setToolTip("RSA threshold for surface/buried classification")
+        self.rsa_threshold_spin.valueChanged.connect(self.on_parameter_changed)
+        params_layout.addRow("RSA Threshold:", self.rsa_threshold_spin)
+        
+        # Include hydrogens
+        self.include_h_checkbox = QCheckBox("Include hydrogen atoms")
+        self.include_h_checkbox.setToolTip("Include hydrogen atoms in calculation (if present)")
+        self.include_h_checkbox.stateChanged.connect(self.on_parameter_changed)
+        params_layout.addRow("", self.include_h_checkbox)
+        
+        layout.addWidget(params_group)
+        
+        # Performance estimate
+        self.perf_label = QLabel()
+        self.perf_label.setStyleSheet("color: #666; font-style: italic; margin: 10px;")
+        self.perf_label.setWordWrap(True)
+        layout.addWidget(self.perf_label)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        reset_btn = QPushButton("Reset to Defaults")
+        reset_btn.clicked.connect(self.reset_to_defaults)
+        button_layout.addWidget(reset_btn)
+        
+        button_layout.addStretch()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        ok_btn = QPushButton("OK")
+        ok_btn.setDefault(True)
+        ok_btn.clicked.connect(self.accept)
+        button_layout.addWidget(ok_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # Update performance estimate
+        self.update_performance_estimate()
+    
+    def load_config(self):
+        """Load configuration into UI elements."""
+        self.probe_radius_spin.setValue(self.config['probe_radius'])
+        self.n_points_spin.setValue(self.config['n_points'])
+        self.rsa_threshold_spin.setValue(self.config['rsa_threshold'])
+        self.include_h_checkbox.setChecked(self.config['include_hydrogens'])
+        
+        # Set preset
+        preset_map = {
+            'fast': 'Fast',
+            'balanced': 'Balanced', 
+            'accurate': 'Accurate',
+            'research': 'Research',
+            'custom': 'Custom'
+        }
+        preset_name = preset_map.get(self.config['preset'], 'Custom')
+        index = self.preset_combo.findText(preset_name)
+        if index >= 0:
+            self.preset_combo.setCurrentIndex(index)
+    
+    def on_preset_changed(self, preset_name):
+        """Handle preset selection change."""
+        presets = {
+            'Fast': {'probe_radius': 1.4, 'n_points': 10, 'rsa_threshold': 20.0, 'include_hydrogens': False},
+            'Balanced': {'probe_radius': 1.4, 'n_points': 30, 'rsa_threshold': 20.0, 'include_hydrogens': False},
+            'Accurate': {'probe_radius': 1.4, 'n_points': 60, 'rsa_threshold': 20.0, 'include_hydrogens': False},
+            'Research': {'probe_radius': 1.4, 'n_points': 100, 'rsa_threshold': 20.0, 'include_hydrogens': False}
+        }
+        
+        if preset_name in presets:
+            preset = presets[preset_name]
+            self.probe_radius_spin.setValue(preset['probe_radius'])
+            self.n_points_spin.setValue(preset['n_points'])
+            self.rsa_threshold_spin.setValue(preset['rsa_threshold'])
+            self.include_h_checkbox.setChecked(preset['include_hydrogens'])
+            self.update_performance_estimate()
+    
+    def on_parameter_changed(self):
+        """Handle parameter change - switch to custom preset."""
+        if self.preset_combo.currentText() != 'Custom':
+            self.preset_combo.setCurrentText('Custom')
+        self.update_performance_estimate()
+    
+    def update_performance_estimate(self):
+        """Update performance estimate based on current settings."""
+        n_points = self.n_points_spin.value()
+        
+        # Rough performance estimates
+        if n_points <= 15:
+            speed = "Very Fast"
+            time_est = "~1-2 seconds"
+            accuracy = "Good"
+        elif n_points <= 35:
+            speed = "Fast"
+            time_est = "~3-5 seconds"
+            accuracy = "Very Good"
+        elif n_points <= 70:
+            speed = "Medium"
+            time_est = "~8-15 seconds"
+            accuracy = "High"
+        else:
+            speed = "Slow"
+            time_est = "~20-60 seconds"
+            accuracy = "Very High"
+        
+        self.perf_label.setText(
+            f"<b>Performance Estimate:</b><br>"
+            f"Speed: {speed} ({time_est} for typical protein)<br>"
+            f"Accuracy: {accuracy} correlation with professional tools"
+        )
+    
+    def reset_to_defaults(self):
+        """Reset to default balanced configuration."""
+        self.preset_combo.setCurrentText('Balanced')
+        self.on_preset_changed('Balanced')
+    
+    def get_config(self):
+        """Get current configuration."""
+        preset_map = {
+            'Fast': 'fast',
+            'Balanced': 'balanced',
+            'Accurate': 'accurate', 
+            'Research': 'research',
+            'Custom': 'custom'
+        }
+        
+        return {
+            'probe_radius': self.probe_radius_spin.value(),
+            'n_points': self.n_points_spin.value(),
+            'rsa_threshold': self.rsa_threshold_spin.value(),
+            'include_hydrogens': self.include_h_checkbox.isChecked(),
+            'preset': preset_map.get(self.preset_combo.currentText(), 'custom')
+        }
+
+
 class StructuralAnalysisTab(QWidget):
     """Tab for structural analysis tools."""
     
@@ -1403,6 +1660,7 @@ class StructuralAnalysisTab(QWidget):
         self.current_structure_path = None
         self.pdb_list = PDBList() if BIOPYTHON_AVAILABLE else None
         self.pdb_parser = PDBParser(QUIET=True) if BIOPYTHON_AVAILABLE else None
+        self.current_results = None  # Store analysis results for export
         
         # Create directories if not exist
         if hasattr(parent, 'pulled_structures_dir'):
@@ -1497,33 +1755,39 @@ class StructuralAnalysisTab(QWidget):
         
         self.surface_checkbox = QCheckBox("Surface Properties")
         self.surface_checkbox.setChecked(False)
-        self.surface_checkbox.setToolTip("Analyze surface properties")
+        self.surface_checkbox.setToolTip("Analyze surface properties using SASA calculation")
         options_layout.addWidget(self.surface_checkbox)
         
-        # Surface analysis method selection
-        self.surface_method_combo = QComboBox()
-        self.surface_method_combo.addItems(["Fast (Neighbor Counting)", "Accurate (Optimized SASA)"])
-        self.surface_method_combo.setCurrentIndex(0)  # Default to fast
-        self.surface_method_combo.setToolTip("Choose surface analysis method: Fast (~1s) vs Accurate (~10s)")
-        self.surface_method_combo.setEnabled(False)  # Initially disabled
-        options_layout.addWidget(self.surface_method_combo)
+        # SASA Configuration button
+        self.sasa_config_btn = QPushButton("SASA Settings")
+        self.sasa_config_btn.setToolTip("Configure SASA calculation parameters")
+        self.sasa_config_btn.setEnabled(False)  # Initially disabled
+        self.sasa_config_btn.clicked.connect(self.show_sasa_config)
+        options_layout.addWidget(self.sasa_config_btn)
         
-        # Connect surface checkbox to enable/disable method selection
+        # Connect surface checkbox to enable/disable config button
         self.surface_checkbox.stateChanged.connect(self.on_surface_checkbox_changed)
         
-        self.cavities_checkbox = QCheckBox("Binding Sites")
-        self.cavities_checkbox.setChecked(False)
-        self.cavities_checkbox.setToolTip("Detect potential binding sites (slower)")
-        options_layout.addWidget(self.cavities_checkbox)
+        # Binding Sites analysis moved to dedicated tab - removed from here
         
         options_layout.addStretch()
         control_layout.addLayout(options_layout)
         
-        # Analysis button
+        # Analysis and Export buttons
+        button_layout = QHBoxLayout()
+        
         analyze_btn = QPushButton("Analyze Structure")
         analyze_btn.setToolTip("Perform structural analysis with selected options")
         analyze_btn.clicked.connect(self.analyze_structure)
-        control_layout.addWidget(analyze_btn)
+        button_layout.addWidget(analyze_btn)
+        
+        self.export_btn = QPushButton("Export Results")
+        self.export_btn.setToolTip("Export analysis results to various formats")
+        self.export_btn.setEnabled(False)  # Initially disabled
+        self.export_btn.clicked.connect(self.export_results)
+        button_layout.addWidget(self.export_btn)
+        
+        control_layout.addLayout(button_layout)
         
         # Progress bar
         self.progress_bar = QProgressBar()
@@ -1539,8 +1803,8 @@ class StructuralAnalysisTab(QWidget):
         self.results_area.setWidget(self.results_widget)
         self.results_area.setWidgetResizable(True)
         
-        # Set minimum size for results area to accommodate charts
-        self.results_area.setMinimumHeight(600)
+        # Set responsive minimum size for results area
+        self.results_area.setMinimumHeight(400)  # Reduced for smaller screens
         
         layout.addWidget(self.results_area, 1)
         
@@ -1561,8 +1825,7 @@ class StructuralAnalysisTab(QWidget):
             "<li><b>Secondary Structure:</b> Helix/sheet/loop content, Ramachandran plots</li>"
             "<li><b>Geometric Analysis:</b> Bond lengths, angles, radius of gyration</li>"
             "<li><b>Quality Assessment:</b> Ramachandran outliers, missing atoms, B-factors</li>"
-            "<li><b>Surface Properties:</b> Fast neighbor counting or accurate SASA calculation</li>"
-            "<li><b>Binding Sites:</b> Cavity detection and potential binding sites</li>"
+            "<li><b>Surface Properties:</b> SASA calculation for surface accessibility</li>"
             "</ul>"
             "<p><i>Tip: Enter a PDB ID to fetch from the database, load from the 3D viewer, or select a local PDB file.</i></p>"
             + matplotlib_note +
@@ -1645,9 +1908,9 @@ class StructuralAnalysisTab(QWidget):
                         f"Fetching comprehensive data for {pdb_id}. This may take a moment...")
                     
                     # Use a simple synchronous approach for analysis tab
-                    from .enhanced_pdb_puller_async import OptimizedPDBPuller
-                    temp_puller = OptimizedPDBPuller(self.pulled_structures_dir)
-                    comprehensive_data = temp_puller.fetch_pdb_data_async(
+                    from .enhanced_pdb_puller import EnhancedPDBPuller
+                    temp_puller = EnhancedPDBPuller(self.pulled_structures_dir)
+                    comprehensive_data = temp_puller.fetch_comprehensive_pdb_data(
                         pdb_id,
                         include_validation=False,  # Skip for speed
                         include_sequences=True,
@@ -1775,8 +2038,6 @@ class StructuralAnalysisTab(QWidget):
             analysis_types.append('quality')
         if self.surface_checkbox.isChecked():
             analysis_types.append('surface')
-        if self.cavities_checkbox.isChecked():
-            analysis_types.append('cavities')
         
         if not analysis_types:
             QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
@@ -1786,23 +2047,43 @@ class StructuralAnalysisTab(QWidget):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         
-        # Get surface analysis method if surface analysis is selected
-        surface_method = 'fast'
-        if self.surface_checkbox.isChecked():
-            if self.surface_method_combo.currentIndex() == 1:
-                surface_method = 'accurate'
-        
         # Start analysis in worker thread
         self.analysis_worker = StructuralAnalysisWorker(self.current_structure_path, analysis_types)
-        self.analysis_worker.surface_method = surface_method  # Pass method to worker
+        
+        # Pass SASA configuration if surface analysis is selected
+        if 'surface' in analysis_types:
+            self.analysis_worker.sasa_config = getattr(self, 'sasa_config', self.get_default_sasa_config())
         self.analysis_worker.analysis_complete.connect(self.display_results)
         self.analysis_worker.error_occurred.connect(self.handle_analysis_error)
         self.analysis_worker.progress_update.connect(self.update_progress)
         self.analysis_worker.start()
     
     def on_surface_checkbox_changed(self, state):
-        """Enable/disable surface method selection based on checkbox state."""
-        self.surface_method_combo.setEnabled(state == Qt.Checked)
+        """Enable/disable SASA configuration button based on checkbox state."""
+        self.sasa_config_btn.setEnabled(state == Qt.Checked)
+    
+    def get_default_sasa_config(self):
+        """Get default SASA configuration."""
+        return {
+            'probe_radius': 1.4,      # Standard water probe radius (Å)
+            'n_points': 30,           # Number of sphere points (speed vs accuracy)
+            'rsa_threshold': 20.0,    # RSA threshold for surface/buried classification (%)
+            'include_hydrogens': False, # Whether to include hydrogen atoms
+            'preset': 'balanced'      # Preset name
+        }
+    
+    def show_sasa_config(self):
+        """Show SASA configuration dialog."""
+        dialog = SASAConfigDialog(self, getattr(self, 'sasa_config', self.get_default_sasa_config()))
+        if dialog.exec_() == QDialog.Accepted:
+            self.sasa_config = dialog.get_config()
+            # Update button tooltip to show current settings
+            config = self.sasa_config
+            tooltip = (f"SASA Settings: {config['preset']} preset\n"
+                      f"Probe radius: {config['probe_radius']} Å\n"
+                      f"Sphere points: {config['n_points']}\n"
+                      f"RSA threshold: {config['rsa_threshold']}%")
+            self.sasa_config_btn.setToolTip(tooltip)
     
     def update_progress(self, message):
         """Update progress message."""
@@ -1888,9 +2169,9 @@ class StructuralAnalysisTab(QWidget):
         fig.tight_layout()
         
         if "Amino Acid" in title:
-            canvas.setMinimumSize(900, 750)
+            canvas.setMinimumSize(1200, 900)
         else:
-            canvas.setMinimumSize(600, 450)
+            canvas.setMinimumSize(800, 600)
         
         return canvas
     
@@ -1899,7 +2180,7 @@ class StructuralAnalysisTab(QWidget):
         if not MATPLOTLIB_AVAILABLE:
             return None
         
-        fig = Figure(figsize=(10, 6), dpi=100)
+        fig = Figure(figsize=(14, 8), dpi=100)
         canvas = FigureCanvas(fig)
         ax = fig.add_subplot(111)
         
@@ -1923,7 +2204,7 @@ class StructuralAnalysisTab(QWidget):
             plt.setp(ax.get_xticklabels(), rotation=45, ha='right')
         
         fig.tight_layout()
-        canvas.setMinimumSize(750, 450)
+        canvas.setMinimumSize(1000, 600)
         return canvas
     
     def create_ramachandran_plot(self, rama_data):
@@ -2043,7 +2324,7 @@ class StructuralAnalysisTab(QWidget):
         ax.tick_params(axis='both', which='major', labelsize=10)
         
         fig.tight_layout()
-        canvas.setMinimumSize(750, 750)
+        canvas.setMinimumSize(1000, 900)
         return canvas
     
     def is_in_favored_region(self, phi, psi):
@@ -2101,7 +2382,7 @@ class StructuralAnalysisTab(QWidget):
         ax.tick_params(axis='both', which='major', labelsize=10)
         
         fig.tight_layout()
-        canvas.setMinimumSize(750, 450)
+        canvas.setMinimumSize(1000, 600)
         return canvas
     
     def display_enhanced_metadata(self, basic_results):
@@ -2322,6 +2603,10 @@ class StructuralAnalysisTab(QWidget):
         """Display analysis results."""
         self.progress_bar.setVisible(False)
         
+        # Store results for export
+        self.current_results = results
+        self.export_btn.setEnabled(True)
+        
         # Clear existing results
         for i in reversed(range(self.results_layout.count())):
             item = self.results_layout.itemAt(i)
@@ -2348,8 +2633,7 @@ class StructuralAnalysisTab(QWidget):
         if 'surface' in results:
             self.display_surface_results(results['surface'])
         
-        if 'cavities' in results:
-            self.display_cavity_results(results['cavities'])
+        # Cavity analysis moved to dedicated tab - removed from here
         
         self.results_layout.addStretch()
         
@@ -2922,8 +3206,22 @@ class StructuralAnalysisTab(QWidget):
     
     def display_cavity_results(self, results):
         """Display cavity detection results."""
-        cavity_group = QGroupBox("Binding Sites and Cavities Analysis")
+        # Create title with timing information
+        calc_time = results.get('calculation_time', 0)
+        cavity_points = results.get('cavity_points_found', 0)
+        title = f"Binding Sites and Cavities Analysis ({calc_time:.1f}s)"
+        
+        cavity_group = QGroupBox(title)
         cavity_layout = QVBoxLayout(cavity_group)
+        
+        # Add performance and detection info
+        if calc_time > 0 or cavity_points > 0:
+            perf_label = QLabel(
+                f"<i>Detection completed in {calc_time:.1f} seconds. "
+                f"Scanned grid and found {cavity_points:,} potential cavity points.</i>"
+            )
+            perf_label.setStyleSheet("color: #666; font-style: italic; margin-bottom: 10px;")
+            cavity_layout.addWidget(perf_label)
         
         # Cavity summary with statistics
         summary_group = QGroupBox("Cavity Summary")
@@ -2990,6 +3288,1085 @@ class StructuralAnalysisTab(QWidget):
             cav_detail_layout.addWidget(cav_table)
             
             self.results_layout.addWidget(cav_detail_group)
+    
+    def export_results(self):
+        """Export analysis results with all visualizations."""
+        if not self.current_results:
+            QMessageBox.warning(self, "Export Error", "No analysis results to export. Please run an analysis first.")
+            return
+        
+        # Simple file dialog for HTML export
+        structure_id = self.current_results.get('structure_id', 'analysis')
+        suggested_name = f"{structure_id}_complete_analysis.html"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Complete Analysis Report",
+            suggested_name,
+            "HTML Files (*.html);;PDF Files (*.pdf)"
+        )
+        
+        if file_path:
+            try:
+                if file_path.endswith('.pdf'):
+                    self.export_complete_pdf(file_path)
+                else:
+                    self.export_complete_html(file_path)
+                
+                QMessageBox.information(self, "Export Complete", f"Complete analysis report exported to:\n{file_path}")
+                
+                if hasattr(self.parent_app, 'statusBar'):
+                    self.parent_app.statusBar().showMessage(f"Complete report exported successfully")
+                    
+            except Exception as e:
+                QMessageBox.critical(self, "Export Error", f"Failed to export complete report:\n{str(e)}")
+    
+    def export_to_json(self, file_path, options):
+        """Export results to JSON format."""
+        import json
+        from datetime import datetime
+        
+        # Prepare data for JSON serialization
+        export_data = {
+            'export_info': {
+                'timestamp': datetime.now().isoformat(),
+                'picomol_version': '1.0',
+                'export_format': 'JSON'
+            },
+            'structure_info': {
+                'structure_id': self.current_results.get('structure_id', 'Unknown'),
+                'structure_path': self.current_results.get('structure_path', 'Unknown')
+            },
+            'analysis_results': {}
+        }
+        
+        # Add selected analysis types
+        for analysis_type in ['basic', 'secondary', 'geometry', 'quality', 'surface']:
+            if analysis_type in self.current_results and options.get(f'include_{analysis_type}', True):
+                export_data['analysis_results'][analysis_type] = self.current_results[analysis_type]
+        
+        # Write JSON file
+        with open(file_path, 'w', encoding='utf-8') as f:
+            json.dump(export_data, f, indent=2, default=str)
+    
+    def export_to_csv(self, file_path, options):
+        """Export results to CSV format."""
+        import csv
+        from datetime import datetime
+        
+        with open(file_path, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            # Header information
+            writer.writerow(['PicoMol Structural Analysis Results'])
+            writer.writerow(['Export Date:', datetime.now().strftime('%Y-%m-%d %H:%M:%S')])
+            writer.writerow(['Structure ID:', self.current_results.get('structure_id', 'Unknown')])
+            writer.writerow(['Structure Path:', self.current_results.get('structure_path', 'Unknown')])
+            writer.writerow([])
+            
+            # Basic Properties
+            if 'basic' in self.current_results and options.get('include_basic', True):
+                basic = self.current_results['basic']
+                writer.writerow(['=== BASIC PROPERTIES ==='])
+                writer.writerow(['Property', 'Value'])
+                writer.writerow(['Total Residues', basic.get('total_residues', 0)])
+                writer.writerow(['Total Atoms', basic.get('total_atoms', 0)])
+                writer.writerow(['Molecular Weight (Da)', f"{basic.get('molecular_weight', 0):.2f}"])
+                writer.writerow(['Resolution', basic.get('resolution', 'N/A')])
+                writer.writerow(['Space Group', basic.get('space_group', 'N/A')])
+                writer.writerow([])
+                
+                # Chain information
+                if 'chains' in basic:
+                    writer.writerow(['=== CHAIN INFORMATION ==='])
+                    writer.writerow(['Chain ID', 'Residues', 'Atoms', 'Sequence Length'])
+                    for chain in basic['chains']:
+                        writer.writerow([chain['id'], chain['residues'], chain['atoms'], len(chain.get('sequence', ''))])
+                    writer.writerow([])
+                
+                # Composition
+                if 'composition' in basic:
+                    writer.writerow(['=== AMINO ACID COMPOSITION ==='])
+                    writer.writerow(['Residue', 'Count', 'Percentage'])
+                    total_residues = sum(basic['composition'].values())
+                    for residue, count in sorted(basic['composition'].items()):
+                        percentage = (count / total_residues) * 100 if total_residues > 0 else 0
+                        writer.writerow([residue, count, f"{percentage:.2f}%"])
+                    writer.writerow([])
+            
+            # Secondary Structure
+            if 'secondary' in self.current_results and options.get('include_secondary', True):
+                secondary = self.current_results['secondary']
+                writer.writerow(['=== SECONDARY STRUCTURE ==='])
+                writer.writerow(['Structure Type', 'Percentage'])
+                writer.writerow(['Alpha Helix', f"{secondary.get('helix_content', 0):.2f}%"])
+                writer.writerow(['Beta Sheet', f"{secondary.get('sheet_content', 0):.2f}%"])
+                writer.writerow(['Loop/Coil', f"{secondary.get('loop_content', 0):.2f}%"])
+                writer.writerow([])
+                
+                # Ramachandran data
+                if 'ramachandran_data' in secondary and options.get('include_ramachandran', True):
+                    writer.writerow(['=== RAMACHANDRAN DATA ==='])
+                    writer.writerow(['Residue', 'Chain', 'Position', 'Phi (degrees)', 'Psi (degrees)'])
+                    for data in secondary['ramachandran_data'][:100]:  # Limit to first 100
+                        writer.writerow([data['residue'], data['chain'], data['position'], 
+                                       f"{data['phi']:.2f}", f"{data['psi']:.2f}"])
+                    writer.writerow([])
+            
+            # Geometry
+            if 'geometry' in self.current_results and options.get('include_geometry', True):
+                geometry = self.current_results['geometry']
+                writer.writerow(['=== GEOMETRIC PROPERTIES ==='])
+                writer.writerow(['Property', 'Value'])
+                writer.writerow(['Radius of Gyration (Å)', f"{geometry.get('radius_of_gyration', 0):.2f}"])
+                
+                center = geometry.get('geometric_center', [0, 0, 0])
+                writer.writerow(['Geometric Center (x, y, z)', f"({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})"])
+                writer.writerow([])
+            
+            # Quality Assessment
+            if 'quality' in self.current_results and options.get('include_quality', True):
+                quality = self.current_results['quality']
+                writer.writerow(['=== QUALITY ASSESSMENT ==='])
+                writer.writerow(['Metric', 'Value'])
+                writer.writerow(['Ramachandran Favored', quality.get('ramachandran_favored', 0)])
+                writer.writerow(['Ramachandran Allowed', quality.get('ramachandran_allowed', 0)])
+                writer.writerow(['Ramachandran Outliers', quality.get('ramachandran_outliers_count', 0)])
+                writer.writerow(['Missing Atoms', len(quality.get('missing_atoms', []))])
+                
+                # B-factor statistics
+                if 'b_factor_stats' in quality:
+                    stats = quality['b_factor_stats']
+                    writer.writerow(['B-factor Mean', f"{stats.get('mean', 0):.2f}"])
+                    writer.writerow(['B-factor Std Dev', f"{stats.get('std', 0):.2f}"])
+                    writer.writerow(['B-factor Min', f"{stats.get('min', 0):.2f}"])
+                    writer.writerow(['B-factor Max', f"{stats.get('max', 0):.2f}"])
+                writer.writerow([])
+            
+            # Surface Properties
+            if 'surface' in self.current_results and options.get('include_surface', True):
+                surface = self.current_results['surface']
+                writer.writerow(['=== SURFACE PROPERTIES ==='])
+                writer.writerow(['Property', 'Value'])
+                writer.writerow(['Total SASA (Ų)', f"{surface.get('total_sasa', 0):.2f}"])
+                writer.writerow(['Accessible Surface Area (Ų)', f"{surface.get('accessible_surface_area', 0):.2f}"])
+                writer.writerow(['Buried Surface Area (Ų)', f"{surface.get('buried_surface_area', 0):.2f}"])
+                writer.writerow(['Surface Percentage', f"{surface.get('surface_percentage', 0):.2f}%"])
+                writer.writerow(['Buried Percentage', f"{surface.get('buried_percentage', 0):.2f}%"])
+                writer.writerow(['Average RSA', f"{surface.get('average_rsa', 0):.2f}%"])
+                writer.writerow([])
+    
+    def export_to_excel(self, file_path, options):
+        """Export results to Excel format."""
+        try:
+            import pandas as pd
+            from datetime import datetime
+            
+            with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+                # Summary sheet
+                summary_data = {
+                    'Property': ['Export Date', 'Structure ID', 'Structure Path'],
+                    'Value': [
+                        datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                        self.current_results.get('structure_id', 'Unknown'),
+                        self.current_results.get('structure_path', 'Unknown')
+                    ]
+                }
+                pd.DataFrame(summary_data).to_excel(writer, sheet_name='Summary', index=False)
+                
+                # Basic Properties
+                if 'basic' in self.current_results and options.get('include_basic', True):
+                    basic = self.current_results['basic']
+                    
+                    # Basic info
+                    basic_data = {
+                        'Property': ['Total Residues', 'Total Atoms', 'Molecular Weight (Da)', 'Resolution', 'Space Group'],
+                        'Value': [
+                            basic.get('total_residues', 0),
+                            basic.get('total_atoms', 0),
+                            f"{basic.get('molecular_weight', 0):.2f}",
+                            basic.get('resolution', 'N/A'),
+                            basic.get('space_group', 'N/A')
+                        ]
+                    }
+                    pd.DataFrame(basic_data).to_excel(writer, sheet_name='Basic Properties', index=False)
+                    
+                    # Chain information
+                    if 'chains' in basic:
+                        chain_data = []
+                        for chain in basic['chains']:
+                            chain_data.append({
+                                'Chain ID': chain['id'],
+                                'Residues': chain['residues'],
+                                'Atoms': chain['atoms'],
+                                'Sequence Length': len(chain.get('sequence', ''))
+                            })
+                        if chain_data:
+                            pd.DataFrame(chain_data).to_excel(writer, sheet_name='Chains', index=False)
+                    
+                    # Composition
+                    if 'composition' in basic:
+                        comp_data = []
+                        total_residues = sum(basic['composition'].values())
+                        for residue, count in sorted(basic['composition'].items()):
+                            percentage = (count / total_residues) * 100 if total_residues > 0 else 0
+                            comp_data.append({
+                                'Residue': residue,
+                                'Count': count,
+                                'Percentage': f"{percentage:.2f}%"
+                            })
+                        if comp_data:
+                            pd.DataFrame(comp_data).to_excel(writer, sheet_name='Composition', index=False)
+                
+                # Secondary Structure
+                if 'secondary' in self.current_results and options.get('include_secondary', True):
+                    secondary = self.current_results['secondary']
+                    
+                    ss_data = {
+                        'Structure Type': ['Alpha Helix', 'Beta Sheet', 'Loop/Coil'],
+                        'Percentage': [
+                            f"{secondary.get('helix_content', 0):.2f}%",
+                            f"{secondary.get('sheet_content', 0):.2f}%",
+                            f"{secondary.get('loop_content', 0):.2f}%"
+                        ]
+                    }
+                    pd.DataFrame(ss_data).to_excel(writer, sheet_name='Secondary Structure', index=False)
+                    
+                    # Ramachandran data
+                    if 'ramachandran_data' in secondary and options.get('include_ramachandran', True):
+                        rama_data = []
+                        for data in secondary['ramachandran_data'][:500]:  # Limit to first 500
+                            rama_data.append({
+                                'Residue': data['residue'],
+                                'Chain': data['chain'],
+                                'Position': data['position'],
+                                'Phi (degrees)': f"{data['phi']:.2f}",
+                                'Psi (degrees)': f"{data['psi']:.2f}"
+                            })
+                        if rama_data:
+                            pd.DataFrame(rama_data).to_excel(writer, sheet_name='Ramachandran', index=False)
+                
+                # Quality Assessment
+                if 'quality' in self.current_results and options.get('include_quality', True):
+                    quality = self.current_results['quality']
+                    
+                    quality_data = {
+                        'Metric': ['Ramachandran Favored', 'Ramachandran Allowed', 'Ramachandran Outliers', 'Missing Atoms'],
+                        'Value': [
+                            quality.get('ramachandran_favored', 0),
+                            quality.get('ramachandran_allowed', 0),
+                            quality.get('ramachandran_outliers_count', 0),
+                            len(quality.get('missing_atoms', []))
+                        ]
+                    }
+                    
+                    # Add B-factor statistics
+                    if 'b_factor_stats' in quality:
+                        stats = quality['b_factor_stats']
+                        quality_data['Metric'].extend(['B-factor Mean', 'B-factor Std Dev', 'B-factor Min', 'B-factor Max'])
+                        quality_data['Value'].extend([
+                            f"{stats.get('mean', 0):.2f}",
+                            f"{stats.get('std', 0):.2f}",
+                            f"{stats.get('min', 0):.2f}",
+                            f"{stats.get('max', 0):.2f}"
+                        ])
+                    
+                    pd.DataFrame(quality_data).to_excel(writer, sheet_name='Quality', index=False)
+                
+                # Surface Properties
+                if 'surface' in self.current_results and options.get('include_surface', True):
+                    surface = self.current_results['surface']
+                    
+                    surface_data = {
+                        'Property': ['Total SASA (Ų)', 'Accessible Surface Area (Ų)', 'Buried Surface Area (Ų)', 
+                                   'Surface Percentage', 'Buried Percentage', 'Average RSA'],
+                        'Value': [
+                            f"{surface.get('total_sasa', 0):.2f}",
+                            f"{surface.get('accessible_surface_area', 0):.2f}",
+                            f"{surface.get('buried_surface_area', 0):.2f}",
+                            f"{surface.get('surface_percentage', 0):.2f}%",
+                            f"{surface.get('buried_percentage', 0):.2f}%",
+                            f"{surface.get('average_rsa', 0):.2f}%"
+                        ]
+                    }
+                    pd.DataFrame(surface_data).to_excel(writer, sheet_name='Surface', index=False)
+                    
+                    # Surface residues
+                    if 'surface_residues' in surface and options.get('include_residue_details', True):
+                        surf_res_data = []
+                        for res in surface['surface_residues'][:1000]:  # Limit to first 1000
+                            surf_res_data.append({
+                                'Residue': res['residue'],
+                                'Chain': res['chain'],
+                                'Position': res['position'],
+                                'SASA (Ų)': f"{res['sasa']:.2f}",
+                                'RSA (%)': f"{res['rsa']:.2f}"
+                            })
+                        if surf_res_data:
+                            pd.DataFrame(surf_res_data).to_excel(writer, sheet_name='Surface Residues', index=False)
+        
+        except ImportError:
+            # Fallback to CSV if pandas/openpyxl not available
+            csv_path = file_path.replace('.xlsx', '.csv')
+            self.export_to_csv(csv_path, options)
+            raise ImportError(f"pandas/openpyxl not available. Exported to CSV instead: {csv_path}")
+    
+    def export_to_text(self, file_path, options):
+        """Export results to text report format."""
+        from datetime import datetime
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            # Header
+            f.write("="*80 + "\n")
+            f.write("PicoMol Structural Analysis Report\n")
+            f.write("="*80 + "\n")
+            f.write(f"Export Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Structure ID: {self.current_results.get('structure_id', 'Unknown')}\n")
+            f.write(f"Structure Path: {self.current_results.get('structure_path', 'Unknown')}\n")
+            f.write("\n")
+            
+            # Basic Properties
+            if 'basic' in self.current_results and options.get('include_basic', True):
+                basic = self.current_results['basic']
+                f.write("BASIC PROPERTIES\n")
+                f.write("-"*40 + "\n")
+                f.write(f"Total Residues: {basic.get('total_residues', 0)}\n")
+                f.write(f"Total Atoms: {basic.get('total_atoms', 0)}\n")
+                f.write(f"Molecular Weight: {basic.get('molecular_weight', 0):.2f} Da\n")
+                f.write(f"Resolution: {basic.get('resolution', 'N/A')}\n")
+                f.write(f"Space Group: {basic.get('space_group', 'N/A')}\n")
+                f.write("\n")
+                
+                # Chain information
+                if 'chains' in basic:
+                    f.write("CHAIN INFORMATION\n")
+                    f.write("-"*40 + "\n")
+                    for chain in basic['chains']:
+                        f.write(f"Chain {chain['id']}: {chain['residues']} residues, {chain['atoms']} atoms\n")
+                    f.write("\n")
+                
+                # Composition
+                if 'composition' in basic:
+                    f.write("AMINO ACID COMPOSITION\n")
+                    f.write("-"*40 + "\n")
+                    total_residues = sum(basic['composition'].values())
+                    for residue, count in sorted(basic['composition'].items()):
+                        percentage = (count / total_residues) * 100 if total_residues > 0 else 0
+                        f.write(f"{residue}: {count} ({percentage:.2f}%)\n")
+                    f.write("\n")
+            
+            # Secondary Structure
+            if 'secondary' in self.current_results and options.get('include_secondary', True):
+                secondary = self.current_results['secondary']
+                f.write("SECONDARY STRUCTURE\n")
+                f.write("-"*40 + "\n")
+                f.write(f"Alpha Helix: {secondary.get('helix_content', 0):.2f}%\n")
+                f.write(f"Beta Sheet: {secondary.get('sheet_content', 0):.2f}%\n")
+                f.write(f"Loop/Coil: {secondary.get('loop_content', 0):.2f}%\n")
+                f.write("\n")
+            
+            # Geometry
+            if 'geometry' in self.current_results and options.get('include_geometry', True):
+                geometry = self.current_results['geometry']
+                f.write("GEOMETRIC PROPERTIES\n")
+                f.write("-"*40 + "\n")
+                f.write(f"Radius of Gyration: {geometry.get('radius_of_gyration', 0):.2f} Å\n")
+                center = geometry.get('geometric_center', [0, 0, 0])
+                f.write(f"Geometric Center: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})\n")
+                f.write("\n")
+            
+            # Quality Assessment
+            if 'quality' in self.current_results and options.get('include_quality', True):
+                quality = self.current_results['quality']
+                f.write("QUALITY ASSESSMENT\n")
+                f.write("-"*40 + "\n")
+                f.write(f"Ramachandran Favored: {quality.get('ramachandran_favored', 0)}\n")
+                f.write(f"Ramachandran Allowed: {quality.get('ramachandran_allowed', 0)}\n")
+                f.write(f"Ramachandran Outliers: {quality.get('ramachandran_outliers_count', 0)}\n")
+                f.write(f"Missing Atoms: {len(quality.get('missing_atoms', []))}\n")
+                
+                if 'b_factor_stats' in quality:
+                    stats = quality['b_factor_stats']
+                    f.write(f"B-factor Mean: {stats.get('mean', 0):.2f}\n")
+                    f.write(f"B-factor Std Dev: {stats.get('std', 0):.2f}\n")
+                    f.write(f"B-factor Range: {stats.get('min', 0):.2f} - {stats.get('max', 0):.2f}\n")
+                f.write("\n")
+            
+            # Surface Properties
+            if 'surface' in self.current_results and options.get('include_surface', True):
+                surface = self.current_results['surface']
+                f.write("SURFACE PROPERTIES\n")
+                f.write("-"*40 + "\n")
+                f.write(f"Total SASA: {surface.get('total_sasa', 0):.2f} Ų\n")
+                f.write(f"Accessible Surface Area: {surface.get('accessible_surface_area', 0):.2f} Ų\n")
+                f.write(f"Buried Surface Area: {surface.get('buried_surface_area', 0):.2f} Ų\n")
+                f.write(f"Surface Percentage: {surface.get('surface_percentage', 0):.2f}%\n")
+                f.write(f"Buried Percentage: {surface.get('buried_percentage', 0):.2f}%\n")
+                f.write(f"Average RSA: {surface.get('average_rsa', 0):.2f}%\n")
+                f.write("\n")
+    
+    def export_complete_html(self, file_path):
+        """Export complete analysis with all data and visualizations as HTML."""
+        import base64
+        import io
+        from datetime import datetime
+        
+        # Create a temporary directory for images
+        import tempfile
+        import os
+        temp_dir = tempfile.mkdtemp()
+        
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                # Simple, clean HTML
+                f.write("""<!DOCTYPE html>
+<html>
+<head>
+    <title>PicoMol Structural Analysis Report</title>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 40px; 
+            line-height: 1.4;
+        }
+        h1 { 
+            color: #333; 
+            border-bottom: 2px solid #666; 
+            padding-bottom: 10px;
+        }
+        h2 { 
+            color: #444; 
+            border-bottom: 1px solid #999; 
+            padding-bottom: 5px;
+            margin-top: 40px;
+        }
+        h3 { 
+            color: #555; 
+            margin-top: 25px;
+        }
+        table { 
+            border-collapse: collapse; 
+            width: 100%; 
+            margin: 15px 0; 
+        }
+        th, td { 
+            border: 1px solid #ccc; 
+            padding: 8px; 
+            text-align: left; 
+        }
+        th { 
+            background-color: #f0f0f0; 
+            font-weight: bold;
+        }
+        .chart { 
+            text-align: center; 
+            margin: 20px 0; 
+        }
+        .chart img { 
+            max-width: 800px; 
+            height: auto; 
+        }
+        .summary { 
+            background-color: #f5f5f5; 
+            padding: 15px; 
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+""")
+                
+                # Title and summary
+                f.write("<h1>PicoMol Structural Analysis Report</h1>\n")
+                f.write("<div class='summary'>\n")
+                f.write(f"<p><strong>Export Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>\n")
+                f.write(f"<p><strong>Structure ID:</strong> {self.current_results.get('structure_id', 'Unknown')}</p>\n")
+                f.write(f"<p><strong>Structure Path:</strong> {self.current_results.get('structure_path', 'Unknown')}</p>\n")
+                f.write("</div>\n\n")
+                
+                # Basic Properties
+                if 'basic' in self.current_results:
+                    basic = self.current_results['basic']
+                    f.write("<h2>Basic Properties</h2>\n")
+                    
+                    # Detailed table
+                    f.write("<table>\n")
+                    f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Total Residues</td><td>{basic.get('total_residues', 0)}</td></tr>\n")
+                    f.write(f"<tr><td>Total Atoms</td><td>{basic.get('total_atoms', 0)}</td></tr>\n")
+                    f.write(f"<tr><td>Molecular Weight</td><td>{basic.get('molecular_weight', 0):.2f} Da</td></tr>\n")
+                    f.write(f"<tr><td>Resolution</td><td>{basic.get('resolution', 'N/A')}</td></tr>\n")
+                    f.write(f"<tr><td>Space Group</td><td>{basic.get('space_group', 'N/A')}</td></tr>\n")
+                    f.write("</table>\n")
+                    
+                    # Chain information
+                    if 'chains' in basic:
+                        f.write("<h3>Chain Information</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Chain ID</th><th>Residues</th><th>Atoms</th><th>Sequence Length</th></tr>\n")
+                        for chain in basic['chains']:
+                            f.write(f"<tr><td>{chain['id']}</td><td>{chain['residues']}</td><td>{chain['atoms']}</td><td>{len(chain.get('sequence', ''))}</td></tr>\n")
+                        f.write("</table>\n")
+                    
+                    # Amino acid composition with chart
+                    if 'composition' in basic:
+                        f.write("<h3>Amino Acid Composition</h3>\n")
+                        
+                        # Generate composition chart
+                        composition_data = basic['composition']
+                        if composition_data and MATPLOTLIB_AVAILABLE:
+                            chart_path = self.save_chart_as_image(composition_data, "Amino Acid Composition", "pie", temp_dir)
+                            if chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(chart_path)}' alt='Amino Acid Composition Chart'></div>\n")
+                        
+                        # Composition table
+                        f.write("<table>\n")
+                        f.write("<tr><th>Residue</th><th>Count</th><th>Percentage</th></tr>\n")
+                        total_residues = sum(composition_data.values())
+                        for residue, count in sorted(composition_data.items()):
+                            percentage = (count / total_residues) * 100 if total_residues > 0 else 0
+                            f.write(f"<tr><td>{residue}</td><td>{count}</td><td>{percentage:.2f}%</td></tr>\n")
+                        f.write("</table>\n")
+                    
+
+                
+                # Secondary Structure
+                if 'secondary' in self.current_results:
+                    secondary = self.current_results['secondary']
+                    f.write("<h2>Secondary Structure Analysis</h2>\n")
+                    
+                    # Secondary structure table
+                    f.write("<table>\n")
+                    f.write("<tr><th>Structure Type</th><th>Percentage</th></tr>\n")
+                    f.write(f"<tr><td>Alpha Helix</td><td>{secondary.get('helix_content', 0):.1f}%</td></tr>\n")
+                    f.write(f"<tr><td>Beta Sheet</td><td>{secondary.get('sheet_content', 0):.1f}%</td></tr>\n")
+                    f.write(f"<tr><td>Loop/Coil</td><td>{secondary.get('loop_content', 0):.1f}%</td></tr>\n")
+                    f.write("</table>\n")
+                    
+                    # Secondary structure chart
+                    ss_data = {
+                        'Alpha Helix': secondary.get('helix_content', 0),
+                        'Beta Sheet': secondary.get('sheet_content', 0),
+                        'Loop/Coil': secondary.get('loop_content', 0)
+                    }
+                    if MATPLOTLIB_AVAILABLE:
+                        chart_path = self.save_chart_as_image(ss_data, "Secondary Structure Distribution", "pie", temp_dir)
+                        if chart_path:
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(chart_path)}' alt='Secondary Structure Chart'></div>\n")
+                    
+                    # Ramachandran plot
+                    if 'ramachandran_data' in secondary and MATPLOTLIB_AVAILABLE:
+                        rama_chart_path = self.save_ramachandran_plot(secondary['ramachandran_data'], temp_dir)
+                        if rama_chart_path:
+                            f.write("<h3>Ramachandran Plot</h3>\n")
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(rama_chart_path)}' alt='Ramachandran Plot'></div>\n")
+                
+                # Geometry
+                if 'geometry' in self.current_results:
+                    geometry = self.current_results['geometry']
+                    f.write("<h2>Geometric Properties</h2>\n")
+                    
+                    f.write("<table>\n")
+                    f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Radius of Gyration</td><td>{geometry.get('radius_of_gyration', 0):.2f} Å</td></tr>\n")
+                    center = geometry.get('geometric_center', [0, 0, 0])
+                    f.write(f"<tr><td>Geometric Center</td><td>({center[0]:.1f}, {center[1]:.1f}, {center[2]:.1f})</td></tr>\n")
+                    f.write("</table>\n")
+                    
+                    # B-factor histogram
+                    if 'b_factors' in geometry and MATPLOTLIB_AVAILABLE:
+                        bfactor_chart_path = self.save_histogram(geometry['b_factors'], "B-factor Distribution", "B-factor", "Frequency", temp_dir)
+                        if bfactor_chart_path:
+                            f.write("<h3>B-factor Distribution</h3>\n")
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bfactor_chart_path)}' alt='B-factor Distribution'></div>\n")
+                
+                # Quality Assessment
+                if 'quality' in self.current_results:
+                    quality = self.current_results['quality']
+                    f.write("<h2>Quality Assessment</h2>\n")
+                    
+                    # Quality table
+                    f.write("<table>\n")
+                    f.write("<tr><th>Quality Metric</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Ramachandran Favored</td><td>{quality.get('ramachandran_favored', 0)}</td></tr>\n")
+                    f.write(f"<tr><td>Ramachandran Allowed</td><td>{quality.get('ramachandran_allowed', 0)}</td></tr>\n")
+                    f.write(f"<tr><td>Ramachandran Outliers</td><td>{quality.get('ramachandran_outliers_count', 0)}</td></tr>\n")
+                    f.write(f"<tr><td>Missing Atoms</td><td>{len(quality.get('missing_atoms', []))}</td></tr>\n")
+                    
+                    if 'b_factor_stats' in quality:
+                        stats = quality['b_factor_stats']
+                        f.write(f"<tr><td>B-factor Mean</td><td>{stats.get('mean', 0):.2f}</td></tr>\n")
+                        f.write(f"<tr><td>B-factor Std Dev</td><td>{stats.get('std', 0):.2f}</td></tr>\n")
+                        f.write(f"<tr><td>B-factor Range</td><td>{stats.get('min', 0):.2f} - {stats.get('max', 0):.2f}</td></tr>\n")
+                    f.write("</table>\n")
+                    
+                    # Outliers table
+                    if quality.get('ramachandran_outliers'):
+                        f.write("<h3>Ramachandran Outliers</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Residue</th><th>Chain</th><th>Position</th><th>Phi (°)</th><th>Psi (°)</th></tr>\n")
+                        for outlier in quality['ramachandran_outliers'][:20]:  # Limit to first 20
+                            f.write(f"<tr><td>{outlier['residue']}</td><td>{outlier['chain']}</td><td>{outlier['position']}</td><td>{outlier['phi']:.1f}</td><td>{outlier['psi']:.1f}</td></tr>\n")
+                        f.write("</table>\n")
+                    
+
+                
+                # Surface Properties
+                if 'surface' in self.current_results:
+                    surface = self.current_results['surface']
+                    f.write("<h2>Surface Properties (SASA Analysis)</h2>\n")
+                    
+                    # Surface/buried distribution chart
+                    surface_data = {
+                        'Surface': surface.get('surface_percentage', 0),
+                        'Buried': surface.get('buried_percentage', 0)
+                    }
+                    if MATPLOTLIB_AVAILABLE:
+                        chart_path = self.save_chart_as_image(surface_data, "Surface vs Buried Residues", "pie", temp_dir)
+                        if chart_path:
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(chart_path)}' alt='Surface Distribution Chart'></div>\n")
+                    
+                    # Surface properties table
+                    f.write("<table>\n")
+                    f.write("<tr><th>Surface Property</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Total SASA</td><td>{surface.get('total_sasa', 0):.2f} Ų</td></tr>\n")
+                    f.write(f"<tr><td>Accessible Surface Area</td><td>{surface.get('accessible_surface_area', 0):.2f} Ų</td></tr>\n")
+                    f.write(f"<tr><td>Buried Surface Area</td><td>{surface.get('buried_surface_area', 0):.2f} Ų</td></tr>\n")
+                    f.write(f"<tr><td>Surface Percentage</td><td>{surface.get('surface_percentage', 0):.2f}%</td></tr>\n")
+                    f.write(f"<tr><td>Buried Percentage</td><td>{surface.get('buried_percentage', 0):.2f}%</td></tr>\n")
+                    f.write(f"<tr><td>Average RSA</td><td>{surface.get('average_rsa', 0):.2f}%</td></tr>\n")
+                    f.write("</table>\n")
+                    
+
+                
+                # Footer
+                f.write("<hr>\n")
+                f.write(f"<p><em>Generated by PicoMol v1.0 on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}</em></p>\n")
+                
+                f.write("</body>\n</html>")
+        
+        finally:
+            # Clean up temporary files
+            import shutil
+            try:
+                shutil.rmtree(temp_dir)
+            except:
+                pass
+    
+    def export_complete_pdf(self, file_path):
+        """Export complete analysis as PDF."""
+        try:
+            # First create HTML
+            html_path = file_path.replace('.pdf', '_temp.html')
+            self.export_complete_html(html_path)
+            
+            # Try to convert to PDF using weasyprint
+            try:
+                import weasyprint
+                weasyprint.HTML(filename=html_path).write_pdf(file_path)
+                os.remove(html_path)  # Clean up temp HTML
+            except ImportError:
+                # Fallback: just rename HTML to PDF and inform user
+                os.rename(html_path, file_path.replace('.pdf', '.html'))
+                raise ImportError("weasyprint not available. Exported as HTML instead. Install weasyprint for PDF export: pip install weasyprint")
+                
+        except Exception as e:
+            raise Exception(f"PDF export failed: {str(e)}")
+    
+    def save_chart_as_image(self, data, title, chart_type, temp_dir):
+        """Save a chart as PNG image and return the path."""
+        if not MATPLOTLIB_AVAILABLE:
+            return None
+        
+        try:
+            import matplotlib.pyplot as plt
+            import os
+            
+            # Ultra high resolution settings
+            plt.rcParams['font.size'] = 14
+            plt.rcParams['axes.linewidth'] = 1.5
+            plt.rcParams['font.weight'] = 'bold'
+            plt.rcParams['axes.labelweight'] = 'bold'
+            
+            fig, ax = plt.subplots(figsize=(12, 9), dpi=300)  # Much larger and higher DPI
+            
+            if chart_type == "pie":
+                # Use better colors and formatting
+                colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
+                wedges, texts, autotexts = ax.pie(data.values(), labels=data.keys(), autopct='%1.1f%%', 
+                                                 colors=colors[:len(data)], startangle=90, 
+                                                 textprops={'fontsize': 14, 'weight': 'bold'})
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontweight('bold')
+                    autotext.set_fontsize(13)
+                for text in texts:
+                    text.set_fontsize(14)
+                    text.set_fontweight('bold')
+            elif chart_type == "bar":
+                bars = ax.bar(data.keys(), data.values(), color='#4ECDC4', edgecolor='black', linewidth=2)
+                ax.set_ylabel('Count', fontsize=16, fontweight='bold')
+                plt.xticks(rotation=45, ha='right', fontsize=14, fontweight='bold')
+                plt.yticks(fontsize=14, fontweight='bold')
+            
+            ax.set_title(title, fontsize=18, fontweight='bold', pad=20)
+            plt.tight_layout()
+            
+            # Save with ultra high quality
+            chart_path = os.path.join(temp_dir, f"{title.replace(' ', '_').replace('/', '_')}.png")
+            plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none', 
+                       format='png', quality=100)
+            plt.close()
+            plt.rcdefaults()  # Reset matplotlib settings
+            
+            return chart_path
+        except Exception as e:
+            print(f"Error saving chart: {e}")
+            return None
+    
+    def save_ramachandran_plot(self, rama_data, temp_dir):
+        """Save Ramachandran plot as PNG image."""
+        if not MATPLOTLIB_AVAILABLE or not rama_data:
+            return None
+        
+        try:
+            import matplotlib.pyplot as plt
+            import matplotlib.patches as patches
+            import os
+            
+            plt.rcParams['font.size'] = 14
+            plt.rcParams['font.weight'] = 'bold'
+            plt.rcParams['axes.linewidth'] = 2
+            fig, ax = plt.subplots(figsize=(12, 12), dpi=300)  # Much larger and higher DPI
+            
+            # Extract phi and psi angles
+            phi_angles = [d['phi'] for d in rama_data]
+            psi_angles = [d['psi'] for d in rama_data]
+            
+            # Plot points with better visibility
+            ax.scatter(phi_angles, psi_angles, alpha=0.8, s=25, c='#2E86AB', edgecolors='black', linewidth=0.5)
+            
+            # Add favored regions with better colors
+            # Alpha helix region
+            alpha_helix = patches.Rectangle((-180, -70), 150, 120, linewidth=2, 
+                                          edgecolor='#E74C3C', facecolor='#E74C3C', alpha=0.2)
+            ax.add_patch(alpha_helix)
+            
+            # Beta sheet regions
+            beta_sheet1 = patches.Rectangle((-180, 90), 150, 90, linewidth=2, 
+                                          edgecolor='#27AE60', facecolor='#27AE60', alpha=0.2)
+            beta_sheet2 = patches.Rectangle((-90, -180), 120, 90, linewidth=2, 
+                                          edgecolor='#27AE60', facecolor='#27AE60', alpha=0.2)
+            ax.add_patch(beta_sheet1)
+            ax.add_patch(beta_sheet2)
+            
+            ax.set_xlim(-180, 180)
+            ax.set_ylim(-180, 180)
+            ax.set_xlabel('Phi (degrees)', fontsize=16, fontweight='bold')
+            ax.set_ylabel('Psi (degrees)', fontsize=16, fontweight='bold')
+            ax.set_title('Ramachandran Plot', fontsize=20, fontweight='bold', pad=25)
+            ax.grid(True, alpha=0.4, linewidth=1)
+            
+            # Set tick parameters for better visibility
+            ax.tick_params(axis='both', which='major', labelsize=14, width=2, length=6)
+            
+            # Add cleaner legend
+            ax.text(-170, 160, 'Favored regions:', fontsize=14, fontweight='bold', 
+                   bbox=dict(boxstyle='round,pad=0.5', facecolor='white', alpha=0.9, edgecolor='black'))
+            ax.text(-170, 135, '■ Alpha helix', fontsize=13, color='#E74C3C', fontweight='bold')
+            ax.text(-170, 110, '■ Beta sheet', fontsize=13, color='#27AE60', fontweight='bold')
+            
+            plt.tight_layout()
+            
+            # Save with ultra high quality
+            chart_path = os.path.join(temp_dir, "ramachandran_plot.png")
+            plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none',
+                       format='png', quality=100)
+            plt.close()
+            plt.rcdefaults()
+            
+            return chart_path
+        except Exception as e:
+            print(f"Error saving Ramachandran plot: {e}")
+            return None
+    
+    def save_histogram(self, data, title, xlabel, ylabel, temp_dir):
+        """Save histogram as PNG image."""
+        if not MATPLOTLIB_AVAILABLE or not data:
+            return None
+        
+        try:
+            import matplotlib.pyplot as plt
+            import os
+            
+            plt.rcParams['font.size'] = 14
+            plt.rcParams['font.weight'] = 'bold'
+            plt.rcParams['axes.linewidth'] = 2
+            fig, ax = plt.subplots(figsize=(12, 8), dpi=300)  # Much larger and higher DPI
+            
+            # Create histogram with better styling
+            n, bins, patches = ax.hist(data, bins=30, alpha=0.8, color='#4ECDC4', edgecolor='black', linewidth=1.2)
+            
+            ax.set_xlabel(xlabel, fontsize=16, fontweight='bold')
+            ax.set_ylabel(ylabel, fontsize=16, fontweight='bold')
+            ax.set_title(title, fontsize=20, fontweight='bold', pad=25)
+            ax.grid(True, alpha=0.4, linewidth=1)
+            
+            # Set tick parameters for better visibility
+            ax.tick_params(axis='both', which='major', labelsize=14, width=2, length=6)
+            
+            # Add some statistics text
+            mean_val = sum(data) / len(data)
+            ax.axvline(mean_val, color='red', linestyle='--', linewidth=3, alpha=0.9, 
+                      label=f'Mean: {mean_val:.1f}')
+            ax.legend(fontsize=14, loc='upper right')
+            
+            plt.tight_layout()
+            
+            # Save with ultra high quality
+            chart_path = os.path.join(temp_dir, f"{title.replace(' ', '_')}.png")
+            plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none',
+                       format='png', quality=100)
+            plt.close()
+            plt.rcdefaults()
+            
+            return chart_path
+        except Exception as e:
+            print(f"Error saving histogram: {e}")
+            return None
+    
+    def image_to_base64(self, image_path):
+        """Convert image to base64 string for embedding in HTML."""
+        try:
+            import base64
+            with open(image_path, 'rb') as img_file:
+                return base64.b64encode(img_file.read()).decode('utf-8')
+        except Exception as e:
+            print(f"Error converting image to base64: {e}")
+            return ""
+
+
+    def export_to_html(self, file_path, options):
+        """Legacy HTML export method (simplified version)."""
+        # This is kept for compatibility but the main export now uses export_complete_html
+        self.export_complete_html(file_path)
+
+
+class ExportDialog(QDialog):
+    """Dialog for configuring export options."""
+    
+    def __init__(self, parent=None, results=None):
+        super().__init__(parent)
+        self.setWindowTitle("Export Analysis Results")
+        self.setModal(True)
+        self.resize(500, 600)
+        self.results = results
+        
+        self.init_ui()
+    
+    def init_ui(self):
+        layout = QVBoxLayout(self)
+        
+        # Title
+        title = QLabel("<h3>Export Analysis Results</h3>")
+        title.setAlignment(Qt.AlignCenter)
+        layout.addWidget(title)
+        
+        # Format selection
+        format_group = QGroupBox("Export Format")
+        format_layout = QVBoxLayout(format_group)
+        
+        self.format_combo = QComboBox()
+        formats = ["JSON", "CSV", "Excel", "Text Report", "HTML Report"]
+        self.format_combo.addItems(formats)
+        self.format_combo.setCurrentText("JSON")
+        self.format_combo.currentTextChanged.connect(self.on_format_changed)
+        format_layout.addWidget(self.format_combo)
+        
+        # Format descriptions
+        self.format_desc = QLabel()
+        self.format_desc.setWordWrap(True)
+        self.format_desc.setStyleSheet("color: #666; font-size: 10px; margin: 5px;")
+        format_layout.addWidget(self.format_desc)
+        
+        layout.addWidget(format_group)
+        
+        # Content selection
+        content_group = QGroupBox("Content to Export")
+        content_layout = QVBoxLayout(content_group)
+        
+        # Analysis type checkboxes
+        self.include_basic = QCheckBox("Basic Properties")
+        self.include_basic.setChecked(True)
+        self.include_basic.setEnabled('basic' in self.results if self.results else False)
+        content_layout.addWidget(self.include_basic)
+        
+        self.include_secondary = QCheckBox("Secondary Structure")
+        self.include_secondary.setChecked(True)
+        self.include_secondary.setEnabled('secondary' in self.results if self.results else False)
+        content_layout.addWidget(self.include_secondary)
+        
+        self.include_geometry = QCheckBox("Geometric Properties")
+        self.include_geometry.setChecked(True)
+        self.include_geometry.setEnabled('geometry' in self.results if self.results else False)
+        content_layout.addWidget(self.include_geometry)
+        
+        self.include_quality = QCheckBox("Quality Assessment")
+        self.include_quality.setChecked(True)
+        self.include_quality.setEnabled('quality' in self.results if self.results else False)
+        content_layout.addWidget(self.include_quality)
+        
+        self.include_surface = QCheckBox("Surface Properties")
+        self.include_surface.setChecked(True)
+        self.include_surface.setEnabled('surface' in self.results if self.results else False)
+        content_layout.addWidget(self.include_surface)
+        
+        # Additional options
+        content_layout.addWidget(QLabel(""))  # Spacer
+        
+        self.include_ramachandran = QCheckBox("Include Ramachandran Data (detailed)")
+        self.include_ramachandran.setChecked(False)
+        self.include_ramachandran.setToolTip("Include detailed phi/psi angle data for each residue")
+        content_layout.addWidget(self.include_ramachandran)
+        
+        self.include_residue_details = QCheckBox("Include Residue-level Details")
+        self.include_residue_details.setChecked(False)
+        self.include_residue_details.setToolTip("Include detailed per-residue data (SASA, RSA, etc.)")
+        content_layout.addWidget(self.include_residue_details)
+        
+        layout.addWidget(content_group)
+        
+        # File selection
+        file_group = QGroupBox("Output File")
+        file_layout = QHBoxLayout(file_group)
+        
+        self.file_path_edit = QLineEdit()
+        self.file_path_edit.setPlaceholderText("Select output file...")
+        file_layout.addWidget(self.file_path_edit)
+        
+        browse_btn = QPushButton("Browse...")
+        browse_btn.clicked.connect(self.browse_file)
+        file_layout.addWidget(browse_btn)
+        
+        layout.addWidget(file_group)
+        
+        # Buttons
+        button_layout = QHBoxLayout()
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        
+        button_layout.addStretch()
+        
+        export_btn = QPushButton("Export")
+        export_btn.setDefault(True)
+        export_btn.clicked.connect(self.accept)
+        button_layout.addWidget(export_btn)
+        
+        layout.addLayout(button_layout)
+        
+        # Update format description
+        self.on_format_changed("JSON")
+    
+    def on_format_changed(self, format_name):
+        """Update format description and file extension."""
+        descriptions = {
+            "JSON": "JavaScript Object Notation - structured data format, good for programmatic access",
+            "CSV": "Comma-Separated Values - spreadsheet compatible, good for data analysis",
+            "Excel": "Microsoft Excel format with multiple sheets - comprehensive and organized",
+            "Text Report": "Human-readable text report - good for documentation and sharing",
+            "HTML Report": "Web page format - good for viewing and sharing with formatting"
+        }
+        
+        extensions = {
+            "JSON": ".json",
+            "CSV": ".csv",
+            "Excel": ".xlsx",
+            "Text Report": ".txt",
+            "HTML Report": ".html"
+        }
+        
+        self.format_desc.setText(descriptions.get(format_name, ""))
+        
+        # Update file extension if path is set
+        current_path = self.file_path_edit.text()
+        if current_path:
+            base_path = os.path.splitext(current_path)[0]
+            new_extension = extensions.get(format_name, ".txt")
+            self.file_path_edit.setText(base_path + new_extension)
+    
+    def browse_file(self):
+        """Browse for output file."""
+        format_name = self.format_combo.currentText()
+        
+        filters = {
+            "JSON": "JSON Files (*.json)",
+            "CSV": "CSV Files (*.csv)",
+            "Excel": "Excel Files (*.xlsx)",
+            "Text Report": "Text Files (*.txt)",
+            "HTML Report": "HTML Files (*.html)"
+        }
+        
+        extensions = {
+            "JSON": ".json",
+            "CSV": ".csv",
+            "Excel": ".xlsx",
+            "Text Report": ".txt",
+            "HTML Report": ".html"
+        }
+        
+        # Suggest filename based on structure ID
+        structure_id = self.results.get('structure_id', 'analysis') if self.results else 'analysis'
+        suggested_name = f"{structure_id}_structural_analysis{extensions.get(format_name, '.txt')}"
+        
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            f"Export {format_name}",
+            suggested_name,
+            filters.get(format_name, "All Files (*)")
+        )
+        
+        if file_path:
+            self.file_path_edit.setText(file_path)
+    
+    def get_export_settings(self):
+        """Get export settings from dialog."""
+        export_format = self.format_combo.currentText()
+        file_path = self.file_path_edit.text()
+        
+        options = {
+            'include_basic': self.include_basic.isChecked(),
+            'include_secondary': self.include_secondary.isChecked(),
+            'include_geometry': self.include_geometry.isChecked(),
+            'include_quality': self.include_quality.isChecked(),
+            'include_surface': self.include_surface.isChecked(),
+            'include_ramachandran': self.include_ramachandran.isChecked(),
+            'include_residue_details': self.include_residue_details.isChecked()
+        }
+        
+        return export_format, file_path, options
+    
+    def accept(self):
+        """Validate settings before accepting."""
+        if not self.file_path_edit.text().strip():
+            QMessageBox.warning(self, "Export Error", "Please select an output file.")
+            return
+        
+        # Check if at least one content type is selected
+        if not any([
+            self.include_basic.isChecked(),
+            self.include_secondary.isChecked(),
+            self.include_geometry.isChecked(),
+            self.include_quality.isChecked(),
+            self.include_surface.isChecked()
+        ]):
+            QMessageBox.warning(self, "Export Error", "Please select at least one content type to export.")
+            return
+        
+        super().accept()
 
 
 def create_structural_analysis_tab(parent=None):

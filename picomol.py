@@ -251,8 +251,10 @@ class ProteinViewerApp(QMainWindow):
         self._redo_stack = []
         self._is_restoring_state = False
         self.setWindowTitle("PicoMol - Molecular Visualization Suite")
-        self.setGeometry(100, 100, 1000, 800)
         self.setAcceptDrops(True)
+        
+        # Set responsive window size based on screen dimensions
+        self.setup_responsive_window()
         
         # Initialize preferences manager
         self.preferences_manager = PreferencesManager()
@@ -323,6 +325,50 @@ class ProteinViewerApp(QMainWindow):
             self.pdb_fetch_manager = None
         
         self.init_ui()
+    
+    def setup_responsive_window(self):
+        """Set up responsive window sizing based on screen dimensions."""
+        from PyQt5.QtWidgets import QDesktopWidget
+        
+        # Get screen geometry
+        desktop = QDesktopWidget()
+        screen_rect = desktop.screenGeometry()
+        screen_width = screen_rect.width()
+        screen_height = screen_rect.height()
+        
+        # Calculate responsive window size (80% of screen, with reasonable limits)
+        min_width = 900
+        min_height = 700
+        max_width = 1600
+        max_height = 1200
+        
+        # Calculate preferred size as 80% of screen
+        preferred_width = int(screen_width * 0.8)
+        preferred_height = int(screen_height * 0.8)
+        
+        # Apply limits
+        window_width = max(min_width, min(preferred_width, max_width))
+        window_height = max(min_height, min(preferred_height, max_height))
+        
+        # Center the window on screen
+        x = (screen_width - window_width) // 2
+        y = (screen_height - window_height) // 2
+        
+        # Try to restore saved window geometry first
+        settings = QSettings("PicoMolApp", "PicoMol")
+        saved_geometry = settings.value("window_geometry")
+        
+        if saved_geometry:
+            # Restore saved geometry
+            self.restoreGeometry(saved_geometry)
+            print("Restored saved window geometry")
+        else:
+            # Set calculated geometry
+            self.setGeometry(x, y, window_width, window_height)
+            print(f"Screen: {screen_width}x{screen_height}, Window: {window_width}x{window_height} at ({x}, {y})")
+        
+        # Set minimum size to ensure usability
+        self.setMinimumSize(min_width, min_height)
 
     def show_error_dialog(self, title, summary, suggestion=None, details=None):
         dlg = QDialog(self)
@@ -555,7 +601,8 @@ class ProteinViewerApp(QMainWindow):
         # Add sequence display at the top
         self.sequence_display = QTextEdit()
         self.sequence_display.setReadOnly(True)
-        self.sequence_display.setFixedHeight(75)  # Set fixed height to 50px
+        self.sequence_display.setMaximumHeight(100)  # Use maximum instead of fixed for responsiveness
+        self.sequence_display.setMinimumHeight(60)   # Set minimum height
         self.sequence_display.setPlaceholderText("Sequence will appear here when a structure is loaded...")
         self.sequence_display.setStyleSheet("""
             QTextEdit {

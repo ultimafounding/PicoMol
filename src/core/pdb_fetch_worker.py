@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 import traceback
 
 try:
-    from .enhanced_pdb_puller_async import OptimizedPDBPuller
+    from .enhanced_pdb_puller import EnhancedPDBPuller
     OPTIMIZED_PULLER_AVAILABLE = True
 except ImportError:
     OPTIMIZED_PULLER_AVAILABLE = False
@@ -26,7 +26,7 @@ class PDBFetchWorker(QThread):
     error_occurred = pyqtSignal(str)   # Error message
     finished = pyqtSignal()            # Completion signal
     
-    def __init__(self, puller: OptimizedPDBPuller, pdb_id: str, 
+    def __init__(self, puller: EnhancedPDBPuller, pdb_id: str, 
                  include_validation: bool = False,
                  include_sequences: bool = True,
                  include_mmcif: bool = False):
@@ -34,7 +34,7 @@ class PDBFetchWorker(QThread):
         Initialize the PDB fetch worker.
         
         Args:
-            puller: OptimizedPDBPuller instance
+            puller: EnhancedPDBPuller instance
             pdb_id: PDB ID to fetch
             include_validation: Whether to fetch validation data
             include_sequences: Whether to fetch sequences
@@ -57,9 +57,8 @@ class PDBFetchWorker(QThread):
                     self.progress_update.emit(message)
             
             # Fetch the data
-            data = self.puller.fetch_pdb_data_async(
+            data = self.puller.fetch_comprehensive_pdb_data(
                 self.pdb_id,
-                progress_callback=progress_callback,
                 include_validation=self.include_validation,
                 include_sequences=self.include_sequences,
                 include_mmcif=self.include_mmcif
@@ -103,7 +102,7 @@ class PDBFetchManager:
         if not OPTIMIZED_PULLER_AVAILABLE:
             raise ImportError("Optimized PDB puller not available")
         
-        self.puller = OptimizedPDBPuller(data_dir)
+        self.puller = EnhancedPDBPuller(data_dir)
         self.current_worker = None
     
     def fetch_pdb_async(self, pdb_id: str,
@@ -183,8 +182,10 @@ class PDBFetchManager:
     
     def clear_cache(self):
         """Clear the API response cache."""
-        self.puller.clear_cache()
+        # EnhancedPDBPuller doesn't have a cache to clear
+        pass
     
     def get_cache_size(self) -> int:
         """Get the current cache size."""
-        return self.puller.get_cache_size()
+        # EnhancedPDBPuller doesn't have a cache size to report
+        return 0
