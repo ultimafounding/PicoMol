@@ -36,9 +36,11 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
   - **InterPro Integration:** Comprehensive domain annotation using InterPro API (includes Pfam, SMART, PROSITE, CDD, and more)
   - **PROSITE Motif Search:** Official PROSITE ScanProsite API integration with local pattern fallback
   - **Domain Visualization:** Interactive visualization of protein domains and motifs with intelligent layout
+  - **Sequence Context Display:** View motif sequences in their surrounding context with highlighting
   - **Functional Annotation:** GO terms, pathways, and functional site identification
   - **Filtering Options:** Exclude high-probability motifs, customize search parameters
   - **Export Capabilities:** Save results in multiple formats with detailed reports
+  - **Progress Tracking:** Smart progress bar that tracks multiple concurrent searches
 - **FASTA Format Support:** 
   - **Smart Parsing:** Handles both pasted FASTA text and file uploads
   - **Multi-sequence Files:** Interactive sequence selection dialog for files with multiple sequences
@@ -53,7 +55,8 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
 - **Partial Codon Handling:** Intelligent handling of incomplete codons with user notifications
 
 ### 🎨 User Experience & Interface
-- **Modern Tabbed Interface:** Organized workspace with separate tabs for visualization, BLAST, and bioinformatics
+- **Streamlined Tabbed Interface:** Clean workspace with three main tabs: 3D Viewer, Bioinformatics, and BLAST
+- **Integrated Bioinformatics:** All sequence analysis and motif tools organized under a single Bioinformatics tab
 - **Theme System:** Multiple built-in themes (System Default, Light, Dark, Blue, Green)
 - **Customizable Preferences:** Comprehensive settings dialog for appearance and behavior
 - **Robust Error Handling:** User-friendly error dialogs with actionable suggestions
@@ -61,6 +64,7 @@ PicoMol is a powerful, user-friendly desktop application for molecular visualiza
 - **Recent Files:** Quick access to recently opened structures
 - **Welcome Screen:** Optional welcome dialog for new users with feature overview
 - **Responsive Design:** Adaptive layouts that work well on different screen sizes
+- **Drag-and-Drop Support:** Instant file loading by dragging PDB/ENT files onto the application
 
 ## Installation
 
@@ -126,32 +130,37 @@ pip install PyQt5 PyQtWebEngine biopython requests
 6. **View Results:** Comprehensive results with alignments and statistics
 
 ### Bioinformatics Analysis
-1. **Navigate to Bioinformatics Tab:** Click on the \"Bioinformatics\" tab
-2. **Sequence Analysis Sub-tab:** Access comprehensive sequence analysis tools
-3. **Input Methods:**
+1. **Navigate to Bioinformatics Tab:** Click on the "Bioinformatics" tab
+2. **Choose Analysis Type:** Select from the available sub-tabs:
+   - **Sequence Analysis:** Comprehensive sequence analysis tools
+   - **Protein Motifs and Domains:** Motif and domain analysis tools
+   - **Structure:** Structural analysis tools (coming soon)
+
+#### Sequence Analysis
+1. **Input Methods:**
    - **Direct Entry:** Paste sequences (plain text or FASTA format)
    - **Load from Structure:** Use sequence from currently loaded PDB structure
    - **Load from File:** Import from FASTA files with multi-sequence support
-4. **Analysis Options:**
+2. **Analysis Options:**
    - **Automatic Type Detection:** Sequences are automatically classified
    - **Manual Override:** Change sequence type if needed
    - **Comprehensive Results:** Detailed analysis with exportable data
 
-### Motif and Domain Analysis
-1. **Navigate to Motifs & Domains Tab:** Access protein motif and domain analysis tools
-2. **Sequence Input:**
+#### Motif and Domain Analysis
+1. **Sequence Input:**
    - **Load from Current Structure:** Extract sequence from loaded PDB structure
    - **Load from File:** Import FASTA sequences
    - **Direct Entry:** Paste protein sequences with example provided
-3. **Search Options:**
+2. **Search Options:**
    - **InterPro Search:** Comprehensive domain annotation (Pfam, SMART, PROSITE, CDD)
    - **PROSITE Search:** Motif pattern recognition with official API
    - **Search All Databases:** Combined search for complete analysis
-4. **Advanced Features:**
+3. **Advanced Features:**
    - **Filtering:** Exclude high-probability motifs for cleaner results
    - **Visualization:** Interactive domain and motif visualization
    - **Export:** Save results and generate detailed HTML reports
-   - **Context Display:** View sequence context around identified motifs
+   - **Context Display:** Click any motif in results to view sequence context with highlighting
+   - **Progress Tracking:** Progress bar remains visible until all searches complete
 
 ## Project Structure
 
@@ -220,8 +229,11 @@ PicoMol combines several powerful technologies:
 - **PROSITE API:** Direct connection to ExPASy PROSITE ScanProsite service
 - **Hybrid Approach:** API-first with local pattern fallback for reliability
 - **Advanced Visualization:** Dynamic domain/motif layout with collision detection
+- **Sequence Context Display:** Interactive motif context viewer with highlighting
+- **Progress Management:** Smart progress tracking for concurrent searches
 - **Result Caching:** Efficient storage and retrieval of analysis results
 - **Export System:** Multiple output formats including HTML reports
+- **Error Handling:** Robust error recovery and user feedback
 
 ## Requirements
 
@@ -269,6 +281,50 @@ Altschul SF, Madden TL, Schäffer AA, Zhang J, Zhang Z, Miller W, Lipman DJ.
 Gapped BLAST and PSI-BLAST: a new generation of protein database search programs.
 Nucleic Acids Research 25(17): 3389-3402, 1997.
 doi:10.1093/nar/25.17.3389
+```
+
+### InterPro
+```
+Apweiler R, Attwood TK, Bairoch A, Bateman A, Birney E, Biswas M, Bucher P, Cerutti L, Corpet F, Croning MD, et al.
+The InterPro database, an integrated documentation resource for protein families, domains and functional sites.
+Nucleic Acids Research 29(1): 37-40, 2001.
+doi:10.1093/nar/29.1.37
+
+Paysan-Lafosse T, Blum M, Chuguransky S, Grego T, Pinto BL, Salazar GA, Bileschi ML, Bork P, Bridge A, Colwell L, et al.
+InterPro in 2022.
+Nucleic Acids Research 51(D1): D418-D427, 2023.
+doi:10.1093/nar/gkac993
+```
+
+### Pfam
+```
+Bateman A, Birney E, Durbin R, Eddy SR, Howe KL, Sonnhammer EL.
+The Pfam protein families database.
+Nucleic Acids Research 28(1): 263-266, 2000.
+doi:10.1093/nar/28.1.263
+
+Mistry J, Chuguransky S, Williams L, Qureshi M, Salazar GA, Sonnhammer ELL, Tosatto SCE, Paladin L, Raj S, Richardson LJ, et al.
+Pfam: The protein families database in 2021.
+Nucleic Acids Research 49(D1): D412-D419, 2021.
+doi:10.1093/nar/gkaa913
+```
+
+### PROSITE
+```
+Bairoch A.
+PROSITE: a dictionary of sites and patterns in proteins.
+Nucleic Acids Research 19(Suppl): 2241-2245, 1991.
+doi:10.1093/nar/19.suppl.2241
+
+Bairoch A, Bucher P, Hofmann K.
+The PROSITE database, its status in 1997.
+Nucleic Acids Research 25(1): 217-221, 1997.
+doi:10.1093/nar/25.1.217
+
+Sigrist CJA, de Castro E, Cerutti L, Cuche BA, Hulo N, Bridge A, Bougueleret L, Xenarios I.
+New and continuing developments at PROSITE.
+Nucleic Acids Research 41(D1): D344-D347, 2013.
+doi:10.1093/nar/gks1067
 ```
 
 ### PDB Format

@@ -119,13 +119,49 @@ class AboutDialog(QDialog):
             
             <p><b>InterPro:</b></p>
             <div class="citation">
+            Apweiler R, Attwood TK, Bairoch A, Bateman A, Birney E, Biswas M, Bucher P, Cerutti L, Corpet F, Croning MD, et al. 
+            The InterPro database, an integrated documentation resource for protein families, domains and functional sites. 
+            <i>Nucleic Acids Research</i> 29(1): 37-40, 2001.
+            <a href='https://doi.org/10.1093/nar/29.1.37'>doi:10.1093/nar/29.1.37</a>
+            </div>
+            
+            <div class="citation">
             Paysan-Lafosse T, Blum M, Chuguransky S, Grego T, Pinto BL, Salazar GA, Bileschi ML, Bork P, Bridge A, Colwell L, et al. 
             InterPro in 2022. 
             <i>Nucleic Acids Research</i> 51(D1): D418-D427, 2023.
             <a href='https://doi.org/10.1093/nar/gkac993'>doi:10.1093/nar/gkac993</a>
             </div>
             
+            <p><b>Pfam:</b></p>
+            <div class="citation">
+            Bateman A, Birney E, Durbin R, Eddy SR, Howe KL, Sonnhammer EL. 
+            The Pfam protein families database. 
+            <i>Nucleic Acids Research</i> 28(1): 263-266, 2000.
+            <a href='https://doi.org/10.1093/nar/28.1.263'>doi:10.1093/nar/28.1.263</a>
+            </div>
+            
+            <div class="citation">
+            Mistry J, Chuguransky S, Williams L, Qureshi M, Salazar GA, Sonnhammer ELL, Tosatto SCE, Paladin L, Raj S, Richardson LJ, et al. 
+            Pfam: The protein families database in 2021. 
+            <i>Nucleic Acids Research</i> 49(D1): D412-D419, 2021.
+            <a href='https://doi.org/10.1093/nar/gkaa913'>doi:10.1093/nar/gkaa913</a>
+            </div>
+            
             <p><b>PROSITE:</b></p>
+            <div class="citation">
+            Bairoch A. 
+            PROSITE: a dictionary of sites and patterns in proteins. 
+            <i>Nucleic Acids Research</i> 19(Suppl): 2241-2245, 1991.
+            <a href='https://doi.org/10.1093/nar/19.suppl.2241'>doi:10.1093/nar/19.suppl.2241</a>
+            </div>
+            
+            <div class="citation">
+            Bairoch A, Bucher P, Hofmann K. 
+            The PROSITE database, its status in 1997. 
+            <i>Nucleic Acids Research</i> 25(1): 217-221, 1997.
+            <a href='https://doi.org/10.1093/nar/25.1.217'>doi:10.1093/nar/25.1.217</a>
+            </div>
+            
             <div class="citation">
             Sigrist CJA, de Castro E, Cerutti L, Cuche BA, Hulo N, Bridge A, Bougueleret L, Xenarios I. 
             New and continuing developments at PROSITE. 
