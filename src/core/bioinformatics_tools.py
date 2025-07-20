@@ -27,6 +27,9 @@ from PyQt5.QtGui import QFont
 # Import motif analysis module
 from .motif_analysis import create_motif_analysis_tab
 
+# Import structural analysis module
+from .structural_analysis import create_structural_analysis_tab
+
 try:
     from Bio.Seq import Seq
     from Bio.SeqUtils import molecular_weight
@@ -1152,24 +1155,8 @@ def create_bioinformatics_tab(parent=None):
     motif_tab = create_motif_analysis_tab(parent)
     bio_tabs.addTab(motif_tab, "Protein Motifs and Domains")
     
-    # Structure Analysis tab
-    structure_tab = QWidget()
-    structure_layout = QVBoxLayout(structure_tab)
-    structure_placeholder = QLabel(
-        "<h3>Structure Analysis Tools</h3>"
-        "<p>Coming soon:</p>"
-        "<ul>"
-        "<li>Secondary structure prediction</li>"
-        "<li>Protein fold classification</li>"
-        "<li>Active site prediction</li>"
-        "<li>Structural comparison</li>"
-        "</ul>"
-    )
-    structure_placeholder.setAlignment(Qt.AlignTop)
-    structure_placeholder.setWordWrap(True)
-    structure_placeholder.setStyleSheet("color: #666; padding: 20px;")
-    structure_layout.addWidget(structure_placeholder)
-    structure_layout.addStretch()
+    # Structure Analysis tab - now fully functional!
+    structure_tab = create_structural_analysis_tab(parent)
     bio_tabs.addTab(structure_tab, "Structure")
     
     main_layout.addWidget(bio_tabs)

@@ -206,6 +206,13 @@ from PyQt5.QtGui import QFont
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
 
+try:
+    from src.core.pdb_fetch_worker import PDBFetchManager
+    OPTIMIZED_FETCH_AVAILABLE = True
+except ImportError:
+    from src.core.enhanced_pdb_puller import EnhancedPDBPuller
+    OPTIMIZED_FETCH_AVAILABLE = False
+
 
 class ServerThread(threading.Thread):
     def __init__(self, directory, start_port=8000):
@@ -306,6 +313,15 @@ class ProteinViewerApp(QMainWindow):
 
         self.pdb_parser = PDBParser()
         self.pdb_list = PDBList()
+        
+        # Initialize PDB fetch manager (optimized or fallback)
+        if OPTIMIZED_FETCH_AVAILABLE:
+            self.pdb_fetch_manager = PDBFetchManager(self.pulled_structures_dir)
+            self.enhanced_pdb_puller = None  # For compatibility
+        else:
+            self.enhanced_pdb_puller = EnhancedPDBPuller(self.pulled_structures_dir)
+            self.pdb_fetch_manager = None
+        
         self.init_ui()
 
     def show_error_dialog(self, title, summary, suggestion=None, details=None):
@@ -472,6 +488,15 @@ class ProteinViewerApp(QMainWindow):
         preferences_action.setToolTip("Open application preferences")
         preferences_action.triggered.connect(self.show_preferences_dialog)
         tools_menu.addAction(preferences_action)
+        
+        tools_menu.addSeparator()
+        
+        # PDB Information action
+        pdb_info_action = QAction("Show PDB Information...", self)
+        pdb_info_action.setShortcut("Ctrl+I")
+        pdb_info_action.setToolTip("Show comprehensive information about the current PDB structure")
+        pdb_info_action.triggered.connect(self.show_pdb_information)
+        tools_menu.addAction(pdb_info_action)
         
         # Help menu with About and Welcome
         help_menu = menubar.addMenu("Help")
@@ -938,55 +963,485 @@ class ProteinViewerApp(QMainWindow):
         if not pdb_id:
             self.statusBar().showMessage("Please enter a PDB ID.")
             return
+        
+        # Use optimized fetch manager if available
+        if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
+            self._fetch_pdb_optimized(pdb_id)
+        else:
+            self._fetch_pdb_fallback(pdb_id)
+    
+    def _fetch_pdb_optimized(self, pdb_id: str):
+        """Fetch PDB data using the optimized, non-blocking approach."""
+        # Check if already fetching
+        if self.pdb_fetch_manager.is_fetching():
+            self.statusBar().showMessage("Another fetch operation is in progress...")
+            return
+        
+        # Disable fetch button during operation
+        fetch_button = self.sender() if hasattr(self, 'sender') else None
+        if fetch_button:
+            fetch_button.setEnabled(False)
+        
+        # Define callbacks
+        def on_progress(message: str):
+            self.statusBar().showMessage(message)
+        
+        def on_success(comprehensive_data: dict):
+            try:
+                # Get the PDB file path
+                pdb_path = comprehensive_data['files'].get('pdb')
+                if not pdb_path or not os.path.exists(pdb_path):
+                    raise FileNotFoundError(f"PDB file not found for {pdb_id}")
+
+                # Load and display the structure
+                structure = self.pdb_parser.get_structure(pdb_id, pdb_path)
+                self.current_structure_id = pdb_id
+                self.display_structure(structure)
+                
+                # Store comprehensive data for later use
+                self.current_pdb_data = comprehensive_data
+                
+                # Update status with comprehensive info
+                metadata = comprehensive_data.get('metadata', {})
+                if 'entry' in metadata:
+                    entry = metadata['entry']
+                    
+                    # Extract title with fallback
+                    title = 'Unknown'
+                    if 'struct' in entry and 'title' in entry['struct']:
+                        title = entry['struct']['title']
+                    
+                    # Extract method with fallback
+                    method = 'Unknown'
+                    if 'exptl' in entry and isinstance(entry['exptl'], list) and entry['exptl']:
+                        method = entry['exptl'][0].get('method', 'Unknown')
+                    elif 'rcsb_entry_info' in entry and 'experimental_method' in entry['rcsb_entry_info']:
+                        method = entry['rcsb_entry_info']['experimental_method']
+                    
+                    self.statusBar().showMessage(f"Loaded {pdb_id}: {title[:50]}... ({method})")
+                else:
+                    self.statusBar().showMessage(f"Loaded {pdb_id} with comprehensive data")
+                
+                self.add_to_recent_files(pdb_path)
+                
+                # Show summary of fetched data (non-blocking)
+                from PyQt5.QtCore import QTimer
+                QTimer.singleShot(100, lambda: self.show_fetch_summary(comprehensive_data))
+                
+            except Exception as e:
+                self.statusBar().showMessage(f"Error loading structure {pdb_id}")
+                self.show_error_dialog(
+                    "Error Loading Structure",
+                    f"Could not load structure for PDB ID {pdb_id}.",
+                    suggestion="The file may be corrupted or invalid.",
+                    details=str(e)
+                )
+        
+        def on_error(error_message: str):
+            self.statusBar().showMessage(f"Error fetching PDB ID {pdb_id}")
+            self.show_error_dialog(
+                "Error Fetching PDB",
+                f"Could not fetch data for PDB ID {pdb_id}.",
+                suggestion="Please check your internet connection and verify the PDB ID is correct.",
+                details=error_message
+            )
+        
+        def on_finished():
+            # Re-enable fetch button
+            if fetch_button:
+                fetch_button.setEnabled(True)
+        
+        # Start the async fetch
+        self.pdb_fetch_manager.fetch_pdb_async(
+            pdb_id,
+            progress_callback=on_progress,
+            success_callback=on_success,
+            error_callback=on_error,
+            finished_callback=on_finished,
+            include_validation=False,  # Skip validation for speed
+            include_sequences=True,
+            include_mmcif=False
+        )
+    
+    def _fetch_pdb_fallback(self, pdb_id: str):
+        """Fallback PDB fetch using the original enhanced puller."""
         try:
-            self.statusBar().showMessage(f"Fetching PDB ID {pdb_id}...")
-            # Define a consistent path for the PDB file.
-            pdb_path = os.path.join(self.pulled_structures_dir, f"{pdb_id}.pdb")
+            self.statusBar().showMessage(f"Fetching comprehensive data for PDB ID {pdb_id}...")
+            
+            # Use enhanced PDB puller to get comprehensive data
+            comprehensive_data = self.enhanced_pdb_puller.fetch_comprehensive_pdb_data(
+                pdb_id, 
+                include_validation=False,  # Skip validation for speed
+                include_sequences=True,
+                include_mmcif=False
+            )
+            
+            if comprehensive_data['errors']:
+                error_details = "\n".join(comprehensive_data['errors'])
+                raise Exception(f"Errors occurred during data fetching:\n{error_details}")
+            
+            # Get the PDB file path
+            pdb_path = comprehensive_data['files'].get('pdb')
+            if not pdb_path or not os.path.exists(pdb_path):
+                raise FileNotFoundError(f"PDB file not found for {pdb_id}")
 
-            # Retrieve PDB file only if it doesn't exist
-            if not os.path.exists(pdb_path):
-                try:
-                    retrieved_file_path = self.pdb_list.retrieve_pdb_file(
-                        pdb_id, pdir=self.pulled_structures_dir, file_format="pdb"
-                    )
-                    # If we get here but no file was actually downloaded
-                    if not os.path.exists(retrieved_file_path):
-                        raise FileNotFoundError(f"PDB file for {pdb_id} was not downloaded")
-                    # Rename the downloaded file to our consistent path, overwriting if necessary.
-                    if os.path.exists(pdb_path):
-                        os.remove(pdb_path)
-                    os.rename(retrieved_file_path, pdb_path)
-                except Exception as e:
-                    # If there's any error during download, ensure we don't have a partial file
-                    if os.path.exists(pdb_path):
-                        try:
-                            os.remove(pdb_path)
-                        except:
-                            pass
-                    raise
-
-            # If we get here, we should have a valid PDB file
-            if not os.path.exists(pdb_path):
-                raise FileNotFoundError(f"Failed to create PDB file for {pdb_id}")
-
+            # Load and display the structure
             structure = self.pdb_parser.get_structure(pdb_id, pdb_path)
-            self.current_structure_id = pdb_id  # Set the current structure ID
+            self.current_structure_id = pdb_id
             self.display_structure(structure)
-            self.statusBar().showMessage(f"Displayed {pdb_id}")
+            
+            # Store comprehensive data for later use
+            self.current_pdb_data = comprehensive_data
+            
+            # Update status with comprehensive info
+            metadata = comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                
+                # Extract title with fallback
+                title = 'Unknown'
+                if 'struct' in entry and 'title' in entry['struct']:
+                    title = entry['struct']['title']
+                
+                # Extract method with fallback
+                method = 'Unknown'
+                if 'exptl' in entry and isinstance(entry['exptl'], list) and entry['exptl']:
+                    method = entry['exptl'][0].get('method', 'Unknown')
+                elif 'rcsb_entry_info' in entry and 'experimental_method' in entry['rcsb_entry_info']:
+                    method = entry['rcsb_entry_info']['experimental_method']
+                
+                self.statusBar().showMessage(f"Loaded {pdb_id}: {title[:50]}... ({method})")
+            else:
+                self.statusBar().showMessage(f"Loaded {pdb_id} with comprehensive data")
+            
             self.add_to_recent_files(pdb_path)
+            
+            # Show summary of fetched data
+            self.show_fetch_summary(comprehensive_data)
 
         except Exception as e:
             self.statusBar().showMessage(f"Error fetching PDB ID {pdb_id}")
             self.show_error_dialog(
                 "Error Fetching PDB",
-                f"Could not fetch PDB ID {pdb_id}.",
-                suggestion="Please check your internet connection and verify the PDB ID is correct. The application will now close due to an unresolved error.",
+                f"Could not fetch comprehensive data for PDB ID {pdb_id}.",
+                suggestion="Please check your internet connection and verify the PDB ID is correct.",
                 details=str(e)
             )
-            # Close the application after showing the error
-            QApplication.quit()
-            sys.exit(1)
 
+    def show_fetch_summary(self, comprehensive_data):
+        """Show a summary of the fetched comprehensive data."""
+        pdb_id = comprehensive_data['pdb_id']
+        files = comprehensive_data['files']
+        metadata = comprehensive_data['metadata']
+        
+        summary_parts = [f"Successfully fetched comprehensive data for {pdb_id}:"]
+        
+        # Files downloaded
+        if files:
+            summary_parts.append(f"\nFiles downloaded: {', '.join(files.keys())}")
+        
+        # Metadata sections
+        if metadata:
+            summary_parts.append(f"Metadata sections: {', '.join(metadata.keys())}")
+        
+        # Basic info if available
+        if 'entry' in metadata:
+            entry = metadata['entry']
+            title = entry.get('struct', {}).get('title', 'N/A')
+            method = entry.get('exptl', [{}])[0].get('method', 'N/A')
+            resolution = entry.get('rcsb_entry_info', {}).get('resolution_combined', 'N/A')
+            
+            summary_parts.extend([
+                f"\nTitle: {title}",
+                f"Method: {method}",
+                f"Resolution: {resolution}"
+            ])
+        
+        # Sequences info
+        sequences = comprehensive_data.get('sequences', {})
+        if sequences.get('chains'):
+            chain_count = len(sequences['chains'])
+            summary_parts.append(f"Sequences: {chain_count} chains")
+        
+        # Ligands info
+        if 'nonpolymer_entities' in metadata:
+            ligands = metadata['nonpolymer_entities']
+            if isinstance(ligands, list) and ligands:
+                summary_parts.append(f"Ligands: {len(ligands)} non-polymer entities")
+        
+        summary_text = "\n".join(summary_parts)
+        
+        # Show in a message box
+        from PyQt5.QtWidgets import QMessageBox, QTextEdit
+        msg = QMessageBox(self)
+        msg.setWindowTitle("Comprehensive Data Fetched")
+        msg.setText(f"Successfully fetched comprehensive data for {pdb_id}")
+        msg.setDetailedText(summary_text)
+        msg.setIcon(QMessageBox.Information)
+        msg.exec_()
+    
+    def show_pdb_information(self):
+        """Show comprehensive PDB information dialog."""
+        if not hasattr(self, 'current_structure_id') or not self.current_structure_id:
+            QMessageBox.warning(self, "No Structure", "No PDB structure is currently loaded.")
+            return
+        
+        pdb_id = self.current_structure_id
+        
+        # Get comprehensive data if available
+        if hasattr(self, 'current_pdb_data') and self.current_pdb_data:
+            self.show_comprehensive_pdb_dialog(self.current_pdb_data)
+        else:
+            # Try to get cached data from appropriate puller
+            if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
+                info = self.pdb_fetch_manager.get_structure_info(pdb_id)
+            elif self.enhanced_pdb_puller:
+                info = self.enhanced_pdb_puller.get_structure_info(pdb_id)
+            else:
+                QMessageBox.warning(self, "No Puller Available", "No PDB puller is available.")
+                return
+            
+            if info['available']:
+                # Create a dialog with available information
+                self.show_basic_pdb_info_dialog(info)
+            else:
+                QMessageBox.information(self, "No Enhanced Data", 
+                    f"No comprehensive data available for {pdb_id}.\n\n"
+                    f"Use 'Fetch PDB' to download comprehensive information.")
+    
+    def show_comprehensive_pdb_dialog(self, comprehensive_data):
+        """Show comprehensive PDB information in a dialog."""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QDialogButtonBox
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"PDB Information: {comprehensive_data['pdb_id']}")
+        dialog.setMinimumSize(800, 600)
+        
+        layout = QVBoxLayout(dialog)
+        
+        # Create tab widget
+        tabs = QTabWidget()
+        
+        # Summary tab
+        summary_browser = QTextBrowser()
+        summary_text = self.format_pdb_summary(comprehensive_data)
+        summary_browser.setHtml(summary_text)
+        tabs.addTab(summary_browser, "Summary")
+        
+        # Metadata tab
+        metadata_browser = QTextBrowser()
+        metadata_text = self.format_metadata_display(comprehensive_data['metadata'])
+        metadata_browser.setHtml(metadata_text)
+        tabs.addTab(metadata_browser, "Detailed Metadata")
+        
+        # Sequences tab
+        if comprehensive_data.get('sequences'):
+            seq_browser = QTextBrowser()
+            seq_text = self.format_sequences_display(comprehensive_data['sequences'])
+            seq_browser.setHtml(seq_text)
+            tabs.addTab(seq_browser, "Sequences")
+        
+        # Files tab
+        files_browser = QTextBrowser()
+        files_text = self.format_files_display(comprehensive_data['files'])
+        files_browser.setHtml(files_text)
+        tabs.addTab(files_browser, "Downloaded Files")
+        
+        layout.addWidget(tabs)
+        
+        # Button box
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        layout.addWidget(button_box)
+        
+        dialog.exec_()
+    
+    def format_pdb_summary(self, comprehensive_data):
+        """Format PDB summary for display."""
+        pdb_id = comprehensive_data['pdb_id']
+        metadata = comprehensive_data.get('metadata', {})
+        
+        html = f"<h2>PDB Structure: {pdb_id}</h2>"
+        
+        if 'entry' in metadata:
+            entry = metadata['entry']
+            
+            # Title
+            title = entry.get('struct', {}).get('title', 'N/A')
+            html += f"<h3>{title}</h3>"
+            
+            # Basic information
+            html += "<h4>Basic Information</h4><ul>"
+            
+            # Method and resolution
+            exptl_methods = entry.get('exptl', [])
+            if exptl_methods:
+                method = exptl_methods[0].get('method', 'N/A')
+                html += f"<li><b>Experimental Method:</b> {method}</li>"
+            
+            resolution = entry.get('rcsb_entry_info', {}).get('resolution_combined', 'N/A')
+            if resolution != 'N/A':
+                html += f"<li><b>Resolution:</b> {resolution} Å</li>"
+            
+            # Dates
+            deposit_date = entry.get('rcsb_accession_info', {}).get('deposit_date', 'N/A')
+            release_date = entry.get('rcsb_accession_info', {}).get('initial_release_date', 'N/A')
+            html += f"<li><b>Deposition Date:</b> {deposit_date}</li>"
+            html += f"<li><b>Release Date:</b> {release_date}</li>"
+            
+            html += "</ul>"
+            
+            # Authors
+            authors = [author.get('name', '') for author in entry.get('audit_author', [])]
+            if authors:
+                html += "<h4>Authors</h4><p>"
+                html += ', '.join(authors[:5])
+                if len(authors) > 5:
+                    html += f" and {len(authors) - 5} others"
+                html += "</p>"
+        
+        # Files information
+        files = comprehensive_data.get('files', {})
+        if files:
+            html += "<h4>Downloaded Files</h4><ul>"
+            for file_type, file_path in files.items():
+                html += f"<li><b>{file_type.upper()}:</b> {os.path.basename(file_path)}</li>"
+            html += "</ul>"
+        
+        # Sequences information
+        sequences = comprehensive_data.get('sequences', {})
+        if sequences.get('chains'):
+            html += f"<h4>Sequences</h4><p>{len(sequences['chains'])} protein chains available</p>"
+        
+        return html
+    
+    def format_metadata_display(self, metadata):
+        """Format metadata for detailed display."""
+        html = "<h3>Detailed Metadata</h3>"
+        
+        for section, data in metadata.items():
+            html += f"<h4>{section.replace('_', ' ').title()}</h4>"
+            html += "<pre style='background-color: #f5f5f5; padding: 10px; font-size: 12px;'>"
+            
+            # Format the data nicely
+            if isinstance(data, dict):
+                html += self.format_dict_for_display(data, indent=0)
+            elif isinstance(data, list):
+                for i, item in enumerate(data[:3]):  # Show first 3 items
+                    html += f"Item {i+1}:\n"
+                    if isinstance(item, dict):
+                        html += self.format_dict_for_display(item, indent=2)
+                    else:
+                        html += f"  {item}\n"
+                if len(data) > 3:
+                    html += f"... and {len(data) - 3} more items\n"
+            else:
+                html += str(data)
+            
+            html += "</pre>"
+        
+        return html
+    
+    def format_dict_for_display(self, data, indent=0):
+        """Format dictionary data for display."""
+        result = ""
+        prefix = "  " * indent
+        
+        for key, value in data.items():
+            if isinstance(value, dict):
+                result += f"{prefix}{key}:\n"
+                result += self.format_dict_for_display(value, indent + 1)
+            elif isinstance(value, list):
+                result += f"{prefix}{key}: [{len(value)} items]\n"
+                if value and len(value) <= 3:
+                    for item in value:
+                        result += f"{prefix}  - {item}\n"
+            else:
+                result += f"{prefix}{key}: {value}\n"
+        
+        return result
+    
+    def format_sequences_display(self, sequences):
+        """Format sequences for display."""
+        html = "<h3>Protein Sequences</h3>"
+        
+        chains = sequences.get('chains', [])
+        for chain in chains:
+            html += f"<h4>Chain: {chain.get('chain_id', 'Unknown')}</h4>"
+            html += f"<p><b>Description:</b> {chain.get('description', 'N/A')}</p>"
+            html += f"<p><b>Length:</b> {len(chain.get('sequence', ''))} residues</p>"
+            
+            sequence = chain.get('sequence', '')
+            if sequence:
+                html += "<p><b>Sequence:</b></p>"
+                html += "<pre style='background-color: #f5f5f5; padding: 10px; font-family: monospace; font-size: 12px; word-wrap: break-word;'>"
+                # Format sequence with line breaks every 80 characters
+                for i in range(0, len(sequence), 80):
+                    html += sequence[i:i+80] + "\n"
+                html += "</pre>"
+        
+        return html
+    
+    def format_files_display(self, files):
+        """Format files information for display."""
+        html = "<h3>Downloaded Files</h3>"
+        
+        for file_type, file_path in files.items():
+            html += f"<h4>{file_type.upper()} File</h4>"
+            html += f"<p><b>Path:</b> {file_path}</p>"
+            
+            if os.path.exists(file_path):
+                file_size = os.path.getsize(file_path)
+                html += f"<p><b>Size:</b> {file_size:,} bytes</p>"
+                
+                # Show modification time
+                import time
+                mod_time = os.path.getmtime(file_path)
+                mod_time_str = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mod_time))
+                html += f"<p><b>Downloaded:</b> {mod_time_str}</p>"
+            else:
+                html += "<p><i>File not found</i></p>"
+        
+        return html
+    
+    def show_basic_pdb_info_dialog(self, info):
+        """Show basic PDB information dialog."""
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"PDB Information: {info['pdb_id']}")
+        dialog.setMinimumSize(600, 400)
+        
+        layout = QVBoxLayout(dialog)
+        
+        browser = QTextBrowser()
+        
+        html = f"<h2>PDB Structure: {info['pdb_id']}</h2>"
+        
+        if info.get('summary'):
+            summary = info['summary']
+            html += f"<h3>{summary.get('title', 'Unknown Title')}</h3>"
+            html += f"<p><b>Method:</b> {summary.get('experimental_method', 'N/A')}</p>"
+            html += f"<p><b>Resolution:</b> {summary.get('resolution', 'N/A')}</p>"
+            html += f"<p><b>Fetched:</b> {summary.get('fetch_timestamp', 'N/A')}</p>"
+        
+        if info.get('files'):
+            html += "<h4>Available Files</h4><ul>"
+            for file_type, file_path in info['files'].items():
+                html += f"<li><b>{file_type.upper()}:</b> {os.path.basename(file_path)}</li>"
+            html += "</ul>"
+        
+        html += "<p><i>For comprehensive information, use 'Fetch PDB' to download enhanced data.</i></p>"
+        
+        browser.setHtml(html)
+        layout.addWidget(browser)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box.accepted.connect(dialog.accept)
+        layout.addWidget(button_box)
+        
+        dialog.exec_()
+    
     def open_local_pdb(self, file_path=None):
         if not file_path:
             file_path, _ = QFileDialog.getOpenFileName(
@@ -1023,8 +1478,6 @@ class ProteinViewerApp(QMainWindow):
 
     def display_structure(self, structure):
         from pathlib import Path
-        from Bio import SeqIO
-        from io import StringIO
         io = PDBIO()
         io.set_structure(structure)
 
@@ -1045,20 +1498,46 @@ class ProteinViewerApp(QMainWindow):
 
         print(f"Structure ID for sequence extraction: {structure.id}")
 
-        # Extract and display sequence
+        # Extract and display sequence using Bio.PDB structure iteration
         try:
-            # Read the PDB file content into a string buffer
-            with open(pdb_path, 'r', encoding='utf-8') as f:
-                pdb_content = f.read()
-            pdb_buffer = StringIO(pdb_content)
-
-            # Parse the PDB file to extract sequence information
+            from Bio.PDB.Polypeptide import protein_letters_3to1, is_aa
+            
             sequences = []
-            for i, record in enumerate(SeqIO.parse(pdb_buffer, "pdb-atom")): # Use "pdb-atom" for parsing PDB files
-                # Construct a more informative ID using the structure.id and chain ID
-                display_id = f"{structure.id}:{record.id.split(':')[-1]}" if ':' in record.id else f"{structure.id}:{record.id}"
-                sequences.append(f">{display_id}\n{record.seq}")
-            self.sequence_display.setText("\n".join(sequences))
+            
+            for model in structure:
+                for chain in model:
+                    chain_sequence = ""
+                    residue_count = 0
+                    
+                    # Build sequence from amino acid residues
+                    for residue in chain:
+                        if is_aa(residue):
+                            try:
+                                res_name = residue.get_resname()
+                                chain_sequence += protein_letters_3to1.get(res_name, 'X')
+                                residue_count += 1
+                            except:
+                                chain_sequence += 'X'  # Unknown amino acid
+                                residue_count += 1
+                    
+                    # Only add chains that have amino acid residues
+                    if chain_sequence:
+                        chain_id = chain.id if chain.id.strip() else 'A'  # Default to 'A' if empty
+                        display_id = f"{structure.id}:Chain_{chain_id}"
+                        sequence_header = f">{display_id} | {residue_count} residues"
+                        
+                        # Format sequence with line breaks every 80 characters for readability
+                        formatted_sequence = ""
+                        for i in range(0, len(chain_sequence), 80):
+                            formatted_sequence += chain_sequence[i:i+80] + "\n"
+                        
+                        sequences.append(f"{sequence_header}\n{formatted_sequence.rstrip()}")
+            
+            if sequences:
+                self.sequence_display.setText("\n\n".join(sequences))
+            else:
+                self.sequence_display.setText("No amino acid sequences found in this structure.")
+                
         except Exception as e:
             self.sequence_display.setText(f"Error extracting sequence: {e}")
             print(f"Error extracting sequence: {e}")
