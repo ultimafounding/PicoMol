@@ -177,6 +177,23 @@ class AboutDialog(QDialog):
             <i>Nucleic Acids Research</i> 28(1): 235-242, 2000.
             <a href='https://doi.org/10.1093/nar/28.1.235'>doi:10.1093/nar/28.1.235</a>
             </div>
+            
+            <p><b>MolProbity Ramachandran Validation:</b></p>
+            <div class="citation">
+            Davis IW, Leaver-Fay A, Chen VB, Block JN, Kapral GJ, Wang X, 
+            Murray LW, Arendall WB, Snoeyink J, Richardson JS, Richardson DC. 
+            MolProbity: all-atom contacts and structure validation for proteins and nucleic acids. 
+            <i>Nucleic Acids Research</i> 35(Web Server issue): W375-W383, 2007.
+            <a href='https://doi.org/10.1093/nar/gkm216'>doi:10.1093/nar/gkm216</a>
+            </div>
+            
+            <div class="citation">
+            Chen VB, Arendall WB, Headd JJ, Keedy DA, Immormino RM, 
+            Kapral GJ, Murray LW, Richardson JS, Richardson DC. 
+            MolProbity: all-atom structure validation for macromolecular crystallography. 
+            <i>Acta Crystallographica Section D</i> 66(1): 12-21, 2010.
+            <a href='https://doi.org/10.1107/S0907444909042073'>doi:10.1107/S0907444909042073</a>
+            </div>
             """
         )
         about_text.setWordWrap(True)

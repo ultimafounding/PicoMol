@@ -276,13 +276,17 @@ class StructuralAnalysisWorker(QThread):
                     try:
                         phi, psi = self.calculate_phi_psi(residues, i)
                         
-                        # Store for Ramachandran plot
+                        # Store for Ramachandran plot with classification
+                        residue_name = residues[i].get_resname()
+                        region = self.classify_ramachandran_region(phi, psi, residue_name)
+                        
                         results['ramachandran_data'].append({
-                            'residue': residues[i].get_resname(),
+                            'residue': residue_name,
                             'phi': phi,
                             'psi': psi,
                             'chain': chain.id,
-                            'position': residues[i].id[1]
+                            'position': residues[i].id[1],
+                            'region': region
                         })
                         
                         # Classify secondary structure based on phi/psi
@@ -959,7 +963,8 @@ class StructuralAnalysisWorker(QThread):
                         phi, psi = self.calculate_phi_psi(residues, i)
                         
                         # Classify Ramachandran regions
-                        region = self.classify_ramachandran_region(phi, psi)
+                        residue_name = residues[i].get_resname()
+                        region = self.classify_ramachandran_region(phi, psi, residue_name)
                         
                         if region == 'favored':
                             results['ramachandran_favored'] += 1
@@ -1018,26 +1023,119 @@ class StructuralAnalysisWorker(QThread):
         
         return results
     
-    def classify_ramachandran_region(self, phi, psi):
-        """Classify phi/psi angles into Ramachandran regions."""
-        # Simplified Ramachandran classification
-        # Favored regions (core)
-        if (-180 <= phi <= -30 and -70 <= psi <= 50):  # Alpha helix
-            return 'favored'
-        elif (-180 <= phi <= -30 and 90 <= psi <= 180):  # Beta sheet
-            return 'favored'
-        elif (-90 <= phi <= 30 and -180 <= psi <= -90):  # Beta sheet
-            return 'favored'
+    def classify_ramachandran_region(self, phi, psi, residue_name=None):
+        """Classify phi/psi angles into Ramachandran regions using MolProbity/Richardson lab definitions.
         
-        # Allowed regions (expanded)
-        elif (-180 <= phi <= -30 and -180 <= psi <= 180):  # Extended allowed
-            return 'allowed'
-        elif (30 <= phi <= 180 and -180 <= psi <= 180):   # Left-handed helix region
-            return 'allowed'
+        Based on the exact definitions used by MolProbity and other professional validation tools.
+        These boundaries are derived from high-resolution crystal structures and match the
+        standard Ramachandran plot regions used in structural biology.
         
-        # Outliers
-        else:
-            return 'outlier'
+        Args:
+            phi: Phi dihedral angle in degrees
+            psi: Psi dihedral angle in degrees
+            residue_name: Three-letter residue code (optional, for special cases)
+        
+        Returns:
+            str: 'favored', 'allowed', or 'outlier'
+        """
+        # Handle special cases for glycine and proline
+        if residue_name == 'GLY':
+            return self._classify_glycine_ramachandran(phi, psi)
+        elif residue_name == 'PRO':
+            return self._classify_proline_ramachandran(phi, psi)
+        
+        # General case
+        point = (phi, psi)
+        
+        # General Favored Regions (98th percentile)
+        favored_general = [
+            [(-180, 150), (-50, 150), (-50, 50), (-180, 50)], # Beta region
+            [(-100, 0), (-25, 0), (-25, -70), (-100, -70)], # Alpha-right region
+            [(45, 60), (90, 60), (90, 0), (45, 0)] # Alpha-left region
+        ]
+
+        # General Allowed Regions (99.95th percentile)
+        allowed_general = [
+            [(-180, 180), (-180, 50), (-50, 50), (-50, 180)], # Beta region
+            [(-180, 0), (-180, -100), (0, -100), (0, 0)], # Alpha-right region
+            [(45, 120), (120, 120), (120, -60), (45, -60)] # Alpha-left region
+        ]
+
+        for region in favored_general:
+            if self._is_in_polygon(point, region):
+                return 'favored'
+        for region in allowed_general:
+            if self._is_in_polygon(point, region):
+                return 'allowed'
+
+        return 'outlier'
+
+    def _is_in_polygon(self, point, polygon):
+        """Checks if a point is inside a polygon using the ray-casting algorithm."""
+        x, y = point
+        n = len(polygon)
+        inside = False
+        p1x, p1y = polygon[0]
+        for i in range(n + 1):
+            p2x, p2y = polygon[i % n]
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        return inside
+
+    def _classify_glycine_ramachandran(self, phi, psi):
+        """Special Ramachandran classification for glycine residues."""
+        point = (phi, psi)
+        
+        # Glycine Favored Regions
+        favored_gly = [
+            [(-180, 180), (0, 180), (0, 50), (-180, 50)], # Top-left region
+            [(0, 180), (180, 180), (180, -50), (0, -50)], # Top-right region
+            [(-180, 0), (-180, -100), (0, -100), (0, 0)] # Bottom-left region
+        ]
+
+        # Glycine Allowed Regions
+        allowed_gly = [
+            [(-180, 180), (180, 180), (180, -180), (-180, -180)] # Almost the entire plot
+        ]
+
+        for region in favored_gly:
+            if self._is_in_polygon(point, region):
+                return 'favored'
+        for region in allowed_gly:
+            if self._is_in_polygon(point, region):
+                return 'allowed'
+        
+        return 'outlier'
+
+    def _classify_proline_ramachandran(self, phi, psi):
+        """Special Ramachandran classification for proline residues."""
+        point = (phi, psi)
+
+        # Proline Favored Regions
+        favored_pro = [
+            [(-100, 180), (-50, 180), (-50, 100), (-100, 100)], # PPII region
+            [(-100, 50), (-50, 50), (-50, -50), (-100, -50)] # Beta-turn region
+        ]
+
+        # Proline Allowed Regions
+        allowed_pro = [
+            [(-120, 180), (-30, 180), (-30, -60), (-120, -60)]
+        ]
+
+        for region in favored_pro:
+            if self._is_in_polygon(point, region):
+                return 'favored'
+        for region in allowed_pro:
+            if self._is_in_polygon(point, region):
+                return 'allowed'
+
+        return 'outlier'
     
     def detect_cavities(self):
         """Detect potential binding sites and cavities using improved geometric methods.
@@ -1753,20 +1851,7 @@ class StructuralAnalysisTab(QWidget):
         self.quality_checkbox.setToolTip("Assess structural quality")
         options_layout.addWidget(self.quality_checkbox)
         
-        self.surface_checkbox = QCheckBox("Surface Properties")
-        self.surface_checkbox.setChecked(False)
-        self.surface_checkbox.setToolTip("Analyze surface properties using SASA calculation")
-        options_layout.addWidget(self.surface_checkbox)
-        
-        # SASA Configuration button
-        self.sasa_config_btn = QPushButton("SASA Settings")
-        self.sasa_config_btn.setToolTip("Configure SASA calculation parameters")
-        self.sasa_config_btn.setEnabled(False)  # Initially disabled
-        self.sasa_config_btn.clicked.connect(self.show_sasa_config)
-        options_layout.addWidget(self.sasa_config_btn)
-        
-        # Connect surface checkbox to enable/disable config button
-        self.surface_checkbox.stateChanged.connect(self.on_surface_checkbox_changed)
+        # Surface Properties analysis removed - will be added in a future release
         
         # Binding Sites analysis moved to dedicated tab - removed from here
         
@@ -1825,7 +1910,7 @@ class StructuralAnalysisTab(QWidget):
             "<li><b>Secondary Structure:</b> Helix/sheet/loop content, Ramachandran plots</li>"
             "<li><b>Geometric Analysis:</b> Bond lengths, angles, radius of gyration</li>"
             "<li><b>Quality Assessment:</b> Ramachandran outliers, missing atoms, B-factors</li>"
-            "<li><b>Surface Properties:</b> SASA calculation for surface accessibility</li>"
+
             "</ul>"
             "<p><i>Tip: Enter a PDB ID to fetch from the database, load from the 3D viewer, or select a local PDB file.</i></p>"
             + matplotlib_note +
@@ -2036,8 +2121,7 @@ class StructuralAnalysisTab(QWidget):
             analysis_types.append('geometry')
         if self.quality_checkbox.isChecked():
             analysis_types.append('quality')
-        if self.surface_checkbox.isChecked():
-            analysis_types.append('surface')
+        # Surface analysis removed - will be added in a future release
         
         if not analysis_types:
             QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
@@ -2050,9 +2134,7 @@ class StructuralAnalysisTab(QWidget):
         # Start analysis in worker thread
         self.analysis_worker = StructuralAnalysisWorker(self.current_structure_path, analysis_types)
         
-        # Pass SASA configuration if surface analysis is selected
-        if 'surface' in analysis_types:
-            self.analysis_worker.sasa_config = getattr(self, 'sasa_config', self.get_default_sasa_config())
+        # Surface analysis configuration removed - will be added in a future release
         self.analysis_worker.analysis_complete.connect(self.display_results)
         self.analysis_worker.error_occurred.connect(self.handle_analysis_error)
         self.analysis_worker.progress_update.connect(self.update_progress)
@@ -2208,151 +2290,443 @@ class StructuralAnalysisTab(QWidget):
         return canvas
     
     def create_ramachandran_plot(self, rama_data):
-        """Create a proper conventional Ramachandran plot."""
+        """Create a Ramachandran plot showing phi/psi angles with regions."""
         if not MATPLOTLIB_AVAILABLE or not rama_data:
             return None
         
-        fig = Figure(figsize=(10, 10), dpi=100)
+        # Set up the figure with clean styling and larger size
+        plt.style.use('default')
+        fig = Figure(figsize=(12, 10), dpi=110, facecolor='white')
         canvas = FigureCanvas(fig)
-        ax = fig.add_subplot(111)
+        canvas.setMinimumSize(1000, 800)  # Ensure minimum size for the canvas
         
-        # Extract phi and psi angles
+        # Create a single subplot with adjusted margins
+        ax = fig.add_subplot(111, facecolor='white')
+        fig.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
+        
+        # Extract data
         phi_angles = [d['phi'] for d in rama_data]
         psi_angles = [d['psi'] for d in rama_data]
+        res_names = [d.get('residue_name', 'UNK') for d in rama_data]
         
-        # Define conventional Ramachandran regions based on crystallographic data
-        # Most favored regions (core)
-        favored_regions = [
-            # Right-handed alpha helix (αR)
-            patches.Polygon([(-180, -70), (-30, -70), (-30, 50), (-180, 50)], 
-                          closed=True, facecolor='darkgreen', alpha=0.3, edgecolor='darkgreen', linewidth=2),
-            # Beta sheet region
-            patches.Polygon([(-180, 90), (-30, 90), (-30, 180), (-180, 180)], 
-                          closed=True, facecolor='darkgreen', alpha=0.3, edgecolor='darkgreen', linewidth=2),
-            # Extended beta region
-            patches.Polygon([(-180, -180), (-30, -180), (-30, -90), (-180, -90)], 
-                          closed=True, facecolor='darkgreen', alpha=0.3, edgecolor='darkgreen', linewidth=2),
-            # Left-handed alpha helix (αL) - rare but allowed
-            patches.Polygon([(30, 30), (90, 30), (90, 90), (30, 90)], 
-                          closed=True, facecolor='darkgreen', alpha=0.3, edgecolor='darkgreen', linewidth=2)
+        # Define Ramachandran regions (favored and allowed)
+        def add_region(ax, points, color, alpha=0.3, zorder=1):
+            poly = patches.Polygon(
+                points,
+                closed=True,
+                facecolor=color,
+                alpha=alpha,
+                edgecolor=color,
+                linewidth=1.5,
+                zorder=zorder
+            )
+            ax.add_patch(poly)
+            return poly
+        
+        # Define core (favored) regions
+        core_regions = [
+            [(-180, -65), (-55, -65), (-55, 30), (-180, 30)],  # α-helix (αR)
+            [(-180, 90), (-100, 90), (-100, 180), (-180, 180)],  # β-sheet (upper right)
+            [(-180, -180), (-100, -180), (-100, -90), (-180, -90)],  # β-sheet (lower right)
+            [(30, 30), (90, 30), (90, 90), (30, 90)]  # Left-handed α-helix (αL)
         ]
         
-        # Additional allowed regions (lighter green)
+        # Define allowed regions
         allowed_regions = [
-            # Extended allowed alpha region
-            patches.Polygon([(-180, -90), (-30, -90), (-30, -70), (-180, -70)], 
-                          closed=True, facecolor='lightgreen', alpha=0.3, edgecolor='green', linewidth=1),
-            # Extended allowed beta region
-            patches.Polygon([(-30, 90), (30, 90), (30, 180), (-30, 180)], 
-                          closed=True, facecolor='lightgreen', alpha=0.3, edgecolor='green', linewidth=1),
-            # Bridge region
-            patches.Polygon([(-90, -30), (-30, -30), (-30, 30), (-90, 30)], 
-                          closed=True, facecolor='lightgreen', alpha=0.3, edgecolor='green', linewidth=1),
-            # Left-handed extended region
-            patches.Polygon([(30, -180), (180, -180), (180, -90), (30, -90)], 
-                          closed=True, facecolor='lightgreen', alpha=0.3, edgecolor='green', linewidth=1)
+            [(-180, 30), (-55, 30), (-55, 90), (-180, 90)],  # Upper αR extension
+            [(-55, -65), (0, -65), (0, 30), (-55, 30)],  # Right αR extension
+            [(-100, 90), (-55, 90), (-55, 180), (-100, 180)],  # Upper β extension
+            [(-100, -180), (-55, -180), (-55, -90), (-100, -90)],  # Lower β extension
+            [(0, 0), (90, 0), (90, 30), (30, 30), (30, 90), (0, 90)],  # αL allowed
+            [(-100, -90), (-55, -90), (-55, 90), (-100, 90)]  # Bridge region
         ]
         
-        # Add regions to plot
+        # Add regions to plot (allowed first, then core on top)
         for region in allowed_regions:
-            ax.add_patch(region)
-        for region in favored_regions:
-            ax.add_patch(region)
+            add_region(ax, region, '#aec7e8', alpha=0.2, zorder=1)
+        for region in core_regions:
+            add_region(ax, region, '#1f77b4', alpha=0.3, zorder=2)
         
-        # Create scatter plot with different colors for different regions
-        # Classify points by region
-        favored_phi, favored_psi = [], []
-        allowed_phi, allowed_psi = [], []
-        outlier_phi, outlier_psi = [], []
-        
-        for phi, psi in zip(phi_angles, psi_angles):
-            if self.is_in_favored_region(phi, psi):
-                favored_phi.append(phi)
-                favored_psi.append(psi)
-            elif self.is_in_allowed_region(phi, psi):
-                allowed_phi.append(phi)
-                allowed_psi.append(psi)
+        # Classify points and plot with proper z-ordering
+        points_data = []
+        for i, (phi, psi, res_name) in enumerate(zip(phi_angles, psi_angles, res_names)):
+            if self.is_in_favored_region(phi, psi, res_name):
+                points_data.append((phi, psi, 'favored'))
+            elif self.is_in_allowed_region(phi, psi, res_name):
+                points_data.append((phi, psi, 'allowed'))
             else:
-                outlier_phi.append(phi)
-                outlier_psi.append(psi)
+                points_data.append((phi, psi, 'outlier'))
         
-        # Plot points with different colors
-        if favored_phi:
-            ax.scatter(favored_phi, favored_psi, c='darkblue', s=20, alpha=0.7, label=f'Favored ({len(favored_phi)})')
-        if allowed_phi:
-            ax.scatter(allowed_phi, allowed_psi, c='orange', s=20, alpha=0.7, label=f'Allowed ({len(allowed_phi)})')
-        if outlier_phi:
-            ax.scatter(outlier_phi, outlier_psi, c='red', s=20, alpha=0.8, label=f'Outliers ({len(outlier_phi)})')
+        # Plot points with enhanced styles for better visibility
+        point_styles = {
+            'favored': {'color': '#1f77b4', 'size': 40, 'alpha': 0.9, 'edgecolor': '#0d3c78', 'linewidth': 1.0},
+            'allowed': {'color': '#aec7e8', 'size': 35, 'alpha': 0.8, 'edgecolor': '#6b8cae', 'linewidth': 0.9},
+            'outlier': {'color': '#ff7f0e', 'size': 50, 'alpha': 0.95, 'edgecolor': '#cc6600', 'linewidth': 1.2}
+        }
         
-        # Set up the plot
+        # Initialize scatter_plots dictionary to store scatter objects and tooltips
+        scatter_plots = {}
+        
+        for point_type in ['favored', 'allowed', 'outlier']:
+            points = [(x, y, i) for i, (x, y, pt) in enumerate(points_data) if pt == point_type]
+            if points:
+                x_vals, y_vals, indices = zip(*points)
+                scatter = ax.scatter(
+                    x_vals, y_vals,
+                    s=point_styles[point_type]['size'],
+                    c=point_styles[point_type]['color'],
+                    alpha=point_styles[point_type]['alpha'],
+                    edgecolors=point_styles[point_type]['edgecolor'],
+                    linewidth=point_styles[point_type]['linewidth'],
+                    zorder=3,  # Ensure points are above regions
+                    label=f'{point_type.capitalize()} ({len(points)})',
+                    picker=5  # Enable picking with 5-pixel tolerance
+                )
+                
+                # Store scatter object and tooltips for this point type
+                tooltips = []
+                for idx in indices:
+                    res_data = rama_data[idx]
+                    tooltip = f"{res_data.get('residue_name', 'UNK')} {res_data.get('residue_number', '')} (φ={res_data['phi']:.1f}°, ψ={res_data['psi']:.1f}°)"
+                    tooltips.append(tooltip)
+                
+                scatter_plots[point_type] = {
+                    'scatter': scatter,
+                    'tooltips': tooltips,
+                    'indices': indices
+                }
+        
+        # Set up the plot appearance with enhanced styling
         ax.set_xlim(-180, 180)
         ax.set_ylim(-180, 180)
-        ax.set_xlabel('φ (phi) degrees', fontsize=12)
-        ax.set_ylabel('ψ (psi) degrees', fontsize=12)
-        ax.set_title('Ramachandran Plot', fontsize=14, fontweight='bold')
         
-        # Add grid
-        ax.grid(True, alpha=0.3, linestyle='-', linewidth=0.5)
-        ax.set_xticks(range(-180, 181, 60))
-        ax.set_yticks(range(-180, 181, 60))
+        # Larger, more prominent labels and title
+        label_font = {'fontsize': 12, 'fontweight': 'normal'}
+        title_font = {'fontsize': 14, 'fontweight': 'bold', 'pad': 20}
         
-        # Add region labels
-        ax.text(-105, -20, 'αR', fontsize=16, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-        ax.text(-105, 135, 'β', fontsize=16, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-        ax.text(-105, -135, 'β', fontsize=16, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
-        ax.text(60, 60, 'αL', fontsize=16, fontweight='bold', ha='center', va='center',
-                bbox=dict(boxstyle='round,pad=0.3', facecolor='white', alpha=0.8))
+        ax.set_xlabel('φ (phi) degrees', **label_font)
+        ax.set_ylabel('ψ (psi) degrees', **label_font)
+        ax.set_title('Ramachandran Plot', **title_font)
         
-        # Add legend
-        legend = ax.legend(loc='upper right', fontsize=10)
-        legend.get_frame().set_alpha(0.9)
+        # Enhanced grid and ticks
+        ax.grid(True, linestyle='--', alpha=0.4, color='#999999')
         
-        # Add statistics text
-        total_points = len(phi_angles)
-        favored_pct = (len(favored_phi) / total_points * 100) if total_points > 0 else 0
-        allowed_pct = (len(allowed_phi) / total_points * 100) if total_points > 0 else 0
-        outlier_pct = (len(outlier_phi) / total_points * 100) if total_points > 0 else 0
+        # Set ticks with more frequent minor ticks
+        major_ticks = [-180, -135, -90, -45, 0, 45, 90, 135, 180]
+        minor_ticks = [x for x in range(-180, 181, 15) if x not in major_ticks]
         
-        stats_text = f"Favored: {favored_pct:.1f}%\nAllowed: {allowed_pct:.1f}%\nOutliers: {outlier_pct:.1f}%"
-        ax.text(-170, -150, stats_text, fontsize=10, 
-                bbox=dict(boxstyle='round,pad=0.5', facecolor='lightyellow', alpha=0.9))
+        ax.set_xticks(major_ticks)
+        ax.set_yticks(major_ticks)
+        ax.set_xticks(minor_ticks, minor=True)
+        ax.set_yticks(minor_ticks, minor=True)
         
-        # Improve tick labels
+        # Make tick labels larger
         ax.tick_params(axis='both', which='major', labelsize=10)
+        ax.tick_params(axis='both', which='minor', length=4, width=0.5)
         
-        fig.tight_layout()
-        canvas.setMinimumSize(1000, 900)
-        return canvas
-    
-    def is_in_favored_region(self, phi, psi):
-        """Check if phi/psi angles are in favored regions."""
-        # Right-handed alpha helix
-        if -180 <= phi <= -30 and -70 <= psi <= 50:
+        # Add enhanced legend with better styling
+        legend = ax.legend(
+            loc='upper right',
+            frameon=True,
+            framealpha=0.95,
+            edgecolor='#cccccc',
+            facecolor='white',
+            fancybox=True,
+            fontsize=10,
+            title='Regions',
+            title_fontsize=11,
+            borderpad=1.0,
+            labelspacing=0.8,
+            handlelength=1.5,
+            handletextpad=0.5
+        )
+        
+        # Make legend frame more visible
+        legend.get_frame().set_linewidth(1.0)
+        
+        # Adjust layout with more padding
+        fig.tight_layout(rect=[0, 0, 1, 0.97])  # Adjust top padding to prevent title cutoff
+        
+        # Add region labels with nicer styling
+        region_labels = [
+            (-105, -20, 'αR', '#1f77b4'),
+            (-105, 135, 'β', '#1f77b4'),
+            (-105, -135, 'β', '#1f77b4'),
+            (60, 60, 'αL', '#1f77b4')
+        ]
+        
+        for x, y, label, color in region_labels:
+            ax.text(
+                x, y, label,
+                fontsize=14, 
+                fontweight='bold',
+                ha='center', 
+                va='center',
+                bbox=dict(
+                    boxstyle='round,pad=0.3',
+                    facecolor='white',
+                    alpha=0.9,
+                    edgecolor=color,
+                    linewidth=1.5
+                ),
+                zorder=20
+            )
+
+        # Create a container widget for the plot and table
+        container = QWidget()
+        layout = QVBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
+        
+        # Add the plot to the layout
+        layout.addWidget(canvas, stretch=2)  # Plot takes 2/3 of the space
+        
+        # Add outliers table if there are any
+        outlier_points = [(i, d) for i, d in enumerate(rama_data) 
+                         if points_data[i][2] == 'outlier']
+        
+        if outlier_points:
+            # Create table for outliers
+            table_group = QGroupBox(f"Ramachandran Outliers ({len(outlier_points)})")
+            table_group.setStyleSheet("QGroupBox { font-size: 12px; font-weight: bold; }")
+            table_layout = QVBoxLayout(table_group)
+            table_layout.setContentsMargins(8, 15, 8, 8)
+            table_layout.setSpacing(8)
+            
+            # Create table with improved styling
+            table = QTableWidget()
+            table.setColumnCount(6)
+            table.setHorizontalHeaderLabels(["Residue", "Chain", "Position", "φ", "ψ", "Region"])
+            
+            # Set table font
+            font = table.font()
+            font.setPointSize(10)
+            table.setFont(font)
+            table.horizontalHeader().setFont(font)
+            
+            # Set minimum size and resize mode
+            table.setMinimumHeight(200)  # Minimum height to ensure visibility
+            table.setMinimumWidth(600)   # Minimum width to ensure all columns are visible
+            table.verticalHeader().setDefaultSectionSize(24)  # Row height
+            table.horizontalHeader().setStretchLastSection(True)
+            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+            table.horizontalHeader().setMinimumSectionSize(60)  # Ensure minimum column width
+            
+            # Sort by chain and position
+            outlier_points.sort(key=lambda x: (str(x[1].get('chain', '')), int(x[1].get('residue_number', 0))))
+            
+            # Populate table
+            table.setRowCount(len(outlier_points))
+            for row, (idx, data) in enumerate(outlier_points):
+                table.setItem(row, 0, QTableWidgetItem(data.get('residue_name', 'UNK')))
+                table.setItem(row, 1, QTableWidgetItem(str(data.get('chain', ''))))
+                table.setItem(row, 2, QTableWidgetItem(str(data.get('residue_number', ''))))
+                table.setItem(row, 3, QTableWidgetItem(f"{data.get('phi', 0):.1f}°"))
+                table.setItem(row, 4, QTableWidgetItem(f"{data.get('psi', 0):.1f}°"))
+                table.setItem(row, 5, QTableWidgetItem("Outlier"))
+                
+                # Make items non-editable and set text alignment
+                for col in range(6):
+                    item = table.item(row, col)
+                    if item:
+                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
+                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            
+            # Adjust column widths with better padding
+            table.resizeColumnsToContents()
+            
+            # Set table properties
+            table.setAlternatingRowColors(True)
+            table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+            table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+            
+            # Add a scroll area to contain the table
+            scroll_area = QScrollArea()
+            scroll_area.setWidgetResizable(True)
+            scroll_area.setWidget(table)
+            
+            # Add table to layout with a stretchable space above it
+            table_layout.addWidget(scroll_area)
+            layout.addWidget(table_group, stretch=1)  # Table takes 1/3 of the space
+        
+        # Count the number of points in each region
+        favored_count = sum(1 for pt in points_data if pt[2] == 'favored')
+        allowed_count = sum(1 for pt in points_data if pt[2] == 'allowed')
+        outlier_count = sum(1 for pt in points_data if pt[2] == 'outlier')
+        total_points = len(points_data)
+        
+        # Return the container and the counts
+        return container, {
+            'favored': favored_count,
+            'allowed': allowed_count,
+            'outliers': outlier_count,
+            'total': total_points
+        }
+        """Check if phi/psi angles are in favored regions according to MolProbity standard.
+        
+        Args:
+            phi: Phi angle in degrees
+            psi: Psi angle in degrees
+            residue_name: Optional three-letter residue code for special cases
+            
+        Returns:
+            bool: True if in favored region, False otherwise
+        """
+        # Handle special cases first
+        if residue_name == 'GLY':
+            return self._is_glycine_favored(phi, psi)
+        elif residue_name == 'PRO':
+            return self._is_proline_favored(phi, psi)
+            
+        # General case for standard amino acids
+        # Core alpha-helix region (αR)
+        if (-180 <= phi <= -25 and -80 <= psi <= 20):
             return True
-        # Beta sheet regions
-        if -180 <= phi <= -30 and 90 <= psi <= 180:
+            
+        # Core beta-sheet region (β)
+        if (-180 <= phi <= -100 and 80 <= psi <= 180):  # Upper beta
             return True
-        if -180 <= phi <= -30 and -180 <= psi <= -90:
+        if (-180 <= phi <= -100 and -180 <= psi <= -100):  # Lower beta
             return True
-        # Left-handed alpha helix (rare)
-        if 30 <= phi <= 90 and 30 <= psi <= 90:
+            
+        # Core left-handed alpha-helix (αL)
+        if (25 <= phi <= 90 and 25 <= psi <= 90):
             return True
+            
         return False
     
-    def is_in_allowed_region(self, phi, psi):
-        """Check if phi/psi angles are in allowed regions."""
-        # Extended allowed regions around favored ones
-        if -180 <= phi <= -30 and -90 <= psi <= -70:
+    def is_in_favored_region(self, phi, psi, residue_name=None):
+        """Check if phi/psi angles are in favored regions according to MolProbity standard.
+        
+        Args:
+            phi: Phi angle in degrees
+            psi: Psi angle in degrees
+            residue_name: Optional three-letter residue code for special cases
+            
+        Returns:
+            bool: True if in favored region, False otherwise
+        """
+        # Handle special cases first
+        if residue_name == 'GLY':
+            return self._is_glycine_favored(phi, psi)
+        elif residue_name == 'PRO':
+            return self._is_proline_favored(phi, psi)
+            
+        # General case for standard amino acids
+        # Core alpha-helix region (αR)
+        if (-100 <= phi <= -30 and -60 <= psi <= 10):
             return True
-        if -30 <= phi <= 30 and 90 <= psi <= 180:
+            
+        # Core beta-sheet region (β)
+        if (-160 <= phi <= -60 and 90 <= psi <= 180):  # Upper beta
             return True
-        if -90 <= phi <= -30 and -30 <= psi <= 30:
+        if (-160 <= phi <= -60 and -180 <= psi <= -80):  # Lower beta
             return True
-        if 30 <= phi <= 180 and -180 <= psi <= -90:
+            
+        # Core left-handed alpha-helix (αL)
+        if (30 <= phi <= 80 and 30 <= psi <= 80):
             return True
+            
+        return False
+    
+    def is_in_allowed_region(self, phi, psi, residue_name=None):
+        """Check if phi/psi angles are in allowed regions according to MolProbity standard.
+        
+        Args:
+            phi: Phi angle in degrees
+            psi: Psi angle in degrees
+            residue_name: Optional three-letter residue code for special cases
+            
+        Returns:
+            bool: True if in allowed region, False otherwise
+        """
+        # Handle special cases first
+        if residue_name == 'GLY':
+            return self._is_glycine_allowed(phi, psi)
+        elif residue_name == 'PRO':
+            return self._is_proline_allowed(phi, psi)
+            
+        # General case for standard amino acids
+        # If already in favored region, it's also in allowed region
+        if self.is_in_favored_region(phi, psi, residue_name):
+            return True
+            
+        # Allowed alpha-helix region
+        if (-180 <= phi <= -25 and 20 <= psi <= 80):
+            return True
+        if (-25 <= phi <= 0 and -80 <= psi <= 80):
+            return True
+            
+        # Allowed beta-sheet region
+        if (-100 <= phi <= -25 and 80 <= psi <= 180):
+            return True
+        if (-100 <= phi <= -25 and -180 <= psi <= -100):
+            return True
+            
+        # Left-handed alpha-helix allowed region
+        if (0 <= phi <= 90 and 0 <= psi <= 90):
+            return True
+            
+        # Bridge region (connects alpha and beta)
+        if (-100 <= phi <= -25 and -100 <= psi <= 80):
+            return True
+            
+        return False
+    
+    def _is_glycine_favored(self, phi, psi):
+        """Check if glycine phi/psi angles are in favored regions."""
+        # Glycine has much larger allowed regions due to its flexibility
+        # Core alpha-helix region (αR)
+        if (-180 <= phi <= -25 and -120 <= psi <= 80):
+            return True
+            
+        # Core beta-sheet region (β)
+        if (-180 <= phi <= -25 and 80 <= psi <= 180):
+            return True
+            
+        # Core left-handed alpha-helix (αL)
+        if (25 <= phi <= 180 and 0 <= psi <= 180):
+            return True
+            
+        return False
+    
+    def _is_glycine_allowed(self, phi, psi):
+        """Check if glycine phi/psi angles are in allowed regions."""
+        # For glycine, almost all regions are allowed
+        # Only exclude the most sterically disfavored regions
+        if (-180 <= phi <= 180 and -180 <= psi <= 180):
+            # Only exclude the most disfavored region
+            if not (-30 <= phi <= 30 and -60 <= psi <= -30):
+                return True
+        return False
+    
+    def _is_proline_favored(self, phi, psi):
+        """Check if proline phi/psi angles are in favored regions."""
+        # Proline is highly constrained due to its ring structure
+        # Core alpha-helix region (αR)
+        if (-75 <= phi <= -45 and -60 <= psi <= -10):
+            return True
+            
+        # Polyproline II helix (common for proline)
+        if (-75 <= phi <= -45 and 120 <= psi <= 180):
+            return True
+            
+        return False
+    
+    def _is_proline_allowed(self, phi, psi):
+        """Check if proline phi/psi angles are in allowed regions."""
+        # Proline has very restricted allowed regions
+        if self._is_proline_favored(phi, psi):
+            return True
+            
+        # Slightly extended alpha-helix region
+        if (-90 <= phi <= -30 and -90 <= psi <= 30):
+            return True
+            
+        # Extended polyproline II region
+        if (-90 <= phi <= -30 and 90 <= psi <= 180):
+            return True
+            
         return False
     
     def create_histogram(self, data, title, xlabel, ylabel, bins=20):
@@ -2630,8 +3004,7 @@ class StructuralAnalysisTab(QWidget):
         if 'quality' in results:
             self.display_quality_results(results['quality'])
         
-        if 'surface' in results:
-            self.display_surface_results(results['surface'])
+        # Surface results display removed - will be added in a future release
         
         # Cavity analysis moved to dedicated tab - removed from here
         
@@ -2807,7 +3180,7 @@ class StructuralAnalysisTab(QWidget):
             rama_content_layout = QHBoxLayout()
             
             # Ramachandran plot
-            rama_plot = self.create_ramachandran_plot(results['ramachandran_data'])
+            rama_plot, rama_counts = self.create_ramachandran_plot(results['ramachandran_data'])
             if rama_plot:
                 rama_content_layout.addWidget(rama_plot, 2)  # Give plot more space
             
@@ -2975,7 +3348,31 @@ class StructuralAnalysisTab(QWidget):
         quality_layout = QVBoxLayout(quality_group)
         
         # Ramachandran statistics with pie chart
-        total_rama = results.get('ramachandran_favored', 0) + results.get('ramachandran_allowed', 0) + results.get('ramachandran_outliers_count', 0)
+        # Use the same classification as the Ramachandran plot for consistency
+        if hasattr(self, 'current_results') and 'secondary' in self.current_results and 'ramachandran_data' in self.current_results['secondary']:
+            # Classify each point using the same method as the plot
+            rama_data = self.current_results['secondary']['ramachandran_data']
+            favored_count = 0
+            allowed_count = 0
+            outliers_count = 0
+            
+            for r in rama_data:
+                phi = r.get('phi', 0)
+                psi = r.get('psi', 0)
+                if self.is_in_favored_region(phi, psi):
+                    favored_count += 1
+                elif self.is_in_allowed_region(phi, psi):
+                    allowed_count += 1
+                else:
+                    outliers_count += 1
+                    
+            total_rama = len(rama_data)
+        else:
+            # Fallback to quality analysis counts if secondary data not available
+            favored_count = results.get('ramachandran_favored', 0)
+            allowed_count = results.get('ramachandran_allowed', 0)
+            outliers_count = results.get('ramachandran_outliers_count', 0)
+            total_rama = max(favored_count + allowed_count + outliers_count, 1)  # Prevent division by zero
         if total_rama > 0:
             rama_summary_group = QGroupBox("Ramachandran Quality")
             rama_summary_layout = QHBoxLayout(rama_summary_group)
@@ -2984,13 +3381,13 @@ class StructuralAnalysisTab(QWidget):
             stats_widget = QWidget()
             stats_layout = QFormLayout(stats_widget)
             
-            favored_pct = (results.get('ramachandran_favored', 0) / total_rama) * 100
-            allowed_pct = (results.get('ramachandran_allowed', 0) / total_rama) * 100
-            outlier_pct = (results.get('ramachandran_outliers_count', 0) / total_rama) * 100
+            favored_pct = (favored_count / total_rama) * 100
+            allowed_pct = (allowed_count / total_rama) * 100
+            outlier_pct = (outliers_count / total_rama) * 100
             
-            stats_layout.addRow("Favored:", QLabel(f"{favored_pct:.1f}% ({results.get('ramachandran_favored', 0)} residues)"))
-            stats_layout.addRow("Allowed:", QLabel(f"{allowed_pct:.1f}% ({results.get('ramachandran_allowed', 0)} residues)"))
-            stats_layout.addRow("Outliers:", QLabel(f"{outlier_pct:.1f}% ({results.get('ramachandran_outliers_count', 0)} residues)"))
+            stats_layout.addRow("Favored:", QLabel(f"{favored_pct:.1f}% ({favored_count} residues)"))
+            stats_layout.addRow("Allowed:", QLabel(f"{allowed_pct:.1f}% ({allowed_count} residues)"))
+            stats_layout.addRow("Outliers:", QLabel(f"{outlier_pct:.1f}% ({outliers_count} residues)"))
             stats_layout.addRow("Total Residues:", QLabel(str(total_rama)))
             
             stats_widget.setMaximumWidth(350)
@@ -3026,32 +3423,7 @@ class StructuralAnalysisTab(QWidget):
         quality_layout.addWidget(summary_stats_group)
         self.results_layout.addWidget(quality_group)
         
-        # Ramachandran outliers
-        if results.get('ramachandran_outliers'):
-            outlier_group = QGroupBox("Ramachandran Outliers")
-            outlier_layout = QVBoxLayout(outlier_group)
-            
-            outlier_table = QTableWidget()
-            outlier_table.setColumnCount(5)
-            outlier_table.setHorizontalHeaderLabels(["Residue", "Chain", "Position", "Phi (°)", "Psi (°)"])
-            
-            outliers = results['ramachandran_outliers']
-            outlier_table.setRowCount(len(outliers))
-            
-            for i, outlier in enumerate(outliers):
-                outlier_table.setItem(i, 0, QTableWidgetItem(outlier['residue']))
-                outlier_table.setItem(i, 1, QTableWidgetItem(outlier['chain']))
-                outlier_table.setItem(i, 2, QTableWidgetItem(str(outlier['position'])))
-                outlier_table.setItem(i, 3, QTableWidgetItem(f"{outlier['phi']:.1f}"))
-                outlier_table.setItem(i, 4, QTableWidgetItem(f"{outlier['psi']:.1f}"))
-            
-            outlier_table.resizeColumnsToContents()
-            # Allow table to expand to show all outliers
-            outlier_table.setMinimumHeight(100)
-            # Remove maximum height restriction to show all data
-            outlier_layout.addWidget(outlier_table)
-            
-            self.results_layout.addWidget(outlier_group)
+        # Ramachandran outliers table has been removed as requested
         
         # Missing atoms
         if results.get('missing_atoms'):
@@ -3341,7 +3713,7 @@ class StructuralAnalysisTab(QWidget):
         }
         
         # Add selected analysis types
-        for analysis_type in ['basic', 'secondary', 'geometry', 'quality', 'surface']:
+        for analysis_type in ['basic', 'secondary', 'geometry', 'quality']:
             if analysis_type in self.current_results and options.get(f'include_{analysis_type}', True):
                 export_data['analysis_results'][analysis_type] = self.current_results[analysis_type]
         
@@ -3444,7 +3816,8 @@ class StructuralAnalysisTab(QWidget):
                 writer.writerow([])
             
             # Surface Properties
-            if 'surface' in self.current_results and options.get('include_surface', True):
+            # Surface Properties export removed - will be added in a future release
+            if False:  # Surface export disabled
                 surface = self.current_results['surface']
                 writer.writerow(['=== SURFACE PROPERTIES ==='])
                 writer.writerow(['Property', 'Value'])
@@ -3574,7 +3947,8 @@ class StructuralAnalysisTab(QWidget):
                     pd.DataFrame(quality_data).to_excel(writer, sheet_name='Quality', index=False)
                 
                 # Surface Properties
-                if 'surface' in self.current_results and options.get('include_surface', True):
+                # Surface Properties export removed - will be added in a future release
+                if False:  # Surface export disabled
                     surface = self.current_results['surface']
                     
                     surface_data = {
@@ -3693,7 +4067,8 @@ class StructuralAnalysisTab(QWidget):
                 f.write("\n")
             
             # Surface Properties
-            if 'surface' in self.current_results and options.get('include_surface', True):
+            # Surface Properties export removed - will be added in a future release
+            if False:  # Surface export disabled
                 surface = self.current_results['surface']
                 f.write("SURFACE PROPERTIES\n")
                 f.write("-"*40 + "\n")
@@ -4218,10 +4593,7 @@ class ExportDialog(QDialog):
         self.include_quality.setEnabled('quality' in self.results if self.results else False)
         content_layout.addWidget(self.include_quality)
         
-        self.include_surface = QCheckBox("Surface Properties")
-        self.include_surface.setChecked(True)
-        self.include_surface.setEnabled('surface' in self.results if self.results else False)
-        content_layout.addWidget(self.include_surface)
+        # Surface Properties export removed - will be added in a future release
         
         # Additional options
         content_layout.addWidget(QLabel(""))  # Spacer
@@ -4342,7 +4714,7 @@ class ExportDialog(QDialog):
             'include_secondary': self.include_secondary.isChecked(),
             'include_geometry': self.include_geometry.isChecked(),
             'include_quality': self.include_quality.isChecked(),
-            'include_surface': self.include_surface.isChecked(),
+            # Surface Properties export removed
             'include_ramachandran': self.include_ramachandran.isChecked(),
             'include_residue_details': self.include_residue_details.isChecked()
         }
@@ -4361,7 +4733,7 @@ class ExportDialog(QDialog):
             self.include_secondary.isChecked(),
             self.include_geometry.isChecked(),
             self.include_quality.isChecked(),
-            self.include_surface.isChecked()
+            # Surface Properties export removed
         ]):
             QMessageBox.warning(self, "Export Error", "Please select at least one content type to export.")
             return
