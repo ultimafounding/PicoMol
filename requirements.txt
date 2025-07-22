@@ -12,9 +12,12 @@ PyQtWebEngine>=5.15.0
 
 # Bioinformatics and molecular data handling
 biopython>=1.79
+ramachandraw>=1.0.1               # For Ramachandran plot generation
 
 # HTTP requests for downloading NGL.js, BLAST functionality, and API calls
 requests>=2.25.0
+
+
 
 # Optional Dependencies (Enhanced Functionality)
 # -----------------------------------------------------------------------------

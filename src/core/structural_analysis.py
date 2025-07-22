@@ -8,7 +8,7 @@ This module provides comprehensive protein structural analysis including:
 - Surface area and volume estimation
 - Cavity and binding site detection
 - Structural quality assessment
-- Ramachandran plot analysis
+- Structural quality assessment
 - Structural comparison tools
 """
 
@@ -43,6 +43,12 @@ try:
     BIOPYTHON_AVAILABLE = True
 except ImportError:
     BIOPYTHON_AVAILABLE = False
+
+try:
+    import ramachandraw
+    RAMACHANDRAW_AVAILABLE = True
+except ImportError:
+    RAMACHANDRAW_AVAILABLE = False
 
 try:
     from .pdb_fetch_worker import PDBFetchManager
@@ -253,7 +259,7 @@ class StructuralAnalysisWorker(QThread):
         return results
     
     def analyze_secondary_structure(self):
-        """Analyze secondary structure using simple geometric rules."""
+        """Analyze secondary structure using simple geometric rules and collect Ramachandran data."""
         results = {
             'helix_content': 0.0,
             'sheet_content': 0.0,
@@ -265,6 +271,7 @@ class StructuralAnalysisWorker(QThread):
         total_residues = 0
         helix_residues = 0
         sheet_residues = 0
+        ramachandran_data = []
         
         for model in self.structure:
             for chain in model:
@@ -276,17 +283,22 @@ class StructuralAnalysisWorker(QThread):
                     try:
                         phi, psi = self.calculate_phi_psi(residues, i)
                         
-                        # Store for Ramachandran plot with classification
-                        residue_name = residues[i].get_resname()
-                        region = self.classify_ramachandran_region(phi, psi, residue_name)
+                        # Collect Ramachandran data
+                        residue = residues[i]
+                        res_name = residue.get_resname()
+                        res_id = residue.id[1]
+                        chain_id = chain.id
                         
-                        results['ramachandran_data'].append({
-                            'residue': residue_name,
+                        # Classify Ramachandran region
+                        rama_region = self.classify_ramachandran_region(phi, psi, res_name)
+                        
+                        ramachandran_data.append({
+                            'residue': res_name,
+                            'chain': chain_id,
+                            'position': res_id,
                             'phi': phi,
                             'psi': psi,
-                            'chain': chain.id,
-                            'position': residues[i].id[1],
-                            'region': region
+                            'region': rama_region
                         })
                         
                         # Classify secondary structure based on phi/psi
@@ -304,6 +316,8 @@ class StructuralAnalysisWorker(QThread):
             results['helix_content'] = (helix_residues / total_residues) * 100
             results['sheet_content'] = (sheet_residues / total_residues) * 100
             results['loop_content'] = 100 - results['helix_content'] - results['sheet_content']
+        
+        results['ramachandran_data'] = ramachandran_data
         
         return results
     
@@ -940,54 +954,57 @@ class StructuralAnalysisWorker(QThread):
 
     
     def analyze_structural_quality(self):
-        """Analyze structural quality metrics."""
+        """Analyze structural quality metrics including Ramachandran validation."""
         results = {
-            'ramachandran_outliers': [],
-            'ramachandran_favored': 0,
-            'ramachandran_allowed': 0,
-            'ramachandran_outliers_count': 0,
             'clashes': [],
             'missing_atoms': [],
-            'b_factor_stats': {}
+            'b_factor_stats': {},
+            'ramachandran_favored': 0,
+            'ramachandran_allowed': 0,
+            'ramachandran_outliers': [],
+            'ramachandran_outliers_count': 0
         }
         
-        # Analyze Ramachandran plot data
-        ramachandran_data = []
+        # Collect Ramachandran data for quality assessment
+        ramachandran_outliers = []
+        favored_count = 0
+        allowed_count = 0
+        outlier_count = 0
         
         for model in self.structure:
             for chain in model:
                 residues = [res for res in chain if is_aa(res)]
                 
+                # Calculate phi/psi angles for Ramachandran analysis
                 for i in range(1, len(residues) - 1):
                     try:
                         phi, psi = self.calculate_phi_psi(residues, i)
+                        residue = residues[i]
+                        res_name = residue.get_resname()
                         
-                        # Classify Ramachandran regions
-                        residue_name = residues[i].get_resname()
-                        region = self.classify_ramachandran_region(phi, psi, residue_name)
+                        # Classify Ramachandran region
+                        rama_region = self.classify_ramachandran_region(phi, psi, res_name)
                         
-                        if region == 'favored':
-                            results['ramachandran_favored'] += 1
-                        elif region == 'allowed':
-                            results['ramachandran_allowed'] += 1
-                        else:
-                            results['ramachandran_outliers_count'] += 1
-                            results['ramachandran_outliers'].append({
-                                'residue': residues[i].get_resname(),
+                        if rama_region == 'favored':
+                            favored_count += 1
+                        elif rama_region == 'allowed':
+                            allowed_count += 1
+                        else:  # outlier
+                            outlier_count += 1
+                            ramachandran_outliers.append({
+                                'residue': res_name,
                                 'chain': chain.id,
-                                'position': residues[i].id[1],
+                                'position': residue.id[1],
                                 'phi': phi,
                                 'psi': psi
                             })
-                        
-                        ramachandran_data.append({
-                            'phi': phi,
-                            'psi': psi,
-                            'region': region
-                        })
-                        
                     except Exception:
                         continue
+        
+        results['ramachandran_favored'] = favored_count
+        results['ramachandran_allowed'] = allowed_count
+        results['ramachandran_outliers'] = ramachandran_outliers
+        results['ramachandran_outliers_count'] = outlier_count
         
         # Check for missing atoms
         for model in self.structure:
@@ -2180,82 +2197,127 @@ class StructuralAnalysisTab(QWidget):
             self.parent_app.statusBar().showMessage("Analysis failed")
     
     def create_pie_chart(self, data, title, colors=None):
-        """Create a pie chart widget."""
-        if not MATPLOTLIB_AVAILABLE:
+        """Create a pie chart widget with robust error handling."""
+        if not MATPLOTLIB_AVAILABLE or not data:
             return None
         
-        # Use larger figure for amino acid composition
-        if "Amino Acid" in title:
-            fig = Figure(figsize=(12, 10), dpi=100)
-        else:
-            fig = Figure(figsize=(8, 6), dpi=100)
-        
-        canvas = FigureCanvas(fig)
-        ax = fig.add_subplot(111)
-        
-        labels = list(data.keys())
-        values = list(data.values())
-        
-        # Create distinct colors for amino acids
-        if colors is None:
-            if "Amino Acid" in title and len(labels) <= 20:
-                # Use a colormap that provides distinct colors for all 20 amino acids
-                colors = plt.cm.tab20(range(len(labels)))
+        try:
+            # Filter out zero, negative, and NaN values
+            filtered_data = {}
+            for k, v in data.items():
+                if isinstance(v, (int, float)) and v > 0 and not (math.isnan(v) or math.isinf(v)):
+                    filtered_data[k] = v
+            
+            if not filtered_data:
+                # Return a simple label if no valid data
+                label = QLabel(f"<i>No data available for {title}</i>")
+                label.setAlignment(Qt.AlignCenter)
+                label.setStyleSheet("color: #666; padding: 20px;")
+                return label
+            
+            # Ensure we have at least some meaningful data
+            total_value = sum(filtered_data.values())
+            if total_value <= 0:
+                label = QLabel(f"<i>No valid data for {title}</i>")
+                label.setAlignment(Qt.AlignCenter)
+                label.setStyleSheet("color: #666; padding: 20px;")
+                return label
+            
+            # Use larger figure for amino acid composition
+            if "Amino Acid" in title:
+                fig = Figure(figsize=(12, 10), dpi=100)
             else:
-                colors = plt.cm.Set3(range(len(labels)))
-        
-        # Special handling for amino acid composition
-        if "Amino Acid" in title:
-            # Only show percentages for slices > 2% to avoid clutter
-            def autopct_func(pct):
-                return f'{pct:.1f}%' if pct > 2 else ''
+                fig = Figure(figsize=(8, 6), dpi=100)
             
-            wedges, texts, autotexts = ax.pie(values, labels=labels, autopct=autopct_func, 
-                                              colors=colors, startangle=90, 
-                                              textprops={'fontsize': 9})
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(111)
             
-            # Position labels outside the pie
-            for text in texts:
-                text.set_fontsize(10)
-                text.set_fontweight('bold')
+            # Prepare data
+            labels = list(filtered_data.keys())
+            values = list(filtered_data.values())
             
-            # Make percentage text more readable
-            for autotext in autotexts:
-                autotext.set_color('black')
-                autotext.set_fontweight('bold')
-                autotext.set_fontsize(9)
+            # Double-check values are valid
+            values = [max(0.001, v) for v in values if not (math.isnan(v) or math.isinf(v))]
+            if len(values) != len(labels):
+                # Mismatch, rebuild both lists
+                valid_items = [(k, v) for k, v in filtered_data.items() 
+                              if isinstance(v, (int, float)) and v > 0 and not (math.isnan(v) or math.isinf(v))]
+                if not valid_items:
+                    label = QLabel(f"<i>No valid data for {title}</i>")
+                    label.setAlignment(Qt.AlignCenter)
+                    label.setStyleSheet("color: #666; padding: 20px;")
+                    return label
+                labels, values = zip(*valid_items)
+                labels, values = list(labels), list(values)
             
-            # Add a legend for better readability
-            legend_labels = [f'{label}: {value} ({value/sum(values)*100:.1f}%)' 
-                           for label, value in zip(labels, values)]
-            ax.legend(wedges, legend_labels, title="Amino Acids", 
-                     loc="center left", bbox_to_anchor=(1, 0, 0.5, 1),
-                     fontsize=9)
-        else:
-            # Standard pie chart for other data
-            wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
-                                              colors=colors, startangle=90)
+            # Create distinct colors for amino acids
+            if colors is None:
+                if "Amino Acid" in title and len(labels) <= 20:
+                    # Use a colormap that provides distinct colors for all 20 amino acids
+                    colors = plt.cm.tab20(range(len(labels)))
+                else:
+                    colors = plt.cm.Set3(range(len(labels)))
             
-            # Make percentage text more readable
-            for autotext in autotexts:
-                autotext.set_color('white')
-                autotext.set_fontweight('bold')
-                autotext.set_fontsize(10)
+            # Special handling for amino acid composition
+            if "Amino Acid" in title:
+                # Only show percentages for slices > 2% to avoid clutter
+                def autopct_func(pct):
+                    return f'{pct:.1f}%' if pct > 2 else ''
+                
+                wedges, texts, autotexts = ax.pie(values, labels=labels, autopct=autopct_func, 
+                                                  colors=colors, startangle=90, 
+                                                  textprops={'fontsize': 9})
+                
+                # Position labels outside the pie
+                for text in texts:
+                    text.set_fontsize(10)
+                    text.set_fontweight('bold')
+                
+                # Make percentage text more readable
+                for autotext in autotexts:
+                    autotext.set_color('black')
+                    autotext.set_fontweight('bold')
+                    autotext.set_fontsize(9)
+                
+                # Add a legend for better readability
+                legend_labels = [f'{label}: {value} ({value/sum(values)*100:.1f}%)' 
+                               for label, value in zip(labels, values)]
+                ax.legend(wedges, legend_labels, title="Amino Acids", 
+                         loc="center left", bbox_to_anchor=(1, 0, 0.5, 1),
+                         fontsize=9)
+            else:
+                # Standard pie chart for other data
+                wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
+                                                  colors=colors, startangle=90)
+                
+                # Make percentage text more readable
+                for autotext in autotexts:
+                    autotext.set_color('white')
+                    autotext.set_fontweight('bold')
+                    autotext.set_fontsize(10)
+                
+                # Make labels more readable
+                for text in texts:
+                    text.set_fontsize(10)
             
-            # Make labels more readable
-            for text in texts:
-                text.set_fontsize(10)
-        
-        ax.set_title(title, fontsize=14, fontweight='bold')
-        
-        fig.tight_layout()
-        
-        if "Amino Acid" in title:
-            canvas.setMinimumSize(1200, 900)
-        else:
-            canvas.setMinimumSize(800, 600)
-        
-        return canvas
+            ax.set_title(title, fontsize=14, fontweight='bold')
+            
+            fig.tight_layout()
+            
+            if "Amino Acid" in title:
+                canvas.setMinimumSize(1200, 900)
+            else:
+                canvas.setMinimumSize(800, 600)
+            
+            return canvas
+            
+        except Exception as e:
+            print(f"[DEBUG] Error creating pie chart '{title}': {e}")
+            # Return error message widget
+            label = QLabel(f"<i>Error creating chart: {title}</i>")
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("color: #cc0000; padding: 20px;")
+            return label
     
     def create_bar_chart(self, data, title, xlabel, ylabel):
         """Create a bar chart widget."""
@@ -2289,311 +2351,138 @@ class StructuralAnalysisTab(QWidget):
         canvas.setMinimumSize(1000, 600)
         return canvas
     
-    def create_ramachandran_plot(self, rama_data):
-        """Create a Ramachandran plot showing phi/psi angles with regions."""
-        if not MATPLOTLIB_AVAILABLE or not rama_data:
-            return None
+    def create_ramachandran_plot(self, ramachandran_data):
+        """Create a Ramachandran plot using ramachandraw."""
+        if not RAMACHANDRAW_AVAILABLE or not MATPLOTLIB_AVAILABLE or not ramachandran_data:
+            return None, {}
         
-        # Set up the figure with clean styling and larger size
-        plt.style.use('default')
-        fig = Figure(figsize=(12, 10), dpi=110, facecolor='white')
-        canvas = FigureCanvas(fig)
-        canvas.setMinimumSize(1000, 800)  # Ensure minimum size for the canvas
-        
-        # Create a single subplot with adjusted margins
-        ax = fig.add_subplot(111, facecolor='white')
-        fig.subplots_adjust(left=0.1, right=0.95, bottom=0.1, top=0.9, wspace=0.3, hspace=0.3)
-        
-        # Extract data
-        phi_angles = [d['phi'] for d in rama_data]
-        psi_angles = [d['psi'] for d in rama_data]
-        res_names = [d.get('residue_name', 'UNK') for d in rama_data]
-        
-        # Define Ramachandran regions (favored and allowed)
-        def add_region(ax, points, color, alpha=0.3, zorder=1):
-            poly = patches.Polygon(
-                points,
-                closed=True,
-                facecolor=color,
-                alpha=alpha,
-                edgecolor=color,
-                linewidth=1.5,
-                zorder=zorder
-            )
-            ax.add_patch(poly)
-            return poly
-        
-        # Define core (favored) regions
-        core_regions = [
-            [(-180, -65), (-55, -65), (-55, 30), (-180, 30)],  # α-helix (αR)
-            [(-180, 90), (-100, 90), (-100, 180), (-180, 180)],  # β-sheet (upper right)
-            [(-180, -180), (-100, -180), (-100, -90), (-180, -90)],  # β-sheet (lower right)
-            [(30, 30), (90, 30), (90, 90), (30, 90)]  # Left-handed α-helix (αL)
-        ]
-        
-        # Define allowed regions
-        allowed_regions = [
-            [(-180, 30), (-55, 30), (-55, 90), (-180, 90)],  # Upper αR extension
-            [(-55, -65), (0, -65), (0, 30), (-55, 30)],  # Right αR extension
-            [(-100, 90), (-55, 90), (-55, 180), (-100, 180)],  # Upper β extension
-            [(-100, -180), (-55, -180), (-55, -90), (-100, -90)],  # Lower β extension
-            [(0, 0), (90, 0), (90, 30), (30, 30), (30, 90), (0, 90)],  # αL allowed
-            [(-100, -90), (-55, -90), (-55, 90), (-100, 90)]  # Bridge region
-        ]
-        
-        # Add regions to plot (allowed first, then core on top)
-        for region in allowed_regions:
-            add_region(ax, region, '#aec7e8', alpha=0.2, zorder=1)
-        for region in core_regions:
-            add_region(ax, region, '#1f77b4', alpha=0.3, zorder=2)
-        
-        # Classify points and plot with proper z-ordering
-        points_data = []
-        for i, (phi, psi, res_name) in enumerate(zip(phi_angles, psi_angles, res_names)):
-            if self.is_in_favored_region(phi, psi, res_name):
-                points_data.append((phi, psi, 'favored'))
-            elif self.is_in_allowed_region(phi, psi, res_name):
-                points_data.append((phi, psi, 'allowed'))
-            else:
-                points_data.append((phi, psi, 'outlier'))
-        
-        # Plot points with enhanced styles for better visibility
-        point_styles = {
-            'favored': {'color': '#1f77b4', 'size': 40, 'alpha': 0.9, 'edgecolor': '#0d3c78', 'linewidth': 1.0},
-            'allowed': {'color': '#aec7e8', 'size': 35, 'alpha': 0.8, 'edgecolor': '#6b8cae', 'linewidth': 0.9},
-            'outlier': {'color': '#ff7f0e', 'size': 50, 'alpha': 0.95, 'edgecolor': '#cc6600', 'linewidth': 1.2}
-        }
-        
-        # Initialize scatter_plots dictionary to store scatter objects and tooltips
-        scatter_plots = {}
-        
-        for point_type in ['favored', 'allowed', 'outlier']:
-            points = [(x, y, i) for i, (x, y, pt) in enumerate(points_data) if pt == point_type]
-            if points:
-                x_vals, y_vals, indices = zip(*points)
-                scatter = ax.scatter(
-                    x_vals, y_vals,
-                    s=point_styles[point_type]['size'],
-                    c=point_styles[point_type]['color'],
-                    alpha=point_styles[point_type]['alpha'],
-                    edgecolors=point_styles[point_type]['edgecolor'],
-                    linewidth=point_styles[point_type]['linewidth'],
-                    zorder=3,  # Ensure points are above regions
-                    label=f'{point_type.capitalize()} ({len(points)})',
-                    picker=5  # Enable picking with 5-pixel tolerance
+        try:
+            import ramachandraw.utils
+            import tempfile
+            import os
+            
+            # We need to use the current structure file with ramachandraw
+            if not hasattr(self, 'current_structure_path') or not self.current_structure_path:
+                # Fallback to manual plot if no structure file available
+                return self._create_manual_ramachandran_plot(ramachandran_data)
+            
+            # Create a temporary directory for ramachandraw output
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Use ramachandraw to create the plot
+                ax = ramachandraw.utils.plot(
+                    pdb_filepath=self.current_structure_path,
+                    cmap='viridis',
+                    alpha=0.7,
+                    dpi=100,
+                    save=False,  # Don't save to file
+                    show=False   # Don't show interactively
                 )
                 
-                # Store scatter object and tooltips for this point type
-                tooltips = []
-                for idx in indices:
-                    res_data = rama_data[idx]
-                    tooltip = f"{res_data.get('residue_name', 'UNK')} {res_data.get('residue_number', '')} (φ={res_data['phi']:.1f}°, ψ={res_data['psi']:.1f}°)"
-                    tooltips.append(tooltip)
+                # Get the figure from the axes
+                fig = ax.get_figure()
                 
-                scatter_plots[point_type] = {
-                    'scatter': scatter,
-                    'tooltips': tooltips,
-                    'indices': indices
-                }
-        
-        # Set up the plot appearance with enhanced styling
-        ax.set_xlim(-180, 180)
-        ax.set_ylim(-180, 180)
-        
-        # Larger, more prominent labels and title
-        label_font = {'fontsize': 12, 'fontweight': 'normal'}
-        title_font = {'fontsize': 14, 'fontweight': 'bold', 'pad': 20}
-        
-        ax.set_xlabel('φ (phi) degrees', **label_font)
-        ax.set_ylabel('ψ (psi) degrees', **label_font)
-        ax.set_title('Ramachandran Plot', **title_font)
-        
-        # Enhanced grid and ticks
-        ax.grid(True, linestyle='--', alpha=0.4, color='#999999')
-        
-        # Set ticks with more frequent minor ticks
-        major_ticks = [-180, -135, -90, -45, 0, 45, 90, 135, 180]
-        minor_ticks = [x for x in range(-180, 181, 15) if x not in major_ticks]
-        
-        ax.set_xticks(major_ticks)
-        ax.set_yticks(major_ticks)
-        ax.set_xticks(minor_ticks, minor=True)
-        ax.set_yticks(minor_ticks, minor=True)
-        
-        # Make tick labels larger
-        ax.tick_params(axis='both', which='major', labelsize=10)
-        ax.tick_params(axis='both', which='minor', length=4, width=0.5)
-        
-        # Add enhanced legend with better styling
-        legend = ax.legend(
-            loc='upper right',
-            frameon=True,
-            framealpha=0.95,
-            edgecolor='#cccccc',
-            facecolor='white',
-            fancybox=True,
-            fontsize=10,
-            title='Regions',
-            title_fontsize=11,
-            borderpad=1.0,
-            labelspacing=0.8,
-            handlelength=1.5,
-            handletextpad=0.5
-        )
-        
-        # Make legend frame more visible
-        legend.get_frame().set_linewidth(1.0)
-        
-        # Adjust layout with more padding
-        fig.tight_layout(rect=[0, 0, 1, 0.97])  # Adjust top padding to prevent title cutoff
-        
-        # Add region labels with nicer styling
-        region_labels = [
-            (-105, -20, 'αR', '#1f77b4'),
-            (-105, 135, 'β', '#1f77b4'),
-            (-105, -135, 'β', '#1f77b4'),
-            (60, 60, 'αL', '#1f77b4')
-        ]
-        
-        for x, y, label, color in region_labels:
-            ax.text(
-                x, y, label,
-                fontsize=14, 
-                fontweight='bold',
-                ha='center', 
-                va='center',
-                bbox=dict(
-                    boxstyle='round,pad=0.3',
-                    facecolor='white',
-                    alpha=0.9,
-                    edgecolor=color,
-                    linewidth=1.5
-                ),
-                zorder=20
-            )
+                # Create a Qt canvas from the matplotlib figure
+                canvas = FigureCanvas(fig)
+                canvas.setMinimumSize(800, 600)
+                
+                # Count residues by region using our classification
+                region_counts = {'favored': 0, 'allowed': 0, 'outlier': 0}
+                for data in ramachandran_data:
+                    region = data.get('region', 'outlier')
+                    region_counts[region] = region_counts.get(region, 0) + 1
+                
+                return canvas, region_counts
+            
+        except Exception as e:
+            print(f"[DEBUG] Error creating Ramachandran plot with ramachandraw: {e}")
+            print(f"[DEBUG] Falling back to manual plot")
+            # Fallback to manual implementation
+            return self._create_manual_ramachandran_plot(ramachandran_data)
+    
+    def _create_manual_ramachandran_plot(self, ramachandran_data):
+        """Fallback manual Ramachandran plot creation."""
+        try:
+            # Create figure
+            fig = Figure(figsize=(10, 8), dpi=100, facecolor='white')
+            canvas = FigureCanvas(fig)
+            ax = fig.add_subplot(111)
+            
+            # Extract phi and psi angles
+            phi_angles = [data['phi'] for data in ramachandran_data]
+            psi_angles = [data['psi'] for data in ramachandran_data]
+            
+            # Plot background regions (simplified)
+            # Alpha helix region
+            alpha_region = plt.Rectangle((-180, -70), 130, 120, 
+                                       alpha=0.3, color='blue', label='Alpha helix')
+            ax.add_patch(alpha_region)
+            
+            # Beta sheet region  
+            beta_region = plt.Rectangle((-180, 90), 130, 90, 
+                                      alpha=0.3, color='green', label='Beta sheet')
+            ax.add_patch(beta_region)
+            
+            # Plot the data points
+            colors = []
+            for data in ramachandran_data:
+                region = data.get('region', 'outlier')
+                if region == 'favored':
+                    colors.append('darkblue')
+                elif region == 'allowed':
+                    colors.append('green')
+                else:
+                    colors.append('red')
+            
+            scatter = ax.scatter(phi_angles, psi_angles, c=colors, alpha=0.7, s=30, 
+                               edgecolors='black', linewidth=0.5)
+            
+            # Customize the plot
+            ax.set_title('Ramachandran Plot', fontsize=16, fontweight='bold', pad=20)
+            ax.set_xlabel('Phi (φ) angle (degrees)', fontsize=14)
+            ax.set_ylabel('Psi (ψ) angle (degrees)', fontsize=14)
+            ax.grid(True, alpha=0.3)
+            
+            # Set axis limits
+            ax.set_xlim(-180, 180)
+            ax.set_ylim(-180, 180)
+            
+            # Add ticks
+            ax.set_xticks(range(-180, 181, 60))
+            ax.set_yticks(range(-180, 181, 60))
+            
+            # Add legend
+            from matplotlib.patches import Patch
+            legend_elements = [
+                Patch(facecolor='darkblue', alpha=0.7, label='Favored'),
+                Patch(facecolor='green', alpha=0.7, label='Allowed'),
+                Patch(facecolor='red', alpha=0.7, label='Outlier')
+            ]
+            ax.legend(handles=legend_elements, loc='upper right')
+            
+            fig.tight_layout()
+            canvas.setMinimumSize(800, 600)
+            
+            # Count residues by region
+            region_counts = {'favored': 0, 'allowed': 0, 'outlier': 0}
+            for data in ramachandran_data:
+                region = data.get('region', 'outlier')
+                region_counts[region] = region_counts.get(region, 0) + 1
+            
+            return canvas, region_counts
+            
+        except Exception as e:
+            print(f"[DEBUG] Error creating manual Ramachandran plot: {e}")
+            # Return error message widget
+            label = QLabel(f"<i>Error creating Ramachandran plot: {str(e)}</i>")
+            label.setAlignment(Qt.AlignCenter)
+            label.setStyleSheet("color: #cc0000; padding: 20px;")
+            return label, {}
+    
 
-        # Create a container widget for the plot and table
-        container = QWidget()
-        layout = QVBoxLayout(container)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
-        
-        # Add the plot to the layout
-        layout.addWidget(canvas, stretch=2)  # Plot takes 2/3 of the space
-        
-        # Add outliers table if there are any
-        outlier_points = [(i, d) for i, d in enumerate(rama_data) 
-                         if points_data[i][2] == 'outlier']
-        
-        if outlier_points:
-            # Create table for outliers
-            table_group = QGroupBox(f"Ramachandran Outliers ({len(outlier_points)})")
-            table_group.setStyleSheet("QGroupBox { font-size: 12px; font-weight: bold; }")
-            table_layout = QVBoxLayout(table_group)
-            table_layout.setContentsMargins(8, 15, 8, 8)
-            table_layout.setSpacing(8)
-            
-            # Create table with improved styling
-            table = QTableWidget()
-            table.setColumnCount(6)
-            table.setHorizontalHeaderLabels(["Residue", "Chain", "Position", "φ", "ψ", "Region"])
-            
-            # Set table font
-            font = table.font()
-            font.setPointSize(10)
-            table.setFont(font)
-            table.horizontalHeader().setFont(font)
-            
-            # Set minimum size and resize mode
-            table.setMinimumHeight(200)  # Minimum height to ensure visibility
-            table.setMinimumWidth(600)   # Minimum width to ensure all columns are visible
-            table.verticalHeader().setDefaultSectionSize(24)  # Row height
-            table.horizontalHeader().setStretchLastSection(True)
-            table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
-            table.horizontalHeader().setMinimumSectionSize(60)  # Ensure minimum column width
-            
-            # Sort by chain and position
-            outlier_points.sort(key=lambda x: (str(x[1].get('chain', '')), int(x[1].get('residue_number', 0))))
-            
-            # Populate table
-            table.setRowCount(len(outlier_points))
-            for row, (idx, data) in enumerate(outlier_points):
-                table.setItem(row, 0, QTableWidgetItem(data.get('residue_name', 'UNK')))
-                table.setItem(row, 1, QTableWidgetItem(str(data.get('chain', ''))))
-                table.setItem(row, 2, QTableWidgetItem(str(data.get('residue_number', ''))))
-                table.setItem(row, 3, QTableWidgetItem(f"{data.get('phi', 0):.1f}°"))
-                table.setItem(row, 4, QTableWidgetItem(f"{data.get('psi', 0):.1f}°"))
-                table.setItem(row, 5, QTableWidgetItem("Outlier"))
-                
-                # Make items non-editable and set text alignment
-                for col in range(6):
-                    item = table.item(row, col)
-                    if item:
-                        item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsEditable)
-                        item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
-            
-            # Adjust column widths with better padding
-            table.resizeColumnsToContents()
-            
-            # Set table properties
-            table.setAlternatingRowColors(True)
-            table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-            table.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-            
-            # Add a scroll area to contain the table
-            scroll_area = QScrollArea()
-            scroll_area.setWidgetResizable(True)
-            scroll_area.setWidget(table)
-            
-            # Add table to layout with a stretchable space above it
-            table_layout.addWidget(scroll_area)
-            layout.addWidget(table_group, stretch=1)  # Table takes 1/3 of the space
-        
-        # Count the number of points in each region
-        favored_count = sum(1 for pt in points_data if pt[2] == 'favored')
-        allowed_count = sum(1 for pt in points_data if pt[2] == 'allowed')
-        outlier_count = sum(1 for pt in points_data if pt[2] == 'outlier')
-        total_points = len(points_data)
-        
-        # Return the container and the counts
-        return container, {
-            'favored': favored_count,
-            'allowed': allowed_count,
-            'outliers': outlier_count,
-            'total': total_points
-        }
-        """Check if phi/psi angles are in favored regions according to MolProbity standard.
-        
-        Args:
-            phi: Phi angle in degrees
-            psi: Psi angle in degrees
-            residue_name: Optional three-letter residue code for special cases
-            
-        Returns:
-            bool: True if in favored region, False otherwise
-        """
-        # Handle special cases first
-        if residue_name == 'GLY':
-            return self._is_glycine_favored(phi, psi)
-        elif residue_name == 'PRO':
-            return self._is_proline_favored(phi, psi)
-            
-        # General case for standard amino acids
-        # Core alpha-helix region (αR)
-        if (-180 <= phi <= -25 and -80 <= psi <= 20):
-            return True
-            
-        # Core beta-sheet region (β)
-        if (-180 <= phi <= -100 and 80 <= psi <= 180):  # Upper beta
-            return True
-        if (-180 <= phi <= -100 and -180 <= psi <= -100):  # Lower beta
-            return True
-            
-        # Core left-handed alpha-helix (αL)
-        if (25 <= phi <= 90 and 25 <= psi <= 90):
-            return True
-            
-        return False
+    
+
+    
+
     
     def is_in_favored_region(self, phi, psi, residue_name=None):
         """Check if phi/psi angles are in favored regions according to MolProbity standard.
@@ -4351,13 +4240,29 @@ class StructuralAnalysisTab(QWidget):
             raise Exception(f"PDF export failed: {str(e)}")
     
     def save_chart_as_image(self, data, title, chart_type, temp_dir):
-        """Save a chart as PNG image and return the path."""
-        if not MATPLOTLIB_AVAILABLE:
+        """Save a chart as PNG image and return the path with robust error handling."""
+        if not MATPLOTLIB_AVAILABLE or not data:
             return None
         
         try:
             import matplotlib.pyplot as plt
             import os
+            
+            # Filter out zero, negative, and NaN values
+            filtered_data = {}
+            for k, v in data.items():
+                if isinstance(v, (int, float)) and v > 0 and not (math.isnan(v) or math.isinf(v)):
+                    filtered_data[k] = v
+            
+            if not filtered_data:
+                print(f"[DEBUG] No valid data for chart '{title}'")
+                return None
+            
+            # Ensure we have at least some meaningful data
+            total_value = sum(filtered_data.values())
+            if total_value <= 0:
+                print(f"[DEBUG] Total value is zero for chart '{title}'")
+                return None
             
             # Ultra high resolution settings
             plt.rcParams['font.size'] = 14
@@ -4368,10 +4273,26 @@ class StructuralAnalysisTab(QWidget):
             fig, ax = plt.subplots(figsize=(12, 9), dpi=300)  # Much larger and higher DPI
             
             if chart_type == "pie":
+                # Prepare data
+                labels = list(filtered_data.keys())
+                values = list(filtered_data.values())
+                
+                # Double-check values are valid
+                values = [max(0.001, v) for v in values if not (math.isnan(v) or math.isinf(v))]
+                if len(values) != len(labels):
+                    # Mismatch, rebuild both lists
+                    valid_items = [(k, v) for k, v in filtered_data.items() 
+                                  if isinstance(v, (int, float)) and v > 0 and not (math.isnan(v) or math.isinf(v))]
+                    if not valid_items:
+                        print(f"[DEBUG] No valid items for chart '{title}'")
+                        return None
+                    labels, values = zip(*valid_items)
+                    labels, values = list(labels), list(values)
+                
                 # Use better colors and formatting
                 colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
-                wedges, texts, autotexts = ax.pie(data.values(), labels=data.keys(), autopct='%1.1f%%', 
-                                                 colors=colors[:len(data)], startangle=90, 
+                wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
+                                                 colors=colors[:len(values)], startangle=90, 
                                                  textprops={'fontsize': 14, 'weight': 'bold'})
                 for autotext in autotexts:
                     autotext.set_color('white')
@@ -4381,7 +4302,7 @@ class StructuralAnalysisTab(QWidget):
                     text.set_fontsize(14)
                     text.set_fontweight('bold')
             elif chart_type == "bar":
-                bars = ax.bar(data.keys(), data.values(), color='#4ECDC4', edgecolor='black', linewidth=2)
+                bars = ax.bar(filtered_data.keys(), filtered_data.values(), color='#4ECDC4', edgecolor='black', linewidth=2)
                 ax.set_ylabel('Count', fontsize=16, fontweight='bold')
                 plt.xticks(rotation=45, ha='right', fontsize=14, fontweight='bold')
                 plt.yticks(fontsize=14, fontweight='bold')
@@ -4398,7 +4319,7 @@ class StructuralAnalysisTab(QWidget):
             
             return chart_path
         except Exception as e:
-            print(f"Error saving chart: {e}")
+            print(f"[DEBUG] Error saving chart '{title}': {e}")
             return None
     
     def save_ramachandran_plot(self, rama_data, temp_dir):
