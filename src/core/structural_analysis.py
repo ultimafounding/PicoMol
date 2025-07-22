@@ -7,8 +7,6 @@ This module provides comprehensive protein structural analysis including:
 - Geometric property calculations
 - Surface area and volume estimation
 - Cavity and binding site detection
-- Structural quality assessment
-- Structural quality assessment
 - Structural comparison tools
 """
 
@@ -110,7 +108,7 @@ class StructuralAnalysisWorker(QThread):
     def __init__(self, structure_path, analysis_types=None):
         super().__init__()
         self.structure_path = structure_path
-        self.analysis_types = analysis_types or ['basic', 'secondary', 'geometry', 'quality']
+        self.analysis_types = analysis_types or ['basic', 'secondary', 'geometry']
         self.structure = None
         # Surface analysis uses SASA calculation
     
@@ -149,9 +147,7 @@ class StructuralAnalysisWorker(QThread):
                 self.progress_update.emit("Calculating surface properties using SASA...")
                 results['surface'] = self.analyze_surface_properties()
             
-            if 'quality' in self.analysis_types:
-                self.progress_update.emit("Assessing structural quality...")
-                results['quality'] = self.analyze_structural_quality()
+
             
             self.progress_update.emit("Analysis complete!")
             self.analysis_complete.emit(results)
@@ -357,6 +353,18 @@ class StructuralAnalysisWorker(QThread):
             return 'E'  # Beta sheet
         else:
             return 'C'  # Coil/loop
+    
+    def classify_ramachandran_region(self, phi, psi, residue_name=None):
+        """Classify phi/psi angles into Ramachandran regions (simplified version)."""
+        # Simplified classification for secondary structure analysis
+        if -180 <= phi <= -30 and -70 <= psi <= 50:
+            return 'favored'  # Alpha helix region
+        elif -180 <= phi <= -30 and 90 <= psi <= 180:
+            return 'favored'  # Beta sheet region
+        elif -90 <= phi <= 30 and -180 <= psi <= -90:
+            return 'favored'  # Beta sheet region
+        else:
+            return 'outlier'  # Everything else
     
     def analyze_geometry(self):
         """Analyze geometric properties of the structure."""
@@ -953,206 +961,7 @@ class StructuralAnalysisWorker(QThread):
     
 
     
-    def analyze_structural_quality(self):
-        """Analyze structural quality metrics including Ramachandran validation."""
-        results = {
-            'clashes': [],
-            'missing_atoms': [],
-            'b_factor_stats': {},
-            'ramachandran_favored': 0,
-            'ramachandran_allowed': 0,
-            'ramachandran_outliers': [],
-            'ramachandran_outliers_count': 0
-        }
-        
-        # Collect Ramachandran data for quality assessment
-        ramachandran_outliers = []
-        favored_count = 0
-        allowed_count = 0
-        outlier_count = 0
-        
-        for model in self.structure:
-            for chain in model:
-                residues = [res for res in chain if is_aa(res)]
-                
-                # Calculate phi/psi angles for Ramachandran analysis
-                for i in range(1, len(residues) - 1):
-                    try:
-                        phi, psi = self.calculate_phi_psi(residues, i)
-                        residue = residues[i]
-                        res_name = residue.get_resname()
-                        
-                        # Classify Ramachandran region
-                        rama_region = self.classify_ramachandran_region(phi, psi, res_name)
-                        
-                        if rama_region == 'favored':
-                            favored_count += 1
-                        elif rama_region == 'allowed':
-                            allowed_count += 1
-                        else:  # outlier
-                            outlier_count += 1
-                            ramachandran_outliers.append({
-                                'residue': res_name,
-                                'chain': chain.id,
-                                'position': residue.id[1],
-                                'phi': phi,
-                                'psi': psi
-                            })
-                    except Exception:
-                        continue
-        
-        results['ramachandran_favored'] = favored_count
-        results['ramachandran_allowed'] = allowed_count
-        results['ramachandran_outliers'] = ramachandran_outliers
-        results['ramachandran_outliers_count'] = outlier_count
-        
-        # Check for missing atoms
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):
-                        expected_atoms = ['N', 'CA', 'C', 'O']
-                        for atom_name in expected_atoms:
-                            if atom_name not in residue:
-                                results['missing_atoms'].append({
-                                    'residue': residue.get_resname(),
-                                    'chain': chain.id,
-                                    'position': residue.id[1],
-                                    'missing_atom': atom_name
-                                })
-        
-        # B-factor statistics
-        all_b_factors = []
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    for atom in residue:
-                        all_b_factors.append(atom.get_bfactor())
-        
-        if all_b_factors:
-            results['b_factor_stats'] = {
-                'mean': np.mean(all_b_factors),
-                'std': np.std(all_b_factors),
-                'min': min(all_b_factors),
-                'max': max(all_b_factors),
-                'median': np.median(all_b_factors) if NUMPY_AVAILABLE else sorted(all_b_factors)[len(all_b_factors)//2]
-            }
-        
-        return results
-    
-    def classify_ramachandran_region(self, phi, psi, residue_name=None):
-        """Classify phi/psi angles into Ramachandran regions using MolProbity/Richardson lab definitions.
-        
-        Based on the exact definitions used by MolProbity and other professional validation tools.
-        These boundaries are derived from high-resolution crystal structures and match the
-        standard Ramachandran plot regions used in structural biology.
-        
-        Args:
-            phi: Phi dihedral angle in degrees
-            psi: Psi dihedral angle in degrees
-            residue_name: Three-letter residue code (optional, for special cases)
-        
-        Returns:
-            str: 'favored', 'allowed', or 'outlier'
-        """
-        # Handle special cases for glycine and proline
-        if residue_name == 'GLY':
-            return self._classify_glycine_ramachandran(phi, psi)
-        elif residue_name == 'PRO':
-            return self._classify_proline_ramachandran(phi, psi)
-        
-        # General case
-        point = (phi, psi)
-        
-        # General Favored Regions (98th percentile)
-        favored_general = [
-            [(-180, 150), (-50, 150), (-50, 50), (-180, 50)], # Beta region
-            [(-100, 0), (-25, 0), (-25, -70), (-100, -70)], # Alpha-right region
-            [(45, 60), (90, 60), (90, 0), (45, 0)] # Alpha-left region
-        ]
 
-        # General Allowed Regions (99.95th percentile)
-        allowed_general = [
-            [(-180, 180), (-180, 50), (-50, 50), (-50, 180)], # Beta region
-            [(-180, 0), (-180, -100), (0, -100), (0, 0)], # Alpha-right region
-            [(45, 120), (120, 120), (120, -60), (45, -60)] # Alpha-left region
-        ]
-
-        for region in favored_general:
-            if self._is_in_polygon(point, region):
-                return 'favored'
-        for region in allowed_general:
-            if self._is_in_polygon(point, region):
-                return 'allowed'
-
-        return 'outlier'
-
-    def _is_in_polygon(self, point, polygon):
-        """Checks if a point is inside a polygon using the ray-casting algorithm."""
-        x, y = point
-        n = len(polygon)
-        inside = False
-        p1x, p1y = polygon[0]
-        for i in range(n + 1):
-            p2x, p2y = polygon[i % n]
-            if y > min(p1y, p2y):
-                if y <= max(p1y, p2y):
-                    if x <= max(p1x, p2x):
-                        if p1y != p2y:
-                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
-                        if p1x == p2x or x <= xinters:
-                            inside = not inside
-            p1x, p1y = p2x, p2y
-        return inside
-
-    def _classify_glycine_ramachandran(self, phi, psi):
-        """Special Ramachandran classification for glycine residues."""
-        point = (phi, psi)
-        
-        # Glycine Favored Regions
-        favored_gly = [
-            [(-180, 180), (0, 180), (0, 50), (-180, 50)], # Top-left region
-            [(0, 180), (180, 180), (180, -50), (0, -50)], # Top-right region
-            [(-180, 0), (-180, -100), (0, -100), (0, 0)] # Bottom-left region
-        ]
-
-        # Glycine Allowed Regions
-        allowed_gly = [
-            [(-180, 180), (180, 180), (180, -180), (-180, -180)] # Almost the entire plot
-        ]
-
-        for region in favored_gly:
-            if self._is_in_polygon(point, region):
-                return 'favored'
-        for region in allowed_gly:
-            if self._is_in_polygon(point, region):
-                return 'allowed'
-        
-        return 'outlier'
-
-    def _classify_proline_ramachandran(self, phi, psi):
-        """Special Ramachandran classification for proline residues."""
-        point = (phi, psi)
-
-        # Proline Favored Regions
-        favored_pro = [
-            [(-100, 180), (-50, 180), (-50, 100), (-100, 100)], # PPII region
-            [(-100, 50), (-50, 50), (-50, -50), (-100, -50)] # Beta-turn region
-        ]
-
-        # Proline Allowed Regions
-        allowed_pro = [
-            [(-120, 180), (-30, 180), (-30, -60), (-120, -60)]
-        ]
-
-        for region in favored_pro:
-            if self._is_in_polygon(point, region):
-                return 'favored'
-        for region in allowed_pro:
-            if self._is_in_polygon(point, region):
-                return 'allowed'
-
-        return 'outlier'
     
     def detect_cavities(self):
         """Detect potential binding sites and cavities using improved geometric methods.
@@ -1863,10 +1672,7 @@ class StructuralAnalysisTab(QWidget):
         self.geometry_checkbox.setToolTip("Analyze geometric properties")
         options_layout.addWidget(self.geometry_checkbox)
         
-        self.quality_checkbox = QCheckBox("Quality Assessment")
-        self.quality_checkbox.setChecked(True)
-        self.quality_checkbox.setToolTip("Assess structural quality")
-        options_layout.addWidget(self.quality_checkbox)
+
         
         # Surface Properties analysis removed - will be added in a future release
         
@@ -1926,7 +1732,7 @@ class StructuralAnalysisTab(QWidget):
             "<li><b>Basic Properties:</b> Chain composition, molecular weight, resolution</li>"
             "<li><b>Secondary Structure:</b> Helix/sheet/loop content, Ramachandran plots</li>"
             "<li><b>Geometric Analysis:</b> Bond lengths, angles, radius of gyration</li>"
-            "<li><b>Quality Assessment:</b> Ramachandran outliers, missing atoms, B-factors</li>"
+
 
             "</ul>"
             "<p><i>Tip: Enter a PDB ID to fetch from the database, load from the 3D viewer, or select a local PDB file.</i></p>"
@@ -2136,8 +1942,7 @@ class StructuralAnalysisTab(QWidget):
             analysis_types.append('secondary')
         if self.geometry_checkbox.isChecked():
             analysis_types.append('geometry')
-        if self.quality_checkbox.isChecked():
-            analysis_types.append('quality')
+
         # Surface analysis removed - will be added in a future release
         
         if not analysis_types:
@@ -2890,8 +2695,7 @@ class StructuralAnalysisTab(QWidget):
         if 'geometry' in results:
             self.display_geometry_results(results['geometry'])
         
-        if 'quality' in results:
-            self.display_quality_results(results['quality'])
+
         
         # Surface results display removed - will be added in a future release
         
@@ -3231,114 +3035,7 @@ class StructuralAnalysisTab(QWidget):
                 bf_layout.addLayout(bf_content_layout)
                 self.results_layout.addWidget(bf_group)
     
-    def display_quality_results(self, results):
-        """Display structural quality results."""
-        quality_group = QGroupBox("Structural Quality Assessment")
-        quality_layout = QVBoxLayout(quality_group)
-        
-        # Ramachandran statistics with pie chart
-        # Use the same classification as the Ramachandran plot for consistency
-        if hasattr(self, 'current_results') and 'secondary' in self.current_results and 'ramachandran_data' in self.current_results['secondary']:
-            # Classify each point using the same method as the plot
-            rama_data = self.current_results['secondary']['ramachandran_data']
-            favored_count = 0
-            allowed_count = 0
-            outliers_count = 0
-            
-            for r in rama_data:
-                phi = r.get('phi', 0)
-                psi = r.get('psi', 0)
-                if self.is_in_favored_region(phi, psi):
-                    favored_count += 1
-                elif self.is_in_allowed_region(phi, psi):
-                    allowed_count += 1
-                else:
-                    outliers_count += 1
-                    
-            total_rama = len(rama_data)
-        else:
-            # Fallback to quality analysis counts if secondary data not available
-            favored_count = results.get('ramachandran_favored', 0)
-            allowed_count = results.get('ramachandran_allowed', 0)
-            outliers_count = results.get('ramachandran_outliers_count', 0)
-            total_rama = max(favored_count + allowed_count + outliers_count, 1)  # Prevent division by zero
-        if total_rama > 0:
-            rama_summary_group = QGroupBox("Ramachandran Quality")
-            rama_summary_layout = QHBoxLayout(rama_summary_group)
-            
-            # Statistics
-            stats_widget = QWidget()
-            stats_layout = QFormLayout(stats_widget)
-            
-            favored_pct = (favored_count / total_rama) * 100
-            allowed_pct = (allowed_count / total_rama) * 100
-            outlier_pct = (outliers_count / total_rama) * 100
-            
-            stats_layout.addRow("Favored:", QLabel(f"{favored_pct:.1f}% ({favored_count} residues)"))
-            stats_layout.addRow("Allowed:", QLabel(f"{allowed_pct:.1f}% ({allowed_count} residues)"))
-            stats_layout.addRow("Outliers:", QLabel(f"{outlier_pct:.1f}% ({outliers_count} residues)"))
-            stats_layout.addRow("Total Residues:", QLabel(str(total_rama)))
-            
-            stats_widget.setMaximumWidth(350)
-            rama_summary_layout.addWidget(stats_widget)
-            
-            # Pie chart for Ramachandran quality
-            rama_quality_data = {
-                'Favored': favored_pct,
-                'Allowed': allowed_pct,
-                'Outliers': outlier_pct
-            }
-            rama_colors = ['#2E8B57', '#FFD700', '#DC143C']  # Green, Gold, Red
-            rama_pie = self.create_pie_chart(rama_quality_data, "Ramachandran Quality Distribution", rama_colors)
-            if rama_pie:
-                rama_summary_layout.addWidget(rama_pie, 1)
-            
-            quality_layout.addWidget(rama_summary_group)
-        
-        # Overall quality summary
-        summary_stats_group = QGroupBox("Quality Summary")
-        summary_layout = QFormLayout(summary_stats_group)
-        
-        # Missing atoms
-        missing_count = len(results.get('missing_atoms', []))
-        summary_layout.addRow("Missing Atoms:", QLabel(str(missing_count)))
-        
-        # B-factor statistics
-        if results.get('b_factor_stats'):
-            bf_stats = results['b_factor_stats']
-            summary_layout.addRow("Mean B-factor:", QLabel(f"{bf_stats.get('mean', 0):.2f} Ų"))
-            summary_layout.addRow("B-factor Range:", QLabel(f"{bf_stats.get('min', 0):.2f} - {bf_stats.get('max', 0):.2f} Ų"))
-        
-        quality_layout.addWidget(summary_stats_group)
-        self.results_layout.addWidget(quality_group)
-        
-        # Ramachandran outliers table has been removed as requested
-        
-        # Missing atoms
-        if results.get('missing_atoms'):
-            missing_group = QGroupBox("Missing Atoms")
-            missing_layout = QVBoxLayout(missing_group)
-            
-            missing_table = QTableWidget()
-            missing_table.setColumnCount(4)
-            missing_table.setHorizontalHeaderLabels(["Residue", "Chain", "Position", "Missing Atom"])
-            
-            missing = results['missing_atoms']
-            missing_table.setRowCount(len(missing))
-            
-            for i, miss in enumerate(missing):
-                missing_table.setItem(i, 0, QTableWidgetItem(miss['residue']))
-                missing_table.setItem(i, 1, QTableWidgetItem(miss['chain']))
-                missing_table.setItem(i, 2, QTableWidgetItem(str(miss['position'])))
-                missing_table.setItem(i, 3, QTableWidgetItem(miss['missing_atom']))
-            
-            missing_table.resizeColumnsToContents()
-            # Allow table to expand to show all missing atoms
-            missing_table.setMinimumHeight(100)
-            # Remove maximum height restriction to show all data
-            missing_layout.addWidget(missing_table)
-            
-            self.results_layout.addWidget(missing_group)
+
     
     def display_surface_results(self, results):
         """Display surface analysis results."""
@@ -3602,7 +3299,7 @@ class StructuralAnalysisTab(QWidget):
         }
         
         # Add selected analysis types
-        for analysis_type in ['basic', 'secondary', 'geometry', 'quality']:
+        for analysis_type in ['basic', 'secondary', 'geometry']:
             if analysis_type in self.current_results and options.get(f'include_{analysis_type}', True):
                 export_data['analysis_results'][analysis_type] = self.current_results[analysis_type]
         
@@ -3685,24 +3382,7 @@ class StructuralAnalysisTab(QWidget):
                 writer.writerow(['Geometric Center (x, y, z)', f"({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})"])
                 writer.writerow([])
             
-            # Quality Assessment
-            if 'quality' in self.current_results and options.get('include_quality', True):
-                quality = self.current_results['quality']
-                writer.writerow(['=== QUALITY ASSESSMENT ==='])
-                writer.writerow(['Metric', 'Value'])
-                writer.writerow(['Ramachandran Favored', quality.get('ramachandran_favored', 0)])
-                writer.writerow(['Ramachandran Allowed', quality.get('ramachandran_allowed', 0)])
-                writer.writerow(['Ramachandran Outliers', quality.get('ramachandran_outliers_count', 0)])
-                writer.writerow(['Missing Atoms', len(quality.get('missing_atoms', []))])
-                
-                # B-factor statistics
-                if 'b_factor_stats' in quality:
-                    stats = quality['b_factor_stats']
-                    writer.writerow(['B-factor Mean', f"{stats.get('mean', 0):.2f}"])
-                    writer.writerow(['B-factor Std Dev', f"{stats.get('std', 0):.2f}"])
-                    writer.writerow(['B-factor Min', f"{stats.get('min', 0):.2f}"])
-                    writer.writerow(['B-factor Max', f"{stats.get('max', 0):.2f}"])
-                writer.writerow([])
+
             
             # Surface Properties
             # Surface Properties export removed - will be added in a future release
@@ -3808,32 +3488,7 @@ class StructuralAnalysisTab(QWidget):
                         if rama_data:
                             pd.DataFrame(rama_data).to_excel(writer, sheet_name='Ramachandran', index=False)
                 
-                # Quality Assessment
-                if 'quality' in self.current_results and options.get('include_quality', True):
-                    quality = self.current_results['quality']
-                    
-                    quality_data = {
-                        'Metric': ['Ramachandran Favored', 'Ramachandran Allowed', 'Ramachandran Outliers', 'Missing Atoms'],
-                        'Value': [
-                            quality.get('ramachandran_favored', 0),
-                            quality.get('ramachandran_allowed', 0),
-                            quality.get('ramachandran_outliers_count', 0),
-                            len(quality.get('missing_atoms', []))
-                        ]
-                    }
-                    
-                    # Add B-factor statistics
-                    if 'b_factor_stats' in quality:
-                        stats = quality['b_factor_stats']
-                        quality_data['Metric'].extend(['B-factor Mean', 'B-factor Std Dev', 'B-factor Min', 'B-factor Max'])
-                        quality_data['Value'].extend([
-                            f"{stats.get('mean', 0):.2f}",
-                            f"{stats.get('std', 0):.2f}",
-                            f"{stats.get('min', 0):.2f}",
-                            f"{stats.get('max', 0):.2f}"
-                        ])
-                    
-                    pd.DataFrame(quality_data).to_excel(writer, sheet_name='Quality', index=False)
+
                 
                 # Surface Properties
                 # Surface Properties export removed - will be added in a future release
@@ -3938,22 +3593,7 @@ class StructuralAnalysisTab(QWidget):
                 f.write(f"Geometric Center: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})\n")
                 f.write("\n")
             
-            # Quality Assessment
-            if 'quality' in self.current_results and options.get('include_quality', True):
-                quality = self.current_results['quality']
-                f.write("QUALITY ASSESSMENT\n")
-                f.write("-"*40 + "\n")
-                f.write(f"Ramachandran Favored: {quality.get('ramachandran_favored', 0)}\n")
-                f.write(f"Ramachandran Allowed: {quality.get('ramachandran_allowed', 0)}\n")
-                f.write(f"Ramachandran Outliers: {quality.get('ramachandran_outliers_count', 0)}\n")
-                f.write(f"Missing Atoms: {len(quality.get('missing_atoms', []))}\n")
-                
-                if 'b_factor_stats' in quality:
-                    stats = quality['b_factor_stats']
-                    f.write(f"B-factor Mean: {stats.get('mean', 0):.2f}\n")
-                    f.write(f"B-factor Std Dev: {stats.get('std', 0):.2f}\n")
-                    f.write(f"B-factor Range: {stats.get('min', 0):.2f} - {stats.get('max', 0):.2f}\n")
-                f.write("\n")
+
             
             # Surface Properties
             # Surface Properties export removed - will be added in a future release
@@ -4146,34 +3786,7 @@ class StructuralAnalysisTab(QWidget):
                             f.write("<h3>B-factor Distribution</h3>\n")
                             f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bfactor_chart_path)}' alt='B-factor Distribution'></div>\n")
                 
-                # Quality Assessment
-                if 'quality' in self.current_results:
-                    quality = self.current_results['quality']
-                    f.write("<h2>Quality Assessment</h2>\n")
-                    
-                    # Quality table
-                    f.write("<table>\n")
-                    f.write("<tr><th>Quality Metric</th><th>Value</th></tr>\n")
-                    f.write(f"<tr><td>Ramachandran Favored</td><td>{quality.get('ramachandran_favored', 0)}</td></tr>\n")
-                    f.write(f"<tr><td>Ramachandran Allowed</td><td>{quality.get('ramachandran_allowed', 0)}</td></tr>\n")
-                    f.write(f"<tr><td>Ramachandran Outliers</td><td>{quality.get('ramachandran_outliers_count', 0)}</td></tr>\n")
-                    f.write(f"<tr><td>Missing Atoms</td><td>{len(quality.get('missing_atoms', []))}</td></tr>\n")
-                    
-                    if 'b_factor_stats' in quality:
-                        stats = quality['b_factor_stats']
-                        f.write(f"<tr><td>B-factor Mean</td><td>{stats.get('mean', 0):.2f}</td></tr>\n")
-                        f.write(f"<tr><td>B-factor Std Dev</td><td>{stats.get('std', 0):.2f}</td></tr>\n")
-                        f.write(f"<tr><td>B-factor Range</td><td>{stats.get('min', 0):.2f} - {stats.get('max', 0):.2f}</td></tr>\n")
-                    f.write("</table>\n")
-                    
-                    # Outliers table
-                    if quality.get('ramachandran_outliers'):
-                        f.write("<h3>Ramachandran Outliers</h3>\n")
-                        f.write("<table>\n")
-                        f.write("<tr><th>Residue</th><th>Chain</th><th>Position</th><th>Phi (°)</th><th>Psi (°)</th></tr>\n")
-                        for outlier in quality['ramachandran_outliers'][:20]:  # Limit to first 20
-                            f.write(f"<tr><td>{outlier['residue']}</td><td>{outlier['chain']}</td><td>{outlier['position']}</td><td>{outlier['phi']:.1f}</td><td>{outlier['psi']:.1f}</td></tr>\n")
-                        f.write("</table>\n")
+
                     
 
                 
@@ -4509,10 +4122,7 @@ class ExportDialog(QDialog):
         self.include_geometry.setEnabled('geometry' in self.results if self.results else False)
         content_layout.addWidget(self.include_geometry)
         
-        self.include_quality = QCheckBox("Quality Assessment")
-        self.include_quality.setChecked(True)
-        self.include_quality.setEnabled('quality' in self.results if self.results else False)
-        content_layout.addWidget(self.include_quality)
+
         
         # Surface Properties export removed - will be added in a future release
         
@@ -4634,7 +4244,7 @@ class ExportDialog(QDialog):
             'include_basic': self.include_basic.isChecked(),
             'include_secondary': self.include_secondary.isChecked(),
             'include_geometry': self.include_geometry.isChecked(),
-            'include_quality': self.include_quality.isChecked(),
+
             # Surface Properties export removed
             'include_ramachandran': self.include_ramachandran.isChecked(),
             'include_residue_details': self.include_residue_details.isChecked()
@@ -4653,7 +4263,7 @@ class ExportDialog(QDialog):
             self.include_basic.isChecked(),
             self.include_secondary.isChecked(),
             self.include_geometry.isChecked(),
-            self.include_quality.isChecked(),
+
             # Surface Properties export removed
         ]):
             QMessageBox.warning(self, "Export Error", "Please select at least one content type to export.")
