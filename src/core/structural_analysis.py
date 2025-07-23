@@ -2192,21 +2192,10 @@ class StructuralAnalysisTab(QWidget):
             else:
                 self.parent_app.statusBar().showMessage(f"Basic metadata only for {structure_id}")
     
-    def analyze_structure(self):
-        """Perform structural analysis on the current structure."""
-        if not self.current_structure_path:
-            QMessageBox.warning(self, "No Structure", "Please load a structure first.")
-            return
-        
-        if not BIOPYTHON_AVAILABLE:
-            QMessageBox.critical(
-                self, "Missing Dependency", 
-                "Biopython is required for structural analysis.\n\n"
-                "Please install it with: pip install biopython"
-            )
-            return
-        
-        # Get selected analysis types
+    def load_current_structure_old(self):
+        """This method was incorrectly named - it should be removed."""
+        # This is a duplicate of analyze_structure - removing it
+        pass
         analysis_types = []
         if self.basic_checkbox.isChecked():
             analysis_types.append('basic')
@@ -2273,7 +2262,8 @@ class StructuralAnalysisTab(QWidget):
         if hasattr(self.parent_app, 'statusBar'):
             self.parent_app.statusBar().showMessage(message)
         
-    def load_current_structure(self):
+    def analyze_structure(self):
+        """Perform structural analysis on the current structure."""
         if not self.current_structure_path:
             QMessageBox.warning(self, "No Structure", "Please load a structure first.")
             return

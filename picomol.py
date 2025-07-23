@@ -1403,16 +1403,16 @@ class ProteinViewerApp(QMainWindow):
                 html += f"<li><b>Resolution:</b> {resolution} Å</li>"
             
             # Molecular weight and composition
-            mol_weight = rcsb_info.get('molecular_weight', 'N/A')
-            if mol_weight != 'N/A':
+            mol_weight = rcsb_info.get('molecular_weight')
+            if mol_weight is not None and isinstance(mol_weight, (int, float)):
                 html += f"<li><b>Molecular Weight:</b> {mol_weight:,.0f} Da</li>"
             
             # Atom and residue counts
-            atom_count = rcsb_info.get('deposited_atom_count', 'N/A')
-            residue_count = rcsb_info.get('deposited_residue_count', 'N/A')
-            if atom_count != 'N/A':
+            atom_count = rcsb_info.get('deposited_atom_count')
+            residue_count = rcsb_info.get('deposited_residue_count')
+            if atom_count is not None and isinstance(atom_count, (int, float)):
                 html += f"<li><b>Total Atoms:</b> {atom_count:,}</li>"
-            if residue_count != 'N/A':
+            if residue_count is not None and isinstance(residue_count, (int, float)):
                 html += f"<li><b>Total Residues:</b> {residue_count:,}</li>"
             
             # Entity counts
@@ -1440,18 +1440,18 @@ class ProteinViewerApp(QMainWindow):
                 refine = entry['refine'][0] if isinstance(entry['refine'], list) else entry['refine']
                 html += "<h4>Refinement Statistics</h4><ul>"
                 
-                r_work = refine.get('ls_R_factor_R_work', 'N/A')
-                r_free = refine.get('ls_R_factor_R_free', 'N/A')
-                if r_work != 'N/A':
+                r_work = refine.get('ls_R_factor_R_work')
+                r_free = refine.get('ls_R_factor_R_free')
+                if r_work is not None and isinstance(r_work, (int, float)):
                     html += f"<li><b>R-work:</b> {r_work:.3f}</li>"
-                if r_free != 'N/A':
+                if r_free is not None and isinstance(r_free, (int, float)):
                     html += f"<li><b>R-free:</b> {r_free:.3f}</li>"
                 
-                res_high = refine.get('ls_d_res_high', 'N/A')
-                res_low = refine.get('ls_d_res_low', 'N/A')
-                if res_high != 'N/A':
+                res_high = refine.get('ls_d_res_high')
+                res_low = refine.get('ls_d_res_low')
+                if res_high is not None and isinstance(res_high, (int, float)):
                     html += f"<li><b>High Resolution Limit:</b> {res_high} Å</li>"
-                if res_low != 'N/A':
+                if res_low is not None and isinstance(res_low, (int, float)):
                     html += f"<li><b>Low Resolution Limit:</b> {res_low} Å</li>"
                 
                 html += "</ul>"
@@ -1465,8 +1465,8 @@ class ProteinViewerApp(QMainWindow):
                 html += f"<li><b>Angles:</b> α={cell.get('angle_alpha', 'N/A')}°, "
                 html += f"β={cell.get('angle_beta', 'N/A')}°, γ={cell.get('angle_gamma', 'N/A')}°</li>"
                 
-                volume = cell.get('volume', 'N/A')
-                if volume != 'N/A':
+                volume = cell.get('volume')
+                if volume is not None and isinstance(volume, (int, float)):
                     html += f"<li><b>Volume:</b> {volume:,.0f} Å³</li>"
                 html += "</ul>"
             
