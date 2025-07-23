@@ -1227,26 +1227,31 @@ class ProteinViewerApp(QMainWindow):
             ])
             
             # Advanced experimental details
-            mol_weight = rcsb_info.get('molecular_weight', 'N/A')
-            atom_count = rcsb_info.get('deposited_atom_count', 'N/A')
-            if mol_weight != 'N/A':
+            mol_weight = rcsb_info.get('molecular_weight')
+            atom_count = rcsb_info.get('deposited_atom_count')
+            if mol_weight is not None and isinstance(mol_weight, (int, float)):
                 summary_parts.append(f"⚖️ Molecular Weight: {mol_weight:,.0f} Da")
-            if atom_count != 'N/A':
+            if atom_count is not None and isinstance(atom_count, (int, float)):
                 summary_parts.append(f"⚛️ Total Atoms: {atom_count:,}")
             
             # Refinement statistics
             if 'refine' in entry and entry['refine']:
                 refine = entry['refine'][0] if isinstance(entry['refine'], list) else entry['refine']
-                r_work = refine.get('ls_R_factor_R_work', 'N/A')
-                r_free = refine.get('ls_R_factor_R_free', 'N/A')
-                if r_work != 'N/A' and r_free != 'N/A':
+                r_work = refine.get('ls_R_factor_R_work')
+                r_free = refine.get('ls_R_factor_R_free')
+                # Check for both None and valid numeric values
+                if r_work is not None and r_free is not None and isinstance(r_work, (int, float)) and isinstance(r_free, (int, float)):
                     summary_parts.append(f"📊 R-factors: R-work={r_work:.3f}, R-free={r_free:.3f}")
+                elif r_work is not None and isinstance(r_work, (int, float)):
+                    summary_parts.append(f"📊 R-work: {r_work:.3f}")
+                elif r_free is not None and isinstance(r_free, (int, float)):
+                    summary_parts.append(f"📊 R-free: {r_free:.3f}")
             
             # Crystal parameters
             if 'cell' in entry and entry['cell']:
                 cell = entry['cell']
-                volume = cell.get('volume', 'N/A')
-                if volume != 'N/A':
+                volume = cell.get('volume')
+                if volume is not None and isinstance(volume, (int, float)):
                     summary_parts.append(f"💎 Unit Cell Volume: {volume:,.0f} Å³")
             
             # Space group
