@@ -188,8 +188,6 @@ class StructuralAnalysisWorker(QThread):
             'chains': [],
             'total_residues': 0,
             'total_atoms': 0,
-            'resolution': 'N/A',
-            'space_group': 'N/A',
             'molecular_weight': 0.0,
             'composition': {}
         }
@@ -241,294 +239,17 @@ class StructuralAnalysisWorker(QThread):
         
         results['composition'] = dict(composition)
         
-        # Use comprehensive metadata if available, otherwise fall back to PDB header
+        # Use more accurate molecular weight from comprehensive metadata if available
         if self.comprehensive_data and self.comprehensive_data.get('metadata'):
-
             metadata = self.comprehensive_data['metadata']
-            
             if 'entry' in metadata:
                 entry = metadata['entry']
-                
-                # Extract comprehensive information
                 rcsb_info = entry.get('rcsb_entry_info', {})
-                
-                # Resolution from comprehensive metadata
-                resolution = rcsb_info.get('resolution_combined')
-                if isinstance(resolution, list) and resolution:
-                    results['resolution'] = resolution[0]
-                elif resolution:
-                    results['resolution'] = resolution
-                else:
-                    results['resolution'] = 'N/A'
-                
-                # Experimental method from comprehensive metadata
-                method = rcsb_info.get('experimental_method', 'N/A')
-                results['structure_method'] = method
-                results['experimental_method'] = method
-                
-                # Space group from comprehensive metadata
-                if 'symmetry' in entry and entry['symmetry']:
-                    space_group = entry['symmetry'].get('space_group_name_H_M', 'N/A')
-                    results['space_group'] = space_group
-                else:
-                    results['space_group'] = 'N/A'
-                
-                # Additional comprehensive information
-                if 'struct' in entry:
-                    struct_info = entry['struct']
-                    results['title'] = struct_info.get('title', 'N/A')
-                    results['pdbx_descriptor'] = struct_info.get('pdbx_descriptor', 'N/A')
-                
-                # Author information
-                if 'audit_author' in entry:
-                    authors = entry['audit_author']
-                    author_names = [author.get('name', '') for author in authors[:5]]
-                    results['authors'] = author_names
-                
-                # Dates
-                if 'rcsb_accession_info' in entry:
-                    accession_info = entry['rcsb_accession_info']
-                    results['deposition_date'] = accession_info.get('deposit_date', 'N/A')
-                    results['release_date'] = accession_info.get('initial_release_date', 'N/A')
-                
-                # Crystal information
-                if 'cell' in entry and entry['cell']:
-                    cell = entry['cell']
-                    results['unit_cell'] = {
-                        'a': cell.get('length_a'),
-                        'b': cell.get('length_b'),
-                        'c': cell.get('length_c'),
-                        'alpha': cell.get('angle_alpha'),
-                        'beta': cell.get('angle_beta'),
-                        'gamma': cell.get('angle_gamma'),
-                        'volume': cell.get('volume')
-                    }
-                
-                # Molecular weight from comprehensive metadata (more accurate)
                 comp_mol_weight = rcsb_info.get('molecular_weight')
                 if comp_mol_weight:
                     results['molecular_weight'] = comp_mol_weight * 1000  # Convert kDa to Da for consistency
-                
-
-            else:
-
-                self._extract_from_pdb_header(results)
-        else:
-
-            self._extract_from_pdb_header(results)
         
         return results
-    
-    def _extract_from_pdb_header(self, results):
-        """Extract information from PDB header as fallback."""
-        try:
-            header = self.structure.header
-            if header:
-                print(f"[DEBUG] Available header keys: {list(header.keys()) if hasattr(header, 'keys') else 'No keys method'}")
-                print(f"[DEBUG] Full header content: {header}")
-                
-                # Extract resolution - BioPython usually extracts this correctly
-                resolution = header.get('resolution')
-                print(f"[DEBUG] Initial resolution from header: {resolution} (type: {type(resolution)})")
-                
-                # Check if resolution is None or invalid, try to load from .ent file
-                if resolution is None:
-                    print(f"[DEBUG] Resolution is None, trying to load from .ent file...")
-                    ent_resolution = self._try_extract_from_ent_file('resolution')
-                    print(f"[DEBUG] Resolution from .ent file: {ent_resolution}")
-                    if ent_resolution is not None:
-                        resolution = ent_resolution
-                
-                results['resolution'] = resolution if resolution is not None else 'N/A'
-                print(f"[DEBUG] Final extracted resolution: {results['resolution']}")
-                
-                # Try different possible keys for space group
-                space_group = None
-                for sg_key in ['space_group', 'spacegroup', 'Space_group', 'SPACE_GROUP']:
-                    if sg_key in header:
-                        space_group = header[sg_key]
-                        print(f"[DEBUG] Found space_group with key '{sg_key}': {space_group}")
-                        break
-                
-                results['space_group'] = space_group if space_group is not None else 'N/A'
-                
-                # Extract structure method - try multiple possible keys
-                structure_method = None
-                
-                # Try different possible keys for experimental method in BioPython header
-                method_keys = ['structure_method', 'expdta', 'experiment_type', 'method']
-                for method_key in method_keys:
-                    if method_key in header and header[method_key]:
-                        structure_method = header[method_key]
-                        print(f"[DEBUG] Found experimental method with key '{method_key}': {structure_method}")
-                        break
-                
-                print(f"[DEBUG] Initial structure method from header: {structure_method}")
-                
-                # If still unknown/empty, try to extract from .ent file
-                if structure_method == 'unknown' or not structure_method:
-                    print(f"[DEBUG] Structure method is unknown/empty, trying to load from .ent file...")
-                    ent_method = self._try_extract_from_ent_file('method')
-                    print(f"[DEBUG] Structure method from .ent file: {ent_method}")
-                    if ent_method:
-                        structure_method = ent_method
-                
-                # Extract other useful header information
-                header_keys_to_check = [
-                    'deposition_date', 'release_date', 'head',
-                    'keywords', 'compound', 'source', 'author'
-                ]
-                for key in header_keys_to_check:
-                    if key in header:
-                        results[key] = header[key]
-                        print(f"[DEBUG] Found header field {key}: {header[key]}")
-                
-                # Set the structure method and experimental method
-                results['structure_method'] = structure_method if structure_method else 'N/A'
-                results['experimental_method'] = results['structure_method']  # Store as both for compatibility
-                print(f"[DEBUG] Final structure method: {results['structure_method']}")
-                
-                # Print final results for debugging
-                print(f"[DEBUG] Final resolution: {results['resolution']}")
-                print(f"[DEBUG] Final space_group: {results['space_group']}")
-                print(f"[DEBUG] Final experimental_method: {results['experimental_method']}")
-            else:
-                print("[DEBUG] No header information available in structure")
-                results['resolution'] = 'N/A'
-                results['space_group'] = 'N/A'
-                results['structure_method'] = 'N/A'
-        except Exception as e:
-            print(f"[DEBUG] Error extracting header information: {e}")
-            results['resolution'] = 'N/A'
-            results['space_group'] = 'N/A'
-            results['structure_method'] = 'N/A'
-    
-    def _try_extract_from_ent_file(self, info_type):
-        """Try to extract information from corresponding .ent file."""
-        try:
-            # Get the structure ID from the file path
-            structure_id = os.path.basename(self.structure_path).split('.')[0].lower()
-            
-            # Look for corresponding .ent file
-            base_dir = os.path.dirname(self.structure_path)
-            possible_ent_files = [
-                os.path.join(base_dir, f"pdb{structure_id}.ent"),
-                os.path.join(base_dir, f"{structure_id}.ent"),
-                os.path.join(base_dir, f"PDB{structure_id.upper()}.ent"),
-                os.path.join(base_dir, f"{structure_id.upper()}.ent")
-            ]
-            
-            for ent_file in possible_ent_files:
-                if os.path.exists(ent_file):
-                    print(f"[DEBUG] Found .ent file: {ent_file}")
-                    return self._extract_from_ent_file(ent_file, info_type)
-            
-            print(f"[DEBUG] No .ent file found for {structure_id}")
-            return None
-            
-        except Exception as e:
-            print(f"[DEBUG] Error trying to extract from .ent file: {e}")
-            return None
-    
-    def _extract_from_ent_file(self, ent_file_path, info_type):
-        """Extract specific information from .ent file."""
-        try:
-            with open(ent_file_path, 'r') as f:
-                lines = f.readlines()
-            
-            if info_type == 'resolution':
-                # Look for resolution in REMARK 2
-                for line in lines:
-                    if line.startswith('REMARK   2') and 'RESOLUTION' in line and 'ANGSTROM' in line:
-                        # Extract resolution value
-                        import re
-                        match = re.search(r'(\d+\.\d+)\s*ANGSTROM', line)
-                        if match:
-                            return float(match.group(1))
-                
-                # Also try title line
-                for line in lines:
-                    if line.startswith('TITLE') and 'ANGSTROM' in line:
-                        import re
-                        match = re.search(r'(\d+\.\d+)\s*ANGSTROM', line)
-                        if match:
-                            return float(match.group(1))
-            
-            elif info_type == 'method':
-                # Look for experimental method in EXPDTA
-                for line in lines:
-                    if line.startswith('EXPDTA'):
-                        method = line[10:].strip()
-                        # Clean up the method string
-                        if method:
-                            # Remove common suffixes and clean up
-                            method = method.replace('DIFFRACTION', '').replace('CRYSTALLOGRAPHY', '').strip()
-                            if method.endswith(';'):
-                                method = method[:-1].strip()
-                            return method if method else None
-                
-                # Also try HEADER line which sometimes contains method info
-                for line in lines:
-                    if line.startswith('HEADER'):
-                        # HEADER format: HEADER    CLASSIFICATION               DD-MMM-YY   IDCODE
-                        # The classification often indicates the method
-                        if len(line) > 50:
-                            classification = line[10:50].strip()
-                            # Look for method indicators in classification
-                            method_indicators = {
-                                'HYDROLASE': 'X-RAY DIFFRACTION',
-                                'TRANSFERASE': 'X-RAY DIFFRACTION', 
-                                'OXIDOREDUCTASE': 'X-RAY DIFFRACTION',
-                                'LYASE': 'X-RAY DIFFRACTION',
-                                'ISOMERASE': 'X-RAY DIFFRACTION',
-                                'LIGASE': 'X-RAY DIFFRACTION',
-                                'IMMUNE SYSTEM': 'X-RAY DIFFRACTION',
-                                'SIGNALING PROTEIN': 'X-RAY DIFFRACTION',
-                                'STRUCTURAL PROTEIN': 'X-RAY DIFFRACTION',
-                                'TRANSPORT PROTEIN': 'X-RAY DIFFRACTION',
-                                'MEMBRANE PROTEIN': 'X-RAY DIFFRACTION',
-                                'DNA BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'RNA BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'PROTEIN BINDING': 'X-RAY DIFFRACTION',
-                                'TRANSCRIPTION': 'X-RAY DIFFRACTION',
-                                'REPLICATION': 'X-RAY DIFFRACTION',
-                                'VIRAL PROTEIN': 'X-RAY DIFFRACTION',
-                                'RIBOSOME': 'X-RAY DIFFRACTION',
-                                'TOXIN': 'X-RAY DIFFRACTION',
-                                'ANTIBIOTIC': 'X-RAY DIFFRACTION',
-                                'HORMONE': 'X-RAY DIFFRACTION',
-                                'GROWTH FACTOR': 'X-RAY DIFFRACTION',
-                                'BLOOD CLOTTING': 'X-RAY DIFFRACTION',
-                                'CELL CYCLE': 'X-RAY DIFFRACTION',
-                                'CELL ADHESION': 'X-RAY DIFFRACTION',
-                                'MOTOR PROTEIN': 'X-RAY DIFFRACTION',
-                                'CHAPERONE': 'X-RAY DIFFRACTION',
-                                'BIOSYNTHETIC PROTEIN': 'X-RAY DIFFRACTION',
-                                'METAL BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'CALCIUM BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'ELECTRON TRANSPORT': 'X-RAY DIFFRACTION',
-                                'PHOTOSYNTHESIS': 'X-RAY DIFFRACTION',
-                                'SUGAR BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'LIPID BINDING PROTEIN': 'X-RAY DIFFRACTION',
-                                'ANTIMICROBIAL PROTEIN': 'X-RAY DIFFRACTION',
-                                'ANTIVIRAL PROTEIN': 'X-RAY DIFFRACTION',
-                                'UNKNOWN FUNCTION': 'X-RAY DIFFRACTION'
-                            }
-                            
-                            # Check if classification contains method indicators
-                            for indicator, method in method_indicators.items():
-                                if indicator in classification.upper():
-                                    return method
-                            
-                            # If no specific match, assume X-ray for most protein structures
-                            if classification and 'PROTEIN' in classification.upper():
-                                return 'X-RAY DIFFRACTION'
-            
-            return None
-            
-        except Exception as e:
-            print(f"[DEBUG] Error extracting {info_type} from .ent file: {e}")
-            return None
     
     def analyze_secondary_structure(self):
         """Analyze secondary structure using simple geometric rules and collect Ramachandran data."""
@@ -2019,7 +1740,7 @@ class StructuralAnalysisTab(QWidget):
             "<h3>Structural Analysis Tools</h3>"
             "<p>Load a protein structure and select analysis options to get:</p>"
             "<ul>"
-            "<li><b>Basic Properties:</b> Chain composition, molecular weight, resolution</li>"
+            "<li><b>Basic Properties:</b> Chain composition, molecular weight</li>"
             "<li><b>Secondary Structure:</b> Helix/sheet/loop content, Ramachandran plots</li>"
             "<li><b>Geometric Analysis:</b> Bond lengths, angles, radius of gyration</li>"
 
@@ -2955,8 +2676,7 @@ class StructuralAnalysisTab(QWidget):
         # 1. Basic Information Tab (Simplified)
         self._create_simple_basic_tab(metadata_tabs, basic_results, metadata)
         
-        # 2. Experimental Details Tab (Essential only)
-        self._create_simple_experimental_tab(metadata_tabs, metadata, basic_results)
+        # 2. Experimental Details Tab - Removed
         
         # 3. Sequence Information Tab (If available)
         if basic_results.get('chains'):
@@ -3034,115 +2754,7 @@ class StructuralAnalysisTab(QWidget):
         basic_tab_layout.addStretch()
         metadata_tabs.addTab(basic_tab, "Basic Info")
     
-    def _create_simple_experimental_tab(self, metadata_tabs, metadata, basic_results):
-        """Create simplified experimental information tab with advanced metadata."""
-        exp_tab = QWidget()
-        exp_tab_layout = QVBoxLayout(exp_tab)
-        
-        if 'entry' not in metadata:
-            exp_tab_layout.addWidget(QLabel("No experimental data available"))
-            metadata_tabs.addTab(exp_tab, "Experimental")
-            return
-        
-        entry = metadata['entry']
-        
-        # Main Experimental Information Group
-        exp_group = QGroupBox("Experimental Details")
-        exp_layout = QFormLayout(exp_group)
-        
-        # Experimental Method Section
-        method = self._get_enhanced_experimental_method(basic_results)
-        exp_layout.addRow("<b>Method:</b>", QLabel(method))
-        
-        # Resolution Section
-        resolution = self._get_enhanced_resolution(basic_results)
-        exp_layout.addRow("<b>Resolution:</b>", QLabel(resolution))
-        
-        # Additional Experimental Details Group
-        details_group = QGroupBox("Experimental Conditions")
-        details_layout = QFormLayout(details_group)
-        
-        # Add experimental conditions if available
-        if entry.get('exptl') and entry['exptl']:
-            exptl = entry['exptl'][0]
-            if exptl.get('pdbx_details'):
-                details_layout.addRow("Details:", QLabel(exptl['pdbx_details']))
-            if exptl.get('crystals'):
-                details_layout.addRow("Crystals:", QLabel(str(exptl['crystals'])))
-        
-        # Add crystallization information if available
-        if entry.get('exptl_crystal'):
-            crystal = entry['exptl_crystal'][0]
-            if crystal.get('pdbx_description'):
-                details_layout.addRow("Crystal Description:", QLabel(crystal['pdbx_description']))
-        
-        # Add pH and temperature if available
-        if entry.get('exptl_crystal_grow'):
-            crystal_grow = entry['exptl_crystal_grow'][0]
-            if crystal_grow.get('pH'):
-                details_layout.addRow("pH:", QLabel(str(crystal_grow['pH'])))
-            if crystal_grow.get('pdbx_pH_range'):
-                details_layout.addRow("pH Range:", QLabel(crystal_grow['pdbx_pH_range']))
-            if crystal_grow.get('temp'):
-                details_layout.addRow("Temperature (K):", QLabel(str(crystal_grow['temp'])))
-        
-        # Refinement Statistics Group
-        refine_group = QGroupBox("Refinement Statistics")
-        refine_layout = QFormLayout(refine_group)
-        
-        if entry.get('refine'):
-            refine_data = entry['refine'][0]
-            
-            # Add R-factors with null checks
-            r_work = refine_data.get('ls_R_factor_R_work')
-            if r_work is not None:
-                refine_layout.addRow("R-work:", QLabel(f"{r_work:.3f}"))
-            
-            r_free = refine_data.get('ls_R_factor_R_free')
-            if r_free is not None:
-                refine_layout.addRow("R-free:", QLabel(f"{r_free:.3f}"))
-            
-            # Add refinement details
-            if 'pdbx_refine_id' in refine_data:
-                refine_layout.addRow("Refinement ID:", QLabel(refine_data['pdbx_refine_id']))
-            if 'pdbx_method_to_determine_struct' in refine_data:
-                refine_layout.addRow("Method:", QLabel(refine_data['pdbx_method_to_determine_struct']))
-            # Add resolution data with null checks
-            res_high = refine_data.get('ls_d_res_high')
-            if res_high is not None:
-                refine_layout.addRow("High Resolution (Å):", QLabel(f"{res_high:.2f}"))
-            
-            res_low = refine_data.get('ls_d_res_low')
-            if res_low is not None:
-                refine_layout.addRow("Low Resolution (Å):", QLabel(f"{res_low:.2f}"))
-            
-            # Add R-free percentage with null check
-            r_free_percent = refine_data.get('ls_percent_reflns_R_free')
-            if r_free_percent is not None:
-                refine_layout.addRow("% R-free Test Set:", QLabel(f"{r_free_percent:.1f}%"))
-        
-        # Data Collection Group
-        data_collection_group = QGroupBox("Data Collection")
-        data_collection_layout = QFormLayout(data_collection_group)
-        
-        if entry.get('exptl_crystal'):
-            crystal = entry['exptl_crystal'][0]
-            if 'pdbx_diffrn_source' in crystal:
-                data_collection_layout.addRow("Source:", QLabel(crystal['pdbx_diffrn_source']))
-            if 'pdbx_detector' in crystal:
-                data_collection_layout.addRow("Detector:", QLabel(crystal['pdbx_detector']))
-        
-        # Add all groups to the main layout
-        exp_tab_layout.addWidget(exp_group)
-        exp_tab_layout.addWidget(details_group)
-        exp_tab_layout.addWidget(refine_group)
-        exp_tab_layout.addWidget(data_collection_group)
-        
-        # Add a stretch to push everything up
-        exp_tab_layout.addStretch()
-        
-        # Add the tab to the metadata tabs
-        metadata_tabs.addTab(exp_tab, "Experimental")
+    # Experimental tab creation method removed
     
     def _create_simple_sequence_tab(self, metadata_tabs, basic_results):
         """Create simplified sequence information tab."""
@@ -3611,87 +3223,7 @@ class StructuralAnalysisTab(QWidget):
         features_tab_layout.addStretch()
         metadata_tabs.addTab(features_tab, "Features")
     
-    def _create_crystallographic_tab(self, metadata_tabs, metadata):
-        """Create detailed crystallographic information tab."""
-        crystal_tab = QWidget()
-        crystal_tab_layout = QVBoxLayout(crystal_tab)
-        
-        if 'entry' not in metadata:
-            crystal_tab_layout.addWidget(QLabel("No crystallographic data available"))
-            metadata_tabs.addTab(crystal_tab, "Crystal")
-            return
-        
-        entry = metadata['entry']
-        
-        # Crystal System and Symmetry
-        symmetry_group = QGroupBox("Crystal System and Symmetry")
-        symmetry_layout = QFormLayout(symmetry_group)
-        
-        if entry.get('symmetry'):
-            symmetry = entry['symmetry']
-            
-            if symmetry.get('space_group_name_H_M'):
-                symmetry_layout.addRow("Space Group:", QLabel(symmetry['space_group_name_H_M']))
-            
-            if symmetry.get('Int_Tables_number'):
-                symmetry_layout.addRow("Space Group Number:", QLabel(str(symmetry['Int_Tables_number'])))
-            
-            if symmetry.get('cell_setting'):
-                symmetry_layout.addRow("Crystal System:", QLabel(symmetry['cell_setting']))
-        
-        crystal_tab_layout.addWidget(symmetry_group)
-        
-        # Unit Cell Parameters
-        if entry.get('cell'):
-            cell_group = QGroupBox("Unit Cell Parameters")
-            cell_layout = QFormLayout(cell_group)
-            
-            cell = entry['cell']
-            
-            # Cell dimensions
-            a = cell.get('length_a')
-            b = cell.get('length_b')
-            c = cell.get('length_c')
-            if all(x is not None for x in [a, b, c]):
-                cell_layout.addRow("a:", QLabel(f"{a:.3f} Å"))
-                cell_layout.addRow("b:", QLabel(f"{b:.3f} Å"))
-                cell_layout.addRow("c:", QLabel(f"{c:.3f} Å"))
-            
-            # Cell angles
-            alpha = cell.get('angle_alpha')
-            beta = cell.get('angle_beta')
-            gamma = cell.get('angle_gamma')
-            if all(x is not None for x in [alpha, beta, gamma]):
-                cell_layout.addRow("α:", QLabel(f"{alpha:.2f}°"))
-                cell_layout.addRow("β:", QLabel(f"{beta:.2f}°"))
-                cell_layout.addRow("γ:", QLabel(f"{gamma:.2f}°"))
-            
-            # Cell volume
-            if all(x is not None for x in [a, b, c, alpha, beta, gamma]):
-                import math
-                # Calculate unit cell volume
-                alpha_rad = math.radians(alpha)
-                beta_rad = math.radians(beta)
-                gamma_rad = math.radians(gamma)
-                
-                volume = a * b * c * math.sqrt(1 + 2*math.cos(alpha_rad)*math.cos(beta_rad)*math.cos(gamma_rad) 
-                                             - math.cos(alpha_rad)**2 - math.cos(beta_rad)**2 - math.cos(gamma_rad)**2)
-                cell_layout.addRow("Volume:", QLabel(f"{volume:.1f} ų"))
-            
-            crystal_tab_layout.addWidget(cell_group)
-        
-        # Data Collection
-        data_group = QGroupBox("Data Collection Information")
-        data_layout = QVBoxLayout(data_group)
-        data_layout.addWidget(QLabel("Detailed data collection parameters would include:"))
-        data_layout.addWidget(QLabel("• Diffraction data statistics"))
-        data_layout.addWidget(QLabel("• Beamline and detector information"))
-        data_layout.addWidget(QLabel("• Data processing software and methods"))
-        data_layout.addWidget(QLabel("• Completeness and redundancy statistics"))
-        
-        crystal_tab_layout.addWidget(data_group)
-        crystal_tab_layout.addStretch()
-        metadata_tabs.addTab(crystal_tab, "Crystal")
+    # Crystallographic tab creation method removed
     
     def display_basic_results_fallback(self, results):
         """Display basic results when enhanced metadata is not available."""
@@ -3703,8 +3235,6 @@ class StructuralAnalysisTab(QWidget):
         basic_layout.addRow("Total Residues:", QLabel(str(results.get('total_residues', 0))))
         basic_layout.addRow("Total Atoms:", QLabel(str(results.get('total_atoms', 0))))
         basic_layout.addRow("Molecular Weight:", QLabel(f"{results.get('molecular_weight', 0):.1f} Da"))
-        basic_layout.addRow("Resolution:", QLabel(str(results.get('resolution', 'N/A'))))
-        basic_layout.addRow("Space Group:", QLabel(str(results.get('space_group', 'N/A'))))
         
         self.results_layout.addWidget(basic_group)
         
@@ -3808,8 +3338,7 @@ class StructuralAnalysisTab(QWidget):
         basic_layout.addRow("Total Residues:", QLabel(str(results.get('total_residues', 0))))
         basic_layout.addRow("Total Atoms:", QLabel(str(results.get('total_atoms', 0))))
         basic_layout.addRow("Molecular Weight:", QLabel(f"{results.get('molecular_weight', 0):.1f} Da"))
-        basic_layout.addRow("Resolution:", QLabel(str(results.get('resolution', 'N/A'))))
-        basic_layout.addRow("Space Group:", QLabel(str(results.get('space_group', 'N/A'))))
+        # Resolution and space group removed
         
         self.results_layout.addWidget(basic_group)
         
@@ -4392,9 +3921,7 @@ class StructuralAnalysisTab(QWidget):
         if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
             export_data['comprehensive_metadata'] = self._extract_comprehensive_metadata_for_export()
         
-        # Add enhanced experimental details
-        if 'basic' in self.current_results:
-            export_data['experimental_details'] = self._extract_experimental_details_for_export(self.current_results['basic'])
+        # Experimental details removed
         
         # Add selected analysis types
         for analysis_type in ['basic', 'secondary', 'geometry']:
@@ -4431,14 +3958,7 @@ class StructuralAnalysisTab(QWidget):
                         writer.writerow([key.replace('_', ' ').title() + ':', str(value)])
                     writer.writerow([])
             
-            # Add experimental details
-            if 'basic' in self.current_results:
-                exp_details = self._extract_experimental_details_for_export(self.current_results['basic'])
-                if exp_details:
-                    writer.writerow(['=== EXPERIMENTAL DETAILS ==='])
-                    for key, value in exp_details.items():
-                        writer.writerow([key.replace('_', ' ').title() + ':', str(value)])
-                    writer.writerow([])
+            # Experimental details removed
             
             # Basic Properties
             if 'basic' in self.current_results and options.get('include_basic', True):
@@ -4448,8 +3968,7 @@ class StructuralAnalysisTab(QWidget):
                 writer.writerow(['Total Residues', basic.get('total_residues', 0)])
                 writer.writerow(['Total Atoms', basic.get('total_atoms', 0)])
                 writer.writerow(['Molecular Weight (Da)', f"{basic.get('molecular_weight', 0):.2f}"])
-                writer.writerow(['Resolution', basic.get('resolution', 'N/A')])
-                writer.writerow(['Space Group', basic.get('space_group', 'N/A')])
+                # Resolution and space group removed
                 writer.writerow([])
                 
                 # Chain information
@@ -4540,13 +4059,11 @@ class StructuralAnalysisTab(QWidget):
                     
                     # Basic info
                     basic_data = {
-                        'Property': ['Total Residues', 'Total Atoms', 'Molecular Weight (Da)', 'Resolution', 'Space Group'],
+                        'Property': ['Total Residues', 'Total Atoms', 'Molecular Weight (Da)'],
                         'Value': [
                             basic.get('total_residues', 0),
                             basic.get('total_atoms', 0),
-                            f"{basic.get('molecular_weight', 0):.2f}",
-                            basic.get('resolution', 'N/A'),
-                            basic.get('space_group', 'N/A')
+                            f"{basic.get('molecular_weight', 0):.2f}"
                         ]
                     }
                     pd.DataFrame(basic_data).to_excel(writer, sheet_name='Basic Properties', index=False)
@@ -4672,14 +4189,7 @@ class StructuralAnalysisTab(QWidget):
                         f.write(f"{key.replace('_', ' ').title()}: {value}\n")
                     f.write("\n")
             
-            # Add experimental details
-            if 'basic' in self.current_results:
-                exp_details = self._extract_experimental_details_for_export(self.current_results['basic'])
-                if exp_details:
-                    f.write("=== EXPERIMENTAL DETAILS ===\n")
-                    for key, value in exp_details.items():
-                        f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-                    f.write("\n")
+            # Experimental details removed
             
             # Basic Properties
             if 'basic' in self.current_results and options.get('include_basic', True):
@@ -4689,8 +4199,7 @@ class StructuralAnalysisTab(QWidget):
                 f.write(f"Total Residues: {basic.get('total_residues', 0)}\n")
                 f.write(f"Total Atoms: {basic.get('total_atoms', 0)}\n")
                 f.write(f"Molecular Weight: {basic.get('molecular_weight', 0):.2f} Da\n")
-                f.write(f"Resolution: {basic.get('resolution', 'N/A')}\n")
-                f.write(f"Space Group: {basic.get('space_group', 'N/A')}\n")
+                # Resolution and space group removed
                 f.write("\n")
                 
                 # Chain information
@@ -4907,11 +4416,7 @@ class StructuralAnalysisTab(QWidget):
                     f.write(f"<tr><td>Total Atoms</td><td>{basic.get('total_atoms', 0)}</td></tr>\n")
                     f.write(f"<tr><td>Molecular Weight</td><td>{basic.get('molecular_weight', 0):.2f} Da</td></tr>\n")
                     
-                    # Enhanced resolution with fallback logic
-                    resolution = self._get_enhanced_resolution(basic)
-                    f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
-                    
-                    f.write(f"<tr><td>Space Group</td><td>{basic.get('space_group', 'N/A')}</td></tr>\n")
+                    # Resolution and space group removed
                     f.write("</table>\n")
                     
                     # Enhanced Chain information with sequences
@@ -5197,13 +4702,7 @@ class StructuralAnalysisTab(QWidget):
         f.write("<table>\n")
         f.write("<tr><th>Property</th><th>Value</th></tr>\n")
         
-        # Enhanced experimental method extraction
-        method = self._get_enhanced_experimental_method(basic_results)
-        f.write(f"<tr><td>Experimental Method</td><td>{method}</td></tr>\n")
-        
-        # Enhanced resolution extraction
-        resolution = self._get_enhanced_resolution(basic_results)
-        f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
+        # Experimental method and resolution removed
         
         # Refinement statistics if available
         if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
@@ -5224,57 +4723,9 @@ class StructuralAnalysisTab(QWidget):
         
         f.write("</table>\n")
     
-    def _get_enhanced_experimental_method(self, basic_results):
-        """Get experimental method using the same fallback logic as display."""
-        method = 'N/A'
-        
-        # First try basic_results structure_method (from .ent file extraction)
-        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
-            method = basic_results['structure_method']
-        elif basic_results.get('experimental_method') and basic_results['experimental_method'] != 'N/A':
-            method = basic_results['experimental_method']
-        # Then try comprehensive metadata
-        elif hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
-            metadata = self.current_comprehensive_data.get('metadata', {})
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
-                    method = entry['rcsb_entry_info']['experimental_method']
-                elif entry.get('exptl') and entry['exptl']:
-                    method = entry['exptl'][0].get('method', 'N/A')
-        # Fallback to other basic_results fields
-        elif basic_results.get('head'):
-            method = basic_results['head']
-        elif basic_results.get('expdta'):
-            method = basic_results['expdta']
-        
-        return method
+    # Enhanced experimental method helper removed
     
-    def _get_enhanced_resolution(self, basic_results):
-        """Get resolution using the same fallback logic as display."""
-        resolution = 'N/A'
-        
-        # Try comprehensive metadata first
-        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
-            metadata = self.current_comprehensive_data.get('metadata', {})
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
-                    res_data = entry['rcsb_entry_info']['resolution_combined']
-                    if isinstance(res_data, list) and res_data:
-                        resolution = f"{res_data[0]} Å"
-                    elif isinstance(res_data, (int, float)):
-                        resolution = f"{res_data} Å"
-        
-        # Fallback to basic_results
-        if resolution == 'N/A' and basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
-            res_value = basic_results['resolution']
-            if isinstance(res_value, (int, float)):
-                resolution = f"{res_value} Å"
-            else:
-                resolution = str(res_value)
-        
-        return resolution
+    # Enhanced resolution helper removed
     
     def _extract_comprehensive_metadata_for_export(self):
         """Extract comprehensive metadata for JSON/other exports."""
@@ -5315,32 +4766,7 @@ class StructuralAnalysisTab(QWidget):
             print(f"[DEBUG] Error extracting comprehensive metadata for export: {e}")
             return {}
     
-    def _extract_experimental_details_for_export(self, basic_results):
-        """Extract experimental details for JSON/other exports."""
-        result = {}
-        
-        # Enhanced experimental method extraction
-        result['experimental_method'] = self._get_enhanced_experimental_method(basic_results)
-        
-        # Enhanced resolution extraction
-        result['resolution'] = self._get_enhanced_resolution(basic_results)
-        
-        # Refinement statistics if available
-        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
-            metadata = self.current_comprehensive_data.get('metadata', {})
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                if entry.get('refine') and entry['refine']:
-                    refine_data = entry['refine'][0]
-                    r_work = refine_data.get('ls_R_factor_R_work')
-                    r_free = refine_data.get('ls_R_factor_R_free')
-                    
-                    if r_work is not None:
-                        result['r_work'] = r_work
-                    if r_free is not None:
-                        result['r_free'] = r_free
-        
-        return result
+    # Experimental details extraction method removed
     
     def _export_comprehensive_metadata(self, f):
         """Export comprehensive metadata to HTML."""
@@ -5399,13 +4825,7 @@ class StructuralAnalysisTab(QWidget):
         f.write("<table>\n")
         f.write("<tr><th>Property</th><th>Value</th></tr>\n")
         
-        # Enhanced experimental method extraction
-        method = self._get_enhanced_experimental_method(basic_results)
-        f.write(f"<tr><td>Experimental Method</td><td>{method}</td></tr>\n")
-        
-        # Enhanced resolution extraction
-        resolution = self._get_enhanced_resolution(basic_results)
-        f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
+        # Experimental method and resolution removed
         
         # Refinement statistics if available
         if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
@@ -5426,57 +4846,7 @@ class StructuralAnalysisTab(QWidget):
         
         f.write("</table>\n")
     
-    def _get_enhanced_experimental_method(self, basic_results):
-        """Get experimental method using the same fallback logic as display."""
-        method = 'N/A'
-        
-        # First try basic_results structure_method (from .ent file extraction)
-        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
-            method = basic_results['structure_method']
-        elif basic_results.get('experimental_method') and basic_results['experimental_method'] != 'N/A':
-            method = basic_results['experimental_method']
-        # Then try comprehensive metadata
-        elif hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
-            metadata = self.current_comprehensive_data.get('metadata', {})
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
-                    method = entry['rcsb_entry_info']['experimental_method']
-                elif entry.get('exptl') and entry['exptl']:
-                    method = entry['exptl'][0].get('method', 'N/A')
-        # Fallback to other basic_results fields
-        elif basic_results.get('head'):
-            method = basic_results['head']
-        elif basic_results.get('expdta'):
-            method = basic_results['expdta']
-        
-        return method
-    
-    def _get_enhanced_resolution(self, basic_results):
-        """Get resolution using the same fallback logic as display."""
-        resolution = 'N/A'
-        
-        # Try comprehensive metadata first
-        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
-            metadata = self.current_comprehensive_data.get('metadata', {})
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
-                    res_data = entry['rcsb_entry_info']['resolution_combined']
-                    if isinstance(res_data, list) and res_data:
-                        resolution = f"{res_data[0]} Å"
-                    elif isinstance(res_data, (int, float)):
-                        resolution = f"{res_data} Å"
-        
-        # Fallback to basic_results
-        if resolution == 'N/A' and basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
-            res_value = basic_results['resolution']
-            if isinstance(res_value, (int, float)):
-                resolution = f"{res_value} Å"
-            else:
-                resolution = str(res_value)
-        
-        return resolution
+    # Duplicate experimental helper methods removed
     
     def export_complete_pdf(self, file_path):
         """Export complete analysis as PDF."""
