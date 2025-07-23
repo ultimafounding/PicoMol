@@ -465,7 +465,8 @@ class StructuralAnalysisWorker(QThread):
             'sheet_content': 0.0,
             'loop_content': 0.0,
             'secondary_elements': [],
-            'ramachandran_data': []
+            'ramachandran_data': [],
+            'pdb_id': None  # Add PDB ID to results
         }
         
         total_residues = 0
@@ -518,6 +519,10 @@ class StructuralAnalysisWorker(QThread):
             results['loop_content'] = 100 - results['helix_content'] - results['sheet_content']
         
         results['ramachandran_data'] = ramachandran_data
+        
+        # Add PDB ID from comprehensive data if available
+        if self.comprehensive_data and self.comprehensive_data.get('pdb_id'):
+            results['pdb_id'] = self.comprehensive_data['pdb_id']
         
         return results
     
@@ -2503,7 +2508,7 @@ class StructuralAnalysisTab(QWidget):
         canvas.setMinimumSize(1000, 600)
         return canvas
     
-    def create_ramachandran_plot(self, ramachandran_data):
+    def create_ramachandran_plot(self, ramachandran_data, pdb_id=None):
         """Create a Ramachandran plot using ramachandraw."""
         if not RAMACHANDRAW_AVAILABLE or not MATPLOTLIB_AVAILABLE or not ramachandran_data:
             return None, {}
@@ -2516,7 +2521,7 @@ class StructuralAnalysisTab(QWidget):
             # We need to use the current structure file with ramachandraw
             if not hasattr(self, 'current_structure_path') or not self.current_structure_path:
                 # Fallback to manual plot if no structure file available
-                return self._create_manual_ramachandran_plot(ramachandran_data)
+                return self._create_manual_ramachandran_plot(ramachandran_data, pdb_id)
             
             # Create a temporary directory for ramachandraw output
             with tempfile.TemporaryDirectory() as temp_dir:
@@ -2529,6 +2534,13 @@ class StructuralAnalysisTab(QWidget):
                     save=False,  # Don't save to file
                     show=False   # Don't show interactively
                 )
+                
+                # Override the title set by ramachandraw with PDB ID
+                if pdb_id:
+                    plot_title = f'Ramachandran Plot - {pdb_id}'
+                else:
+                    plot_title = 'Ramachandran Plot'
+                ax.set_title(plot_title, fontsize=16, fontweight='bold', pad=20)
                 
                 # Get the figure from the axes
                 fig = ax.get_figure()
@@ -2549,9 +2561,9 @@ class StructuralAnalysisTab(QWidget):
             print(f"[DEBUG] Error creating Ramachandran plot with ramachandraw: {e}")
             print(f"[DEBUG] Falling back to manual plot")
             # Fallback to manual implementation
-            return self._create_manual_ramachandran_plot(ramachandran_data)
+            return self._create_manual_ramachandran_plot(ramachandran_data, pdb_id)
     
-    def _create_manual_ramachandran_plot(self, ramachandran_data):
+    def _create_manual_ramachandran_plot(self, ramachandran_data, pdb_id=None):
         """Fallback manual Ramachandran plot creation."""
         try:
             # Create figure
@@ -2589,7 +2601,12 @@ class StructuralAnalysisTab(QWidget):
                                edgecolors='black', linewidth=0.5)
             
             # Customize the plot
-            ax.set_title('Ramachandran Plot', fontsize=16, fontweight='bold', pad=20)
+            # Set title based on PDB ID if available
+            if pdb_id:
+                plot_title = f'Ramachandran Plot - {pdb_id}'
+            else:
+                plot_title = 'Ramachandran Plot'
+            ax.set_title(plot_title, fontsize=16, fontweight='bold', pad=20)
             ax.set_xlabel('Phi (φ) angle (degrees)', fontsize=14)
             ax.set_ylabel('Psi (ψ) angle (degrees)', fontsize=14)
             ax.grid(True, alpha=0.3)
@@ -3825,7 +3842,10 @@ class StructuralAnalysisTab(QWidget):
             rama_content_layout = QHBoxLayout()
             
             # Ramachandran plot
-            rama_plot, rama_counts = self.create_ramachandran_plot(results['ramachandran_data'])
+            # Get PDB ID from results (passed from analysis worker)
+            pdb_id = results.get('pdb_id')
+            
+            rama_plot, rama_counts = self.create_ramachandran_plot(results['ramachandran_data'], pdb_id)
             if rama_plot:
                 rama_content_layout.addWidget(rama_plot, 2)  # Give plot more space
             
@@ -4714,7 +4734,12 @@ class StructuralAnalysisTab(QWidget):
                     
                     # Ramachandran plot
                     if 'ramachandran_data' in secondary and MATPLOTLIB_AVAILABLE:
-                        rama_chart_path = self.save_ramachandran_plot(secondary['ramachandran_data'], temp_dir)
+                        # Get PDB ID for Ramachandran plot
+                        pdb_id = None
+                        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+                            pdb_id = self.current_comprehensive_data.get('pdb_id')
+                        
+                        rama_chart_path = self.save_ramachandran_plot(secondary['ramachandran_data'], temp_dir, pdb_id)
                         if rama_chart_path:
                             f.write("<h3>Ramachandran Plot</h3>\n")
                             f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(rama_chart_path)}' alt='Ramachandran Plot'></div>\n")
@@ -4887,7 +4912,7 @@ class StructuralAnalysisTab(QWidget):
             print(f"[DEBUG] Error saving chart '{title}': {e}")
             return None
     
-    def save_ramachandran_plot(self, rama_data, temp_dir):
+    def save_ramachandran_plot(self, rama_data, temp_dir, pdb_id=None):
         """Save Ramachandran plot as PNG image."""
         if not MATPLOTLIB_AVAILABLE or not rama_data:
             return None
@@ -4927,7 +4952,12 @@ class StructuralAnalysisTab(QWidget):
             ax.set_ylim(-180, 180)
             ax.set_xlabel('Phi (degrees)', fontsize=16, fontweight='bold')
             ax.set_ylabel('Psi (degrees)', fontsize=16, fontweight='bold')
-            ax.set_title('Ramachandran Plot', fontsize=20, fontweight='bold', pad=25)
+            # Set title based on PDB ID if available
+            if pdb_id:
+                plot_title = f'Ramachandran Plot - {pdb_id}'
+            else:
+                plot_title = 'Ramachandran Plot'
+            ax.set_title(plot_title, fontsize=20, fontweight='bold', pad=25)
             ax.grid(True, alpha=0.4, linewidth=1)
             
             # Set tick parameters for better visibility
