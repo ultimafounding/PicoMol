@@ -55,7 +55,6 @@ except ImportError:
     try:
         # Add project root to path for absolute imports
         import sys
-        import os
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
@@ -71,7 +70,6 @@ except ImportError:
     try:
         # Add project root to path for absolute imports
         import sys
-        import os
         project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
         if project_root not in sys.path:
             sys.path.insert(0, project_root)
@@ -245,7 +243,7 @@ class StructuralAnalysisWorker(QThread):
         
         # Use comprehensive metadata if available, otherwise fall back to PDB header
         if self.comprehensive_data and self.comprehensive_data.get('metadata'):
-            print(f"[DEBUG] Using comprehensive metadata for enhanced information")
+
             metadata = self.comprehensive_data['metadata']
             
             if 'entry' in metadata:
@@ -311,12 +309,12 @@ class StructuralAnalysisWorker(QThread):
                 if comp_mol_weight:
                     results['molecular_weight'] = comp_mol_weight * 1000  # Convert kDa to Da for consistency
                 
-                print(f"[DEBUG] Using comprehensive metadata - Resolution: {results['resolution']}, Method: {results['experimental_method']}")
+
             else:
-                print(f"[DEBUG] Comprehensive metadata available but no entry data")
+
                 self._extract_from_pdb_header(results)
         else:
-            print(f"[DEBUG] No comprehensive metadata available, using PDB header")
+
             self._extract_from_pdb_header(results)
         
         return results
@@ -354,9 +352,20 @@ class StructuralAnalysisWorker(QThread):
                 
                 results['space_group'] = space_group if space_group is not None else 'N/A'
                 
-                # Extract structure method
-                structure_method = header.get('structure_method')
+                # Extract structure method - try multiple possible keys
+                structure_method = None
+                
+                # Try different possible keys for experimental method in BioPython header
+                method_keys = ['structure_method', 'expdta', 'experiment_type', 'method']
+                for method_key in method_keys:
+                    if method_key in header and header[method_key]:
+                        structure_method = header[method_key]
+                        print(f"[DEBUG] Found experimental method with key '{method_key}': {structure_method}")
+                        break
+                
                 print(f"[DEBUG] Initial structure method from header: {structure_method}")
+                
+                # If still unknown/empty, try to extract from .ent file
                 if structure_method == 'unknown' or not structure_method:
                     print(f"[DEBUG] Structure method is unknown/empty, trying to load from .ent file...")
                     ent_method = self._try_extract_from_ent_file('method')
@@ -450,7 +459,70 @@ class StructuralAnalysisWorker(QThread):
                 for line in lines:
                     if line.startswith('EXPDTA'):
                         method = line[10:].strip()
-                        return method if method else None
+                        # Clean up the method string
+                        if method:
+                            # Remove common suffixes and clean up
+                            method = method.replace('DIFFRACTION', '').replace('CRYSTALLOGRAPHY', '').strip()
+                            if method.endswith(';'):
+                                method = method[:-1].strip()
+                            return method if method else None
+                
+                # Also try HEADER line which sometimes contains method info
+                for line in lines:
+                    if line.startswith('HEADER'):
+                        # HEADER format: HEADER    CLASSIFICATION               DD-MMM-YY   IDCODE
+                        # The classification often indicates the method
+                        if len(line) > 50:
+                            classification = line[10:50].strip()
+                            # Look for method indicators in classification
+                            method_indicators = {
+                                'HYDROLASE': 'X-RAY DIFFRACTION',
+                                'TRANSFERASE': 'X-RAY DIFFRACTION', 
+                                'OXIDOREDUCTASE': 'X-RAY DIFFRACTION',
+                                'LYASE': 'X-RAY DIFFRACTION',
+                                'ISOMERASE': 'X-RAY DIFFRACTION',
+                                'LIGASE': 'X-RAY DIFFRACTION',
+                                'IMMUNE SYSTEM': 'X-RAY DIFFRACTION',
+                                'SIGNALING PROTEIN': 'X-RAY DIFFRACTION',
+                                'STRUCTURAL PROTEIN': 'X-RAY DIFFRACTION',
+                                'TRANSPORT PROTEIN': 'X-RAY DIFFRACTION',
+                                'MEMBRANE PROTEIN': 'X-RAY DIFFRACTION',
+                                'DNA BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'RNA BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'PROTEIN BINDING': 'X-RAY DIFFRACTION',
+                                'TRANSCRIPTION': 'X-RAY DIFFRACTION',
+                                'REPLICATION': 'X-RAY DIFFRACTION',
+                                'VIRAL PROTEIN': 'X-RAY DIFFRACTION',
+                                'RIBOSOME': 'X-RAY DIFFRACTION',
+                                'TOXIN': 'X-RAY DIFFRACTION',
+                                'ANTIBIOTIC': 'X-RAY DIFFRACTION',
+                                'HORMONE': 'X-RAY DIFFRACTION',
+                                'GROWTH FACTOR': 'X-RAY DIFFRACTION',
+                                'BLOOD CLOTTING': 'X-RAY DIFFRACTION',
+                                'CELL CYCLE': 'X-RAY DIFFRACTION',
+                                'CELL ADHESION': 'X-RAY DIFFRACTION',
+                                'MOTOR PROTEIN': 'X-RAY DIFFRACTION',
+                                'CHAPERONE': 'X-RAY DIFFRACTION',
+                                'BIOSYNTHETIC PROTEIN': 'X-RAY DIFFRACTION',
+                                'METAL BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'CALCIUM BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'ELECTRON TRANSPORT': 'X-RAY DIFFRACTION',
+                                'PHOTOSYNTHESIS': 'X-RAY DIFFRACTION',
+                                'SUGAR BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'LIPID BINDING PROTEIN': 'X-RAY DIFFRACTION',
+                                'ANTIMICROBIAL PROTEIN': 'X-RAY DIFFRACTION',
+                                'ANTIVIRAL PROTEIN': 'X-RAY DIFFRACTION',
+                                'UNKNOWN FUNCTION': 'X-RAY DIFFRACTION'
+                            }
+                            
+                            # Check if classification contains method indicators
+                            for indicator, method in method_indicators.items():
+                                if indicator in classification.upper():
+                                    return method
+                            
+                            # If no specific match, assume X-ray for most protein structures
+                            if classification and 'PROTEIN' in classification.upper():
+                                return 'X-RAY DIFFRACTION'
             
             return None
             
@@ -1586,7 +1658,6 @@ class SASAConfigDialog(QDialog):
         }
         
         self.init_ui()
-        self.load_config()
     
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -1794,6 +1865,7 @@ class StructuralAnalysisTab(QWidget):
         self.pdb_list = PDBList() if BIOPYTHON_AVAILABLE else None
         self.pdb_parser = PDBParser(QUIET=True) if BIOPYTHON_AVAILABLE else None
         self.current_results = None  # Store analysis results for export
+        self.current_comprehensive_data = None  # Store comprehensive data
         
         # Create directories if not exist
         if hasattr(parent, 'pulled_structures_dir'):
@@ -1816,6 +1888,15 @@ class StructuralAnalysisTab(QWidget):
             self.pdb_fetch_manager = None
         
         self.init_ui()
+    
+    def update_comprehensive_data(self):
+        """Update comprehensive data from parent app if available."""
+        if hasattr(self.parent_app, 'current_pdb_data') and self.parent_app.current_pdb_data:
+            self.current_comprehensive_data = self.parent_app.current_pdb_data
+            print(f"[DEBUG] Updated comprehensive data in structural analysis tab: {self.current_comprehensive_data.get('pdb_id', 'Unknown')}")
+        else:
+            self.current_comprehensive_data = None
+            print(f"[DEBUG] No comprehensive data available from parent app")
     
     def init_ui(self):
         layout = QVBoxLayout(self)
@@ -2016,7 +2097,6 @@ class StructuralAnalysisTab(QWidget):
             except ImportError:
                 # Fallback to absolute import if relative import fails
                 import sys
-                import os
                 # Add the project root to Python path
                 project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
                 if project_root not in sys.path:
@@ -2040,6 +2120,10 @@ class StructuralAnalysisTab(QWidget):
                 raise FileNotFoundError(f"PDB file not found for {pdb_id}")
             
             self.current_comprehensive_data = comprehensive_data
+            
+            # Also set in parent app for other tabs to access
+            if hasattr(self.parent_app, '__dict__'):
+                self.parent_app.current_pdb_data = comprehensive_data
             
             # Set as current structure
             self.current_structure_path = pdb_path
@@ -2110,7 +2194,7 @@ class StructuralAnalysisTab(QWidget):
     def _fetch_comprehensive_metadata_for_structure(self, structure_id):
         """Fetch comprehensive metadata for a structure ID."""
         try:
-            print(f"[DEBUG] Fetching comprehensive metadata for {structure_id}")
+
             
             # Initialize comprehensive data if not exists
             if not hasattr(self, 'current_comprehensive_data'):
@@ -2118,11 +2202,11 @@ class StructuralAnalysisTab(QWidget):
             
             # Use optimized fetch manager if available
             if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
-                print(f"[DEBUG] Using optimized fetch manager for {structure_id}")
+
                 # Check if data is already cached
                 cached_info = self.pdb_fetch_manager.get_structure_info(structure_id)
                 if cached_info['available'] and cached_info.get('metadata'):
-                    print(f"[DEBUG] Found cached metadata for {structure_id}")
+
                     self.current_comprehensive_data = {
                         'pdb_id': structure_id,
                         'files': cached_info['files'],
@@ -2131,12 +2215,16 @@ class StructuralAnalysisTab(QWidget):
                         'validation': {},
                         'errors': []
                     }
-                    print(f"[DEBUG] Set comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+                    
+                    # Also set in parent app for other tabs to access
+                    if hasattr(self.parent_app, '__dict__'):
+                        self.parent_app.current_pdb_data = self.current_comprehensive_data
+
                     return
             
             # Use enhanced PDB puller if available
             if ENHANCED_PDB_AVAILABLE and self.enhanced_pdb_puller:
-                print(f"[DEBUG] Using enhanced PDB puller for {structure_id}")
+
                 try:
                     comprehensive_data = self.enhanced_pdb_puller.fetch_comprehensive_pdb_data(
                         structure_id,
@@ -2146,15 +2234,18 @@ class StructuralAnalysisTab(QWidget):
                     )
                     if comprehensive_data and not comprehensive_data.get('errors'):
                         self.current_comprehensive_data = comprehensive_data
-                        print(f"[DEBUG] Enhanced puller set comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+                        
+                        # Also set in parent app for other tabs to access
+                        if hasattr(self.parent_app, '__dict__'):
+                            self.parent_app.current_pdb_data = comprehensive_data
+
                         return
                     else:
-                        print(f"[DEBUG] Enhanced puller failed or returned errors: {comprehensive_data.get('errors', [])}")
+                        pass
                 except Exception as e:
-                    print(f"[DEBUG] Enhanced puller exception: {e}")
-            
+                    pass
             # Fallback: create minimal metadata structure
-            print(f"[DEBUG] Creating fallback metadata for {structure_id}")
+
             self.current_comprehensive_data = {
                 'pdb_id': structure_id,
                 'files': {},
@@ -2172,10 +2263,13 @@ class StructuralAnalysisTab(QWidget):
                 'validation': {},
                 'errors': ['Comprehensive metadata not available']
             }
-            print(f"[DEBUG] Fallback comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+            
+            # Also set in parent app for other tabs to access
+            if hasattr(self.parent_app, '__dict__'):
+                self.parent_app.current_pdb_data = self.current_comprehensive_data
+
             
         except Exception as e:
-            print(f"[DEBUG] Error in _fetch_comprehensive_metadata_for_structure: {e}")
             # Set minimal fallback data
             self.current_comprehensive_data = {
                 'pdb_id': structure_id,
@@ -2185,6 +2279,10 @@ class StructuralAnalysisTab(QWidget):
                 'validation': {},
                 'errors': [f'Error fetching metadata: {str(e)}']
             }
+            
+            # Also set in parent app for other tabs to access
+            if hasattr(self.parent_app, '__dict__'):
+                self.parent_app.current_pdb_data = self.current_comprehensive_data
         
         if hasattr(self.parent_app, 'statusBar'):
             if self.current_comprehensive_data and self.current_comprehensive_data.get('metadata'):
@@ -2221,6 +2319,9 @@ class StructuralAnalysisTab(QWidget):
         # Show progress bar
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        
+        # Update comprehensive data from parent app before analysis
+        self.update_comprehensive_data()
         
         # Start analysis worker with comprehensive metadata if available
         comprehensive_data = getattr(self, 'current_comprehensive_data', None)
@@ -2295,8 +2396,16 @@ class StructuralAnalysisTab(QWidget):
         self.progress_bar.setVisible(True)
         self.progress_bar.setRange(0, 0)  # Indeterminate progress
         
-        # Start analysis in worker thread
-        self.analysis_worker = StructuralAnalysisWorker(self.current_structure_path, analysis_types)
+        # Update comprehensive data from parent app before analysis
+        self.update_comprehensive_data()
+        
+        # Start analysis in worker thread with comprehensive metadata if available
+        comprehensive_data = getattr(self, 'current_comprehensive_data', None)
+        self.analysis_worker = StructuralAnalysisWorker(
+            self.current_structure_path, 
+            analysis_types, 
+            comprehensive_data=comprehensive_data
+        )
         
         # Surface analysis configuration removed - will be added in a future release
         self.analysis_worker.analysis_complete.connect(self.display_results)
@@ -2506,7 +2615,6 @@ class StructuralAnalysisTab(QWidget):
         try:
             import ramachandraw.utils
             import tempfile
-            import os
             
             # We need to use the current structure file with ramachandraw
             if not hasattr(self, 'current_structure_path') or not self.current_structure_path:
@@ -2812,7 +2920,7 @@ class StructuralAnalysisTab(QWidget):
         try:
             comprehensive_data = self.current_comprehensive_data
             if not comprehensive_data:
-                print("[DEBUG] No comprehensive data available")
+
                 self.display_basic_results_fallback(basic_results)
                 return
             
@@ -2820,7 +2928,7 @@ class StructuralAnalysisTab(QWidget):
             
             # If no metadata, try to show what we have
             if not metadata:
-                print("[DEBUG] No metadata in comprehensive data, showing basic info")
+
                 metadata = {
                     'entry': {
                         'struct': {
@@ -2832,7 +2940,7 @@ class StructuralAnalysisTab(QWidget):
                     }
                 }
         except Exception as e:
-            print(f"[DEBUG] Error accessing comprehensive data: {e}")
+
             self.display_basic_results_fallback(basic_results)
             return
         
@@ -2927,13 +3035,9 @@ class StructuralAnalysisTab(QWidget):
         metadata_tabs.addTab(basic_tab, "Basic Info")
     
     def _create_simple_experimental_tab(self, metadata_tabs, metadata, basic_results):
-        """Create simplified experimental information tab."""
+        """Create simplified experimental information tab with advanced metadata."""
         exp_tab = QWidget()
         exp_tab_layout = QVBoxLayout(exp_tab)
-        
-        # Debug: Print what we have in basic_results
-        print(f"[DEBUG] basic_results content: {basic_results}")
-        print(f"[DEBUG] metadata content: {metadata}")
         
         if 'entry' not in metadata:
             exp_tab_layout.addWidget(QLabel("No experimental data available"))
@@ -2942,78 +3046,102 @@ class StructuralAnalysisTab(QWidget):
         
         entry = metadata['entry']
         
-        # Essential Experimental Information
+        # Main Experimental Information Group
         exp_group = QGroupBox("Experimental Details")
         exp_layout = QFormLayout(exp_group)
         
-        # Experimental method - try multiple sources
-        method = 'N/A'
-        # First try to use the structure_method we extracted from the .ent file
-        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
-            method = basic_results['structure_method']
-            print(f"[DEBUG] Using basic_results structure_method: {method}")
-        # Then try comprehensive metadata sources
-        elif entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
-            method = entry['rcsb_entry_info']['experimental_method']
-            print(f"[DEBUG] Using rcsb_entry_info experimental_method: {method}")
-        elif entry.get('exptl') and entry['exptl']:
-            method = entry['exptl'][0].get('method', 'N/A')
-            print(f"[DEBUG] Using exptl method: {method}")
-        # Fallback to basic_results head if available
-        elif basic_results.get('head'):
-            method = basic_results['head']
-            print(f"[DEBUG] Using basic_results head: {method}")
-        elif basic_results.get('experiment_type'):
-            method = basic_results['experiment_type']
-            print(f"[DEBUG] Using basic_results experiment_type: {method}")
-        elif basic_results.get('method'):
-            method = basic_results['method']
-            print(f"[DEBUG] Using basic_results method: {method}")
-        elif basic_results.get('expdta'):
-            method = basic_results['expdta']
-            print(f"[DEBUG] Using basic_results expdta: {method}")
+        # Experimental Method Section
+        method = self._get_enhanced_experimental_method(basic_results)
+        exp_layout.addRow("<b>Method:</b>", QLabel(method))
         
-        print(f"[DEBUG] Final experimental method: {method}")
-        print(f"[DEBUG] Available basic_results keys: {list(basic_results.keys())}")
-        exp_layout.addRow("Method:", QLabel(method))
+        # Resolution Section
+        resolution = self._get_enhanced_resolution(basic_results)
+        exp_layout.addRow("<b>Resolution:</b>", QLabel(resolution))
         
-        # Resolution - try multiple sources
-        resolution = 'N/A'
-        if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
-            res_data = entry['rcsb_entry_info']['resolution_combined']
-            if isinstance(res_data, list) and res_data:
-                resolution = f"{res_data[0]} Å"
-            elif isinstance(res_data, (int, float)):
-                resolution = f"{res_data} Å"
-        elif basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
-            # Use resolution from basic analysis (PDB header)
-            res_value = basic_results['resolution']
-            print(f"[DEBUG] Using basic_results resolution: {res_value} (type: {type(res_value)})")
-            if isinstance(res_value, (int, float)):
-                resolution = f"{res_value} Å"
-            else:
-                resolution = str(res_value)
-        else:
-            print(f"[DEBUG] No resolution found. basic_results.get('resolution'): {basic_results.get('resolution')}")
-            print(f"[DEBUG] Resolution check: {basic_results.get('resolution') != 'N/A'}")
+        # Additional Experimental Details Group
+        details_group = QGroupBox("Experimental Conditions")
+        details_layout = QFormLayout(details_group)
         
-        print(f"[DEBUG] Final experimental resolution: {resolution}")
-        print(f"[DEBUG] basic_results resolution value: {basic_results.get('resolution')}")
-        exp_layout.addRow("Resolution:", QLabel(resolution))
+        # Add experimental conditions if available
+        if entry.get('exptl') and entry['exptl']:
+            exptl = entry['exptl'][0]
+            if exptl.get('pdbx_details'):
+                details_layout.addRow("Details:", QLabel(exptl['pdbx_details']))
+            if exptl.get('crystals'):
+                details_layout.addRow("Crystals:", QLabel(str(exptl['crystals'])))
         
-        # Key refinement statistics (if available)
-        if entry.get('refine') and entry['refine']:
+        # Add crystallization information if available
+        if entry.get('exptl_crystal'):
+            crystal = entry['exptl_crystal'][0]
+            if crystal.get('pdbx_description'):
+                details_layout.addRow("Crystal Description:", QLabel(crystal['pdbx_description']))
+        
+        # Add pH and temperature if available
+        if entry.get('exptl_crystal_grow'):
+            crystal_grow = entry['exptl_crystal_grow'][0]
+            if crystal_grow.get('pH'):
+                details_layout.addRow("pH:", QLabel(str(crystal_grow['pH'])))
+            if crystal_grow.get('pdbx_pH_range'):
+                details_layout.addRow("pH Range:", QLabel(crystal_grow['pdbx_pH_range']))
+            if crystal_grow.get('temp'):
+                details_layout.addRow("Temperature (K):", QLabel(str(crystal_grow['temp'])))
+        
+        # Refinement Statistics Group
+        refine_group = QGroupBox("Refinement Statistics")
+        refine_layout = QFormLayout(refine_group)
+        
+        if entry.get('refine'):
             refine_data = entry['refine'][0]
-            r_work = refine_data.get('ls_R_factor_R_work')
-            r_free = refine_data.get('ls_R_factor_R_free')
             
+            # Add R-factors with null checks
+            r_work = refine_data.get('ls_R_factor_R_work')
             if r_work is not None:
-                exp_layout.addRow("R-work:", QLabel(f"{r_work:.3f}" if isinstance(r_work, (int, float)) else str(r_work)))
+                refine_layout.addRow("R-work:", QLabel(f"{r_work:.3f}"))
+            
+            r_free = refine_data.get('ls_R_factor_R_free')
             if r_free is not None:
-                exp_layout.addRow("R-free:", QLabel(f"{r_free:.3f}" if isinstance(r_free, (int, float)) else str(r_free)))
+                refine_layout.addRow("R-free:", QLabel(f"{r_free:.3f}"))
+            
+            # Add refinement details
+            if 'pdbx_refine_id' in refine_data:
+                refine_layout.addRow("Refinement ID:", QLabel(refine_data['pdbx_refine_id']))
+            if 'pdbx_method_to_determine_struct' in refine_data:
+                refine_layout.addRow("Method:", QLabel(refine_data['pdbx_method_to_determine_struct']))
+            # Add resolution data with null checks
+            res_high = refine_data.get('ls_d_res_high')
+            if res_high is not None:
+                refine_layout.addRow("High Resolution (Å):", QLabel(f"{res_high:.2f}"))
+            
+            res_low = refine_data.get('ls_d_res_low')
+            if res_low is not None:
+                refine_layout.addRow("Low Resolution (Å):", QLabel(f"{res_low:.2f}"))
+            
+            # Add R-free percentage with null check
+            r_free_percent = refine_data.get('ls_percent_reflns_R_free')
+            if r_free_percent is not None:
+                refine_layout.addRow("% R-free Test Set:", QLabel(f"{r_free_percent:.1f}%"))
         
+        # Data Collection Group
+        data_collection_group = QGroupBox("Data Collection")
+        data_collection_layout = QFormLayout(data_collection_group)
+        
+        if entry.get('exptl_crystal'):
+            crystal = entry['exptl_crystal'][0]
+            if 'pdbx_diffrn_source' in crystal:
+                data_collection_layout.addRow("Source:", QLabel(crystal['pdbx_diffrn_source']))
+            if 'pdbx_detector' in crystal:
+                data_collection_layout.addRow("Detector:", QLabel(crystal['pdbx_detector']))
+        
+        # Add all groups to the main layout
         exp_tab_layout.addWidget(exp_group)
+        exp_tab_layout.addWidget(details_group)
+        exp_tab_layout.addWidget(refine_group)
+        exp_tab_layout.addWidget(data_collection_group)
+        
+        # Add a stretch to push everything up
         exp_tab_layout.addStretch()
+        
+        # Add the tab to the metadata tabs
         metadata_tabs.addTab(exp_tab, "Experimental")
     
     def _create_simple_sequence_tab(self, metadata_tabs, basic_results):
@@ -4260,6 +4388,14 @@ class StructuralAnalysisTab(QWidget):
             'analysis_results': {}
         }
         
+        # Add comprehensive metadata if available
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            export_data['comprehensive_metadata'] = self._extract_comprehensive_metadata_for_export()
+        
+        # Add enhanced experimental details
+        if 'basic' in self.current_results:
+            export_data['experimental_details'] = self._extract_experimental_details_for_export(self.current_results['basic'])
+        
         # Add selected analysis types
         for analysis_type in ['basic', 'secondary', 'geometry']:
             if analysis_type in self.current_results and options.get(f'include_{analysis_type}', True):
@@ -4283,6 +4419,26 @@ class StructuralAnalysisTab(QWidget):
             writer.writerow(['Structure ID:', self.current_results.get('structure_id', 'Unknown')])
             writer.writerow(['Structure Path:', self.current_results.get('structure_path', 'Unknown')])
             writer.writerow([])
+            
+            # Add comprehensive metadata if available
+            if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+                comp_metadata = self._extract_comprehensive_metadata_for_export()
+                if comp_metadata:
+                    writer.writerow(['=== COMPREHENSIVE METADATA ==='])
+                    for key, value in comp_metadata.items():
+                        if isinstance(value, list):
+                            value = ', '.join(str(v) for v in value)
+                        writer.writerow([key.replace('_', ' ').title() + ':', str(value)])
+                    writer.writerow([])
+            
+            # Add experimental details
+            if 'basic' in self.current_results:
+                exp_details = self._extract_experimental_details_for_export(self.current_results['basic'])
+                if exp_details:
+                    writer.writerow(['=== EXPERIMENTAL DETAILS ==='])
+                    for key, value in exp_details.items():
+                        writer.writerow([key.replace('_', ' ').title() + ':', str(value)])
+                    writer.writerow([])
             
             # Basic Properties
             if 'basic' in self.current_results and options.get('include_basic', True):
@@ -4505,6 +4661,26 @@ class StructuralAnalysisTab(QWidget):
             f.write(f"Structure Path: {self.current_results.get('structure_path', 'Unknown')}\n")
             f.write("\n")
             
+            # Add comprehensive metadata if available
+            if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+                comp_metadata = self._extract_comprehensive_metadata_for_export()
+                if comp_metadata:
+                    f.write("=== COMPREHENSIVE METADATA ===\n")
+                    for key, value in comp_metadata.items():
+                        if isinstance(value, list):
+                            value = ', '.join(str(v) for v in value)
+                        f.write(f"{key.replace('_', ' ').title()}: {value}\n")
+                    f.write("\n")
+            
+            # Add experimental details
+            if 'basic' in self.current_results:
+                exp_details = self._extract_experimental_details_for_export(self.current_results['basic'])
+                if exp_details:
+                    f.write("=== EXPERIMENTAL DETAILS ===\n")
+                    for key, value in exp_details.items():
+                        f.write(f"{key.replace('_', ' ').title()}: {value}\n")
+                    f.write("\n")
+            
             # Basic Properties
             if 'basic' in self.current_results and options.get('include_basic', True):
                 basic = self.current_results['basic']
@@ -4579,7 +4755,6 @@ class StructuralAnalysisTab(QWidget):
         
         # Create a temporary directory for images
         import tempfile
-        import os
         temp_dir = tempfile.mkdtemp()
         
         try:
@@ -4650,30 +4825,121 @@ class StructuralAnalysisTab(QWidget):
                 f.write(f"<p><strong>Export Date:</strong> {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</p>\n")
                 f.write(f"<p><strong>Structure ID:</strong> {self.current_results.get('structure_id', 'Unknown')}</p>\n")
                 f.write(f"<p><strong>Structure Path:</strong> {self.current_results.get('structure_path', 'Unknown')}</p>\n")
+                
+                # Add analysis summary
+                analysis_types = []
+                if 'basic' in self.current_results:
+                    analysis_types.append('Basic Properties')
+                if 'secondary' in self.current_results:
+                    analysis_types.append('Secondary Structure')
+                if 'geometry' in self.current_results:
+                    analysis_types.append('Geometric Properties')
+                if 'surface' in self.current_results:
+                    analysis_types.append('Surface Analysis (SASA)')
+                if 'cavity' in self.current_results:
+                    analysis_types.append('Cavity Analysis')
+                
+                if analysis_types:
+                    f.write(f"<p><strong>Analysis Types:</strong> {', '.join(analysis_types)}</p>\n")
+                
+                # Add chart summary
+                chart_count = 0
+                chart_types = []
+                
+                # Count charts that will be included
+                if 'basic' in self.current_results and self.current_results['basic'].get('composition'):
+                    chart_types.append('Amino Acid Composition')
+                    chart_count += 1
+                
+                if 'basic' in self.current_results and len(self.current_results['basic'].get('chains', [])) > 1:
+                    chart_types.extend(['Chain Comparison (Residues)', 'Chain Comparison (Atoms)'])
+                    chart_count += 2
+                
+                if 'secondary' in self.current_results:
+                    chart_types.append('Secondary Structure Distribution')
+                    chart_count += 1
+                    if self.current_results['secondary'].get('ramachandran_data'):
+                        chart_types.append('Ramachandran Plot')
+                        chart_count += 1
+                
+                if 'geometry' in self.current_results:
+                    if self.current_results['geometry'].get('b_factors'):
+                        chart_types.append('B-factor Distribution')
+                        chart_count += 1
+                    if self.current_results['geometry'].get('bond_lengths'):
+                        chart_types.append('Bond Length Distribution')
+                        chart_count += 1
+                    if self.current_results['geometry'].get('bond_angles'):
+                        chart_types.append('Bond Angle Distribution')
+                        chart_count += 1
+                
+                if 'surface' in self.current_results:
+                    chart_types.extend(['Surface Area Distribution', 'Surface vs Buried Residues'])
+                    chart_count += 2
+                
+                if 'cavity' in self.current_results and len(self.current_results['cavity'].get('potential_cavities', [])) > 1:
+                    chart_types.append('Cavity Volumes')
+                    chart_count += 1
+                
+                if chart_count > 0:
+                    f.write(f"<p><strong>Charts Included:</strong> {chart_count} charts ({', '.join(chart_types)})</p>\n")
+                
                 f.write("</div>\n\n")
                 
-                # Basic Properties
+                # Add comprehensive metadata if available
+                if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+                    self._export_comprehensive_metadata(f)
+                
+                # Add experimental details with enhanced fallback logic
+                if 'basic' in self.current_results:
+                    self._export_experimental_details(f, self.current_results['basic'])
+                
+                # Enhanced Basic Properties
                 if 'basic' in self.current_results:
                     basic = self.current_results['basic']
-                    f.write("<h2>Basic Properties</h2>\n")
+                    f.write("<h2>Structure Properties</h2>\n")
                     
-                    # Detailed table
+                    # Detailed table with enhanced information
                     f.write("<table>\n")
                     f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Total Chains</td><td>{len(basic.get('chains', []))}</td></tr>\n")
                     f.write(f"<tr><td>Total Residues</td><td>{basic.get('total_residues', 0)}</td></tr>\n")
                     f.write(f"<tr><td>Total Atoms</td><td>{basic.get('total_atoms', 0)}</td></tr>\n")
                     f.write(f"<tr><td>Molecular Weight</td><td>{basic.get('molecular_weight', 0):.2f} Da</td></tr>\n")
-                    f.write(f"<tr><td>Resolution</td><td>{basic.get('resolution', 'N/A')}</td></tr>\n")
+                    
+                    # Enhanced resolution with fallback logic
+                    resolution = self._get_enhanced_resolution(basic)
+                    f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
+                    
                     f.write(f"<tr><td>Space Group</td><td>{basic.get('space_group', 'N/A')}</td></tr>\n")
                     f.write("</table>\n")
                     
-                    # Chain information
+                    # Enhanced Chain information with sequences
                     if 'chains' in basic:
                         f.write("<h3>Chain Information</h3>\n")
+                        
+                        # Add chain comparison charts if multiple chains
+                        if len(basic['chains']) > 1 and MATPLOTLIB_AVAILABLE:
+                            chain_residues = {f"Chain {chain['id']}": chain['residues'] for chain in basic['chains']}
+                            chain_atoms = {f"Chain {chain['id']}": chain['atoms'] for chain in basic['chains']}
+                            
+                            # Chain residues chart
+                            residue_chart_path = self.save_chart_as_image(chain_residues, "Residues per Chain", "bar", temp_dir, "Chain", "Number of Residues")
+                            if residue_chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(residue_chart_path)}' alt='Residues per Chain Chart'></div>\n")
+                            
+                            # Chain atoms chart
+                            atom_chart_path = self.save_chart_as_image(chain_atoms, "Atoms per Chain", "bar", temp_dir, "Chain", "Number of Atoms")
+                            if atom_chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(atom_chart_path)}' alt='Atoms per Chain Chart'></div>\n")
+                        
                         f.write("<table>\n")
-                        f.write("<tr><th>Chain ID</th><th>Residues</th><th>Atoms</th><th>Sequence Length</th></tr>\n")
+                        f.write("<tr><th>Chain ID</th><th>Residues</th><th>Atoms</th><th>Sequence</th></tr>\n")
                         for chain in basic['chains']:
-                            f.write(f"<tr><td>{chain['id']}</td><td>{chain['residues']}</td><td>{chain['atoms']}</td><td>{len(chain.get('sequence', ''))}</td></tr>\n")
+                            sequence = chain.get('sequence', '')
+                            # Format sequence in blocks of 50 for better readability
+                            formatted_sequence = '<br>'.join([sequence[i:i+50] for i in range(0, len(sequence), 50)]) if sequence else 'N/A'
+                            f.write(f"<tr><td>{chain['id']}</td><td>{chain['residues']}</td><td>{chain['atoms']}</td><td style='font-family: monospace; font-size: 10px;'>{formatted_sequence}</td></tr>\n")
                         f.write("</table>\n")
                     
                     # Amino acid composition with chart
@@ -4752,6 +5018,20 @@ class StructuralAnalysisTab(QWidget):
                         if bfactor_chart_path:
                             f.write("<h3>B-factor Distribution</h3>\n")
                             f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bfactor_chart_path)}' alt='B-factor Distribution'></div>\n")
+                    
+                    # Bond length histogram
+                    if 'bond_lengths' in geometry and geometry['bond_lengths'] and MATPLOTLIB_AVAILABLE:
+                        bond_length_chart_path = self.save_histogram(geometry['bond_lengths'], "Bond Length Distribution", "Bond Length (Å)", "Frequency", temp_dir)
+                        if bond_length_chart_path:
+                            f.write("<h3>Bond Length Distribution</h3>\n")
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bond_length_chart_path)}' alt='Bond Length Distribution'></div>\n")
+                    
+                    # Bond angle histogram
+                    if 'bond_angles' in geometry and geometry['bond_angles'] and MATPLOTLIB_AVAILABLE:
+                        bond_angle_chart_path = self.save_histogram(geometry['bond_angles'], "Bond Angle Distribution", "Bond Angle (°)", "Frequency", temp_dir)
+                        if bond_angle_chart_path:
+                            f.write("<h3>Bond Angle Distribution</h3>\n")
+                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bond_angle_chart_path)}' alt='Bond Angle Distribution'></div>\n")
                 
 
                     
@@ -4762,15 +5042,31 @@ class StructuralAnalysisTab(QWidget):
                     surface = self.current_results['surface']
                     f.write("<h2>Surface Properties (SASA Analysis)</h2>\n")
                     
-                    # Surface/buried distribution chart
-                    surface_data = {
-                        'Surface': surface.get('surface_percentage', 0),
-                        'Buried': surface.get('buried_percentage', 0)
-                    }
-                    if MATPLOTLIB_AVAILABLE:
-                        chart_path = self.save_chart_as_image(surface_data, "Surface vs Buried Residues", "pie", temp_dir)
-                        if chart_path:
-                            f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(chart_path)}' alt='Surface Distribution Chart'></div>\n")
+                    # Surface area distribution chart
+                    accessible_area = surface.get('accessible_surface_area', 0)
+                    buried_area = surface.get('buried_surface_area', 0)
+                    if accessible_area > 0 or buried_area > 0:
+                        area_data = {
+                            'Accessible': accessible_area,
+                            'Buried': buried_area
+                        }
+                        if MATPLOTLIB_AVAILABLE:
+                            area_chart_path = self.save_chart_as_image(area_data, "Surface Area Distribution", "pie", temp_dir)
+                            if area_chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(area_chart_path)}' alt='Surface Area Distribution Chart'></div>\n")
+                    
+                    # Surface/buried residue distribution chart
+                    surface_residues = len(surface.get('surface_residues', []))
+                    buried_residues = len(surface.get('buried_residues', []))
+                    if surface_residues > 0 or buried_residues > 0:
+                        residue_data = {
+                            'Surface': surface_residues,
+                            'Buried': buried_residues
+                        }
+                        if MATPLOTLIB_AVAILABLE:
+                            residue_chart_path = self.save_chart_as_image(residue_data, "Surface vs Buried Residues", "pie", temp_dir)
+                            if residue_chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(residue_chart_path)}' alt='Surface vs Buried Residues Chart'></div>\n")
                     
                     # Surface properties table
                     f.write("<table>\n")
@@ -4781,9 +5077,54 @@ class StructuralAnalysisTab(QWidget):
                     f.write(f"<tr><td>Surface Percentage</td><td>{surface.get('surface_percentage', 0):.2f}%</td></tr>\n")
                     f.write(f"<tr><td>Buried Percentage</td><td>{surface.get('buried_percentage', 0):.2f}%</td></tr>\n")
                     f.write(f"<tr><td>Average RSA</td><td>{surface.get('average_rsa', 0):.2f}%</td></tr>\n")
+                    f.write(f"<tr><td>Surface Residues</td><td>{surface_residues}</td></tr>\n")
+                    f.write(f"<tr><td>Buried Residues</td><td>{buried_residues}</td></tr>\n")
+                    f.write("</table>\n")
+                
+                # Cavity Analysis
+                if 'cavity' in self.current_results:
+                    cavity = self.current_results['cavity']
+                    f.write("<h2>Cavity Analysis</h2>\n")
+                    
+                    # Cavity volumes chart if multiple cavities
+                    cavities = cavity.get('potential_cavities', [])
+                    if len(cavities) > 1 and MATPLOTLIB_AVAILABLE:
+                        cavity_volumes = {f"Cavity {i+1}": cavity_info.get('volume', 0) for i, cavity_info in enumerate(cavities[:10])}
+                        if any(vol > 0 for vol in cavity_volumes.values()):
+                            volume_chart_path = self.save_chart_as_image(cavity_volumes, "Cavity Volumes", "bar", temp_dir, "Cavity", "Volume (Ų)")
+                            if volume_chart_path:
+                                f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(volume_chart_path)}' alt='Cavity Volumes Chart'></div>\n")
+                    
+                    # Cavity summary table
+                    f.write("<table>\n")
+                    f.write("<tr><th>Cavity Property</th><th>Value</th></tr>\n")
+                    f.write(f"<tr><td>Total Cavities Found</td><td>{len(cavities)}</td></tr>\n")
+                    f.write(f"<tr><td>Total Cavity Volume</td><td>{cavity.get('cavity_volume', 0):.2f} Ų</td></tr>\n")
+                    
+                    largest_cavity = cavity.get('largest_cavity')
+                    if largest_cavity:
+                        f.write(f"<tr><td>Largest Cavity Volume</td><td>{largest_cavity.get('volume', 0):.2f} Ų</td></tr>\n")
+                        f.write(f"<tr><td>Largest Cavity Surface Area</td><td>{largest_cavity.get('surface_area', 0):.2f} Ų</td></tr>\n")
+                    
+                    druggable_cavities = cavity.get('druggable_cavities', [])
+                    f.write(f"<tr><td>Druggable Cavities</td><td>{len(druggable_cavities)}</td></tr>\n")
+                    f.write(f"<tr><td>Calculation Time</td><td>{cavity.get('calculation_time', 0):.2f} seconds</td></tr>\n")
                     f.write("</table>\n")
                     
-
+                    # Detailed cavity information
+                    if cavities:
+                        f.write("<h3>Cavity Details</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Cavity ID</th><th>Volume (Ų)</th><th>Surface Area (Ų)</th><th>Max Radius (Å)</th><th>Druggability Score</th><th>Lining Residues</th></tr>\n")
+                        for cavity_info in cavities[:10]:  # Show top 10 cavities
+                            cavity_id = cavity_info.get('id', 'N/A')
+                            volume = cavity_info.get('volume', 0)
+                            surface_area = cavity_info.get('surface_area', 0)
+                            max_radius = cavity_info.get('max_radius', 0)
+                            druggability = cavity_info.get('druggability_score', 0)
+                            lining_residues = len(cavity_info.get('lining_residues', []))
+                            f.write(f"<tr><td>{cavity_id}</td><td>{volume:.2f}</td><td>{surface_area:.2f}</td><td>{max_radius:.2f}</td><td>{druggability:.3f}</td><td>{lining_residues}</td></tr>\n")
+                        f.write("</table>\n")
                 
                 # Footer
                 f.write("<hr>\n")
@@ -4798,6 +5139,344 @@ class StructuralAnalysisTab(QWidget):
                 shutil.rmtree(temp_dir)
             except:
                 pass
+    
+    def _export_comprehensive_metadata(self, f):
+        """Export comprehensive metadata to HTML."""
+        try:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if not metadata or 'entry' not in metadata:
+                return
+            
+            entry = metadata['entry']
+            f.write("<h2>Structure Information</h2>\n")
+            
+            # Title and basic info
+            f.write("<table>\n")
+            f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+            
+            # Title
+            if entry.get('struct') and entry['struct'].get('title'):
+                title = entry['struct']['title']
+                f.write(f"<tr><td>Title</td><td>{title}</td></tr>\n")
+            
+            # Authors
+            if entry.get('audit_author'):
+                authors = [author.get('name', '') for author in entry['audit_author'][:5] if author.get('name')]
+                if authors:
+                    authors_text = ', '.join(authors)
+                    if len(entry.get('audit_author', [])) > 5:
+                        authors_text += " et al."
+                    f.write(f"<tr><td>Authors</td><td>{authors_text}</td></tr>\n")
+            
+            # Dates
+            if entry.get('rcsb_accession_info'):
+                accession_info = entry['rcsb_accession_info']
+                deposit_date = accession_info.get('deposit_date', 'N/A')
+                release_date = accession_info.get('initial_release_date', 'N/A')
+                f.write(f"<tr><td>Deposited</td><td>{deposit_date}</td></tr>\n")
+                f.write(f"<tr><td>Released</td><td>{release_date}</td></tr>\n")
+            
+            # Keywords
+            if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
+                keywords = entry['struct_keywords']['pdbx_keywords']
+                f.write(f"<tr><td>Keywords</td><td>{keywords}</td></tr>\n")
+            
+            # Entity types
+            if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('selected_polymer_entity_types'):
+                entity_types = ', '.join(entry['rcsb_entry_info']['selected_polymer_entity_types'])
+                f.write(f"<tr><td>Entity Types</td><td>{entity_types}</td></tr>\n")
+            
+            f.write("</table>\n")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error exporting comprehensive metadata: {e}")
+    
+    def _export_experimental_details(self, f, basic_results):
+        """Export experimental details with enhanced fallback logic."""
+        f.write("<h2>Experimental Details</h2>\n")
+        f.write("<table>\n")
+        f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+        
+        # Enhanced experimental method extraction
+        method = self._get_enhanced_experimental_method(basic_results)
+        f.write(f"<tr><td>Experimental Method</td><td>{method}</td></tr>\n")
+        
+        # Enhanced resolution extraction
+        resolution = self._get_enhanced_resolution(basic_results)
+        f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
+        
+        # Refinement statistics if available
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('refine') and entry['refine']:
+                    refine_data = entry['refine'][0]
+                    r_work = refine_data.get('ls_R_factor_R_work')
+                    r_free = refine_data.get('ls_R_factor_R_free')
+                    
+                    if r_work is not None:
+                        r_work_str = f"{r_work:.3f}" if isinstance(r_work, (int, float)) else str(r_work)
+                        f.write(f"<tr><td>R-work</td><td>{r_work_str}</td></tr>\n")
+                    if r_free is not None:
+                        r_free_str = f"{r_free:.3f}" if isinstance(r_free, (int, float)) else str(r_free)
+                        f.write(f"<tr><td>R-free</td><td>{r_free_str}</td></tr>\n")
+        
+        f.write("</table>\n")
+    
+    def _get_enhanced_experimental_method(self, basic_results):
+        """Get experimental method using the same fallback logic as display."""
+        method = 'N/A'
+        
+        # First try basic_results structure_method (from .ent file extraction)
+        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
+            method = basic_results['structure_method']
+        elif basic_results.get('experimental_method') and basic_results['experimental_method'] != 'N/A':
+            method = basic_results['experimental_method']
+        # Then try comprehensive metadata
+        elif hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
+                    method = entry['rcsb_entry_info']['experimental_method']
+                elif entry.get('exptl') and entry['exptl']:
+                    method = entry['exptl'][0].get('method', 'N/A')
+        # Fallback to other basic_results fields
+        elif basic_results.get('head'):
+            method = basic_results['head']
+        elif basic_results.get('expdta'):
+            method = basic_results['expdta']
+        
+        return method
+    
+    def _get_enhanced_resolution(self, basic_results):
+        """Get resolution using the same fallback logic as display."""
+        resolution = 'N/A'
+        
+        # Try comprehensive metadata first
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
+                    res_data = entry['rcsb_entry_info']['resolution_combined']
+                    if isinstance(res_data, list) and res_data:
+                        resolution = f"{res_data[0]} Å"
+                    elif isinstance(res_data, (int, float)):
+                        resolution = f"{res_data} Å"
+        
+        # Fallback to basic_results
+        if resolution == 'N/A' and basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
+            res_value = basic_results['resolution']
+            if isinstance(res_value, (int, float)):
+                resolution = f"{res_value} Å"
+            else:
+                resolution = str(res_value)
+        
+        return resolution
+    
+    def _extract_comprehensive_metadata_for_export(self):
+        """Extract comprehensive metadata for JSON/other exports."""
+        try:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if not metadata or 'entry' not in metadata:
+                return {}
+            
+            entry = metadata['entry']
+            result = {}
+            
+            # Title
+            if entry.get('struct') and entry['struct'].get('title'):
+                result['title'] = entry['struct']['title']
+            
+            # Authors
+            if entry.get('audit_author'):
+                authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
+                result['authors'] = authors
+            
+            # Dates
+            if entry.get('rcsb_accession_info'):
+                accession_info = entry['rcsb_accession_info']
+                result['deposit_date'] = accession_info.get('deposit_date')
+                result['release_date'] = accession_info.get('initial_release_date')
+            
+            # Keywords
+            if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
+                result['keywords'] = entry['struct_keywords']['pdbx_keywords']
+            
+            # Entity types
+            if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('selected_polymer_entity_types'):
+                result['entity_types'] = entry['rcsb_entry_info']['selected_polymer_entity_types']
+            
+            return result
+            
+        except Exception as e:
+            print(f"[DEBUG] Error extracting comprehensive metadata for export: {e}")
+            return {}
+    
+    def _extract_experimental_details_for_export(self, basic_results):
+        """Extract experimental details for JSON/other exports."""
+        result = {}
+        
+        # Enhanced experimental method extraction
+        result['experimental_method'] = self._get_enhanced_experimental_method(basic_results)
+        
+        # Enhanced resolution extraction
+        result['resolution'] = self._get_enhanced_resolution(basic_results)
+        
+        # Refinement statistics if available
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('refine') and entry['refine']:
+                    refine_data = entry['refine'][0]
+                    r_work = refine_data.get('ls_R_factor_R_work')
+                    r_free = refine_data.get('ls_R_factor_R_free')
+                    
+                    if r_work is not None:
+                        result['r_work'] = r_work
+                    if r_free is not None:
+                        result['r_free'] = r_free
+        
+        return result
+    
+    def _export_comprehensive_metadata(self, f):
+        """Export comprehensive metadata to HTML."""
+        try:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if not metadata or 'entry' not in metadata:
+                return
+            
+            entry = metadata['entry']
+            f.write("<h2>Structure Information</h2>\n")
+            
+            # Title and basic info
+            f.write("<table>\n")
+            f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+            
+            # Title
+            if entry.get('struct') and entry['struct'].get('title'):
+                title = entry['struct']['title']
+                f.write(f"<tr><td>Title</td><td>{title}</td></tr>\n")
+            
+            # Authors
+            if entry.get('audit_author'):
+                authors = [author.get('name', '') for author in entry['audit_author'][:5] if author.get('name')]
+                if authors:
+                    authors_text = ', '.join(authors)
+                    if len(entry.get('audit_author', [])) > 5:
+                        authors_text += " et al."
+                    f.write(f"<tr><td>Authors</td><td>{authors_text}</td></tr>\n")
+            
+            # Dates
+            if entry.get('rcsb_accession_info'):
+                accession_info = entry['rcsb_accession_info']
+                deposit_date = accession_info.get('deposit_date', 'N/A')
+                release_date = accession_info.get('initial_release_date', 'N/A')
+                f.write(f"<tr><td>Deposited</td><td>{deposit_date}</td></tr>\n")
+                f.write(f"<tr><td>Released</td><td>{release_date}</td></tr>\n")
+            
+            # Keywords
+            if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
+                keywords = entry['struct_keywords']['pdbx_keywords']
+                f.write(f"<tr><td>Keywords</td><td>{keywords}</td></tr>\n")
+            
+            # Entity types
+            if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('selected_polymer_entity_types'):
+                entity_types = ', '.join(entry['rcsb_entry_info']['selected_polymer_entity_types'])
+                f.write(f"<tr><td>Entity Types</td><td>{entity_types}</td></tr>\n")
+            
+            f.write("</table>\n")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error exporting comprehensive metadata: {e}")
+    
+    def _export_experimental_details(self, f, basic_results):
+        """Export experimental details with enhanced fallback logic."""
+        f.write("<h2>Experimental Details</h2>\n")
+        f.write("<table>\n")
+        f.write("<tr><th>Property</th><th>Value</th></tr>\n")
+        
+        # Enhanced experimental method extraction
+        method = self._get_enhanced_experimental_method(basic_results)
+        f.write(f"<tr><td>Experimental Method</td><td>{method}</td></tr>\n")
+        
+        # Enhanced resolution extraction
+        resolution = self._get_enhanced_resolution(basic_results)
+        f.write(f"<tr><td>Resolution</td><td>{resolution}</td></tr>\n")
+        
+        # Refinement statistics if available
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('refine') and entry['refine']:
+                    refine_data = entry['refine'][0]
+                    r_work = refine_data.get('ls_R_factor_R_work')
+                    r_free = refine_data.get('ls_R_factor_R_free')
+                    
+                    if r_work is not None:
+                        r_work_str = f"{r_work:.3f}" if isinstance(r_work, (int, float)) else str(r_work)
+                        f.write(f"<tr><td>R-work</td><td>{r_work_str}</td></tr>\n")
+                    if r_free is not None:
+                        r_free_str = f"{r_free:.3f}" if isinstance(r_free, (int, float)) else str(r_free)
+                        f.write(f"<tr><td>R-free</td><td>{r_free_str}</td></tr>\n")
+        
+        f.write("</table>\n")
+    
+    def _get_enhanced_experimental_method(self, basic_results):
+        """Get experimental method using the same fallback logic as display."""
+        method = 'N/A'
+        
+        # First try basic_results structure_method (from .ent file extraction)
+        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
+            method = basic_results['structure_method']
+        elif basic_results.get('experimental_method') and basic_results['experimental_method'] != 'N/A':
+            method = basic_results['experimental_method']
+        # Then try comprehensive metadata
+        elif hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
+                    method = entry['rcsb_entry_info']['experimental_method']
+                elif entry.get('exptl') and entry['exptl']:
+                    method = entry['exptl'][0].get('method', 'N/A')
+        # Fallback to other basic_results fields
+        elif basic_results.get('head'):
+            method = basic_results['head']
+        elif basic_results.get('expdta'):
+            method = basic_results['expdta']
+        
+        return method
+    
+    def _get_enhanced_resolution(self, basic_results):
+        """Get resolution using the same fallback logic as display."""
+        resolution = 'N/A'
+        
+        # Try comprehensive metadata first
+        if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
+            metadata = self.current_comprehensive_data.get('metadata', {})
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
+                    res_data = entry['rcsb_entry_info']['resolution_combined']
+                    if isinstance(res_data, list) and res_data:
+                        resolution = f"{res_data[0]} Å"
+                    elif isinstance(res_data, (int, float)):
+                        resolution = f"{res_data} Å"
+        
+        # Fallback to basic_results
+        if resolution == 'N/A' and basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
+            res_value = basic_results['resolution']
+            if isinstance(res_value, (int, float)):
+                resolution = f"{res_value} Å"
+            else:
+                resolution = str(res_value)
+        
+        return resolution
     
     def export_complete_pdf(self, file_path):
         """Export complete analysis as PDF."""
@@ -4819,14 +5498,13 @@ class StructuralAnalysisTab(QWidget):
         except Exception as e:
             raise Exception(f"PDF export failed: {str(e)}")
     
-    def save_chart_as_image(self, data, title, chart_type, temp_dir):
+    def save_chart_as_image(self, data, title, chart_type, temp_dir, xlabel=None, ylabel=None):
         """Save a chart as PNG image and return the path with robust error handling."""
         if not MATPLOTLIB_AVAILABLE or not data:
             return None
         
         try:
             import matplotlib.pyplot as plt
-            import os
             
             # Filter out zero, negative, and NaN values
             filtered_data = {}
@@ -4883,9 +5561,17 @@ class StructuralAnalysisTab(QWidget):
                     text.set_fontweight('bold')
             elif chart_type == "bar":
                 bars = ax.bar(filtered_data.keys(), filtered_data.values(), color='#4ECDC4', edgecolor='black', linewidth=2)
-                ax.set_ylabel('Count', fontsize=16, fontweight='bold')
+                ax.set_ylabel(ylabel or 'Count', fontsize=16, fontweight='bold')
+                if xlabel:
+                    ax.set_xlabel(xlabel, fontsize=16, fontweight='bold')
                 plt.xticks(rotation=45, ha='right', fontsize=14, fontweight='bold')
                 plt.yticks(fontsize=14, fontweight='bold')
+                
+                # Add value labels on top of bars
+                for bar in bars:
+                    height = bar.get_height()
+                    ax.text(bar.get_x() + bar.get_width()/2., height + max(filtered_data.values())*0.01,
+                           f'{height:.1f}', ha='center', va='bottom', fontweight='bold', fontsize=12)
             
             ax.set_title(title, fontsize=18, fontweight='bold', pad=20)
             plt.tight_layout()
@@ -4910,7 +5596,6 @@ class StructuralAnalysisTab(QWidget):
         try:
             import matplotlib.pyplot as plt
             import matplotlib.patches as patches
-            import os
             
             plt.rcParams['font.size'] = 14
             plt.rcParams['font.weight'] = 'bold'
@@ -4980,7 +5665,6 @@ class StructuralAnalysisTab(QWidget):
         
         try:
             import matplotlib.pyplot as plt
-            import os
             
             plt.rcParams['font.size'] = 14
             plt.rcParams['font.weight'] = 'bold'

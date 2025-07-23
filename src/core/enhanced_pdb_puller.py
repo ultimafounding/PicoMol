@@ -74,7 +74,7 @@ class EnhancedPDBPuller:
         """
         pdb_id = pdb_id.upper().strip()
         
-        print(f"Fetching comprehensive data for PDB ID: {pdb_id}")
+
         
         result = {
             'pdb_id': pdb_id,
@@ -87,31 +87,27 @@ class EnhancedPDBPuller:
         
         try:
             # 1. Fetch structure files
-            print("Downloading structure files...")
             structure_files = self._fetch_structure_files(pdb_id, include_mmcif)
             result['files'].update(structure_files)
             
             # 2. Fetch comprehensive metadata
-            print("Fetching metadata...")
             metadata = self._fetch_metadata(pdb_id)
             result['metadata'] = metadata
             
             # 3. Fetch sequence information
             if include_sequences:
-                print("Fetching sequences...")
                 sequences = self._fetch_sequences(pdb_id)
                 result['sequences'] = sequences
             
             # 4. Fetch validation data
             if include_validation:
-                print("Fetching validation data...")
                 validation = self._fetch_validation_data(pdb_id)
                 result['validation'] = validation
             
             # 5. Save comprehensive data summary
             self._save_data_summary(pdb_id, result)
             
-            print(f"Successfully fetched comprehensive data for {pdb_id}")
+
             
         except Exception as e:
             error_msg = f"Error fetching comprehensive data for {pdb_id}: {str(e)}"
@@ -142,12 +138,11 @@ class EnhancedPDBPuller:
             
             if os.path.exists(pdb_path):
                 files['pdb'] = pdb_path
-                print(f"✓ PDB file: {pdb_path}")
+
             else:
                 raise FileNotFoundError(f"Failed to download PDB file for {pdb_id}")
                 
         except Exception as e:
-            print(f"✗ Error downloading PDB file: {e}")
             raise
         
         # Fetch mmCIF file if requested
@@ -160,11 +155,10 @@ class EnhancedPDBPuller:
                 
                 if os.path.exists(mmcif_path):
                     files['mmcif'] = mmcif_path
-                    print(f"✓ mmCIF file: {mmcif_path}")
+
                     
             except Exception as e:
-                print(f"✗ Error downloading mmCIF file: {e}")
-        
+                pass
         return files
     
     def _fetch_metadata(self, pdb_id: str) -> Dict[str, Any]:
@@ -177,59 +171,58 @@ class EnhancedPDBPuller:
             entry_data = self._make_api_request(entry_url)
             if entry_data:
                 metadata['entry'] = entry_data
-                print("✓ Entry metadata")
+
             
             # Fetch experimental information
             exptl_url = f"{self.api_base}/experimental_method/{pdb_id}"
             exptl_data = self._make_api_request(exptl_url)
             if exptl_data:
                 metadata['experimental'] = exptl_data
-                print("✓ Experimental metadata")
+
             
             # Fetch structure summary
             summary_url = f"{self.api_base}/summary/{pdb_id}"
             summary_data = self._make_api_request(summary_url)
             if summary_data:
                 metadata['summary'] = summary_data
-                print("✓ Structure summary")
+
             
             # Fetch publication information
             pubmed_url = f"{self.api_base}/pubmed/{pdb_id}"
             pubmed_data = self._make_api_request(pubmed_url)
             if pubmed_data:
                 metadata['publications'] = pubmed_data
-                print("✓ Publication data")
+
             
             # Fetch polymer entity information
             polymer_url = f"{self.api_base}/polymer_entity/{pdb_id}"
             polymer_data = self._make_api_request(polymer_url)
             if polymer_data:
                 metadata['polymer_entities'] = polymer_data
-                print("✓ Polymer entities")
+
             
             # Fetch non-polymer entity information (ligands)
             nonpolymer_url = f"{self.api_base}/nonpolymer_entity/{pdb_id}"
             nonpolymer_data = self._make_api_request(nonpolymer_url)
             if nonpolymer_data:
                 metadata['nonpolymer_entities'] = nonpolymer_data
-                print("✓ Non-polymer entities (ligands)")
+
             
             # Fetch assembly information
             assembly_url = f"{self.api_base}/assembly/{pdb_id}"
             assembly_data = self._make_api_request(assembly_url)
             if assembly_data:
                 metadata['assemblies'] = assembly_data
-                print("✓ Assembly information")
+
             
             # Save metadata to file
             metadata_file = os.path.join(self.metadata_dir, f"{pdb_id}_metadata.json")
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2, default=str)
-            print(f"✓ Metadata saved: {metadata_file}")
+
             
         except Exception as e:
-            print(f"✗ Error fetching metadata: {e}")
-        
+            pass
         return metadata
     
     def _fetch_sequences(self, pdb_id: str) -> Dict[str, Any]:
@@ -252,18 +245,17 @@ class EnhancedPDBPuller:
                 
                 sequences['fasta_content'] = fasta_content
                 sequences['chains'] = self._parse_fasta_chains(fasta_content)
-                print(f"✓ FASTA sequences: {fasta_path}")
+
             
             # Fetch sequence alignment information
             alignment_url = f"{self.api_base}/sequence_alignment/{pdb_id}"
             alignment_data = self._make_api_request(alignment_url)
             if alignment_data:
                 sequences['alignments'] = alignment_data
-                print("✓ Sequence alignments")
+
             
         except Exception as e:
-            print(f"✗ Error fetching sequences: {e}")
-        
+            pass
         return sequences
     
     def _fetch_validation_data(self, pdb_id: str) -> Dict[str, Any]:
@@ -276,7 +268,7 @@ class EnhancedPDBPuller:
             validation_data = self._make_api_request(validation_url)
             if validation_data:
                 validation['report'] = validation_data
-                print("✓ Validation report")
+
             
             # Download validation report PDF if available
             try:
@@ -287,21 +279,20 @@ class EnhancedPDBPuller:
                 
                 if os.path.exists(pdf_path):
                     validation['pdf_report'] = pdf_path
-                    print(f"✓ Validation PDF: {pdf_path}")
+
                     
             except Exception as e:
-                print(f"✗ Validation PDF not available: {e}")
+                pass
             
             # Fetch structure quality metrics
             quality_url = f"{self.api_base}/quality/{pdb_id}"
             quality_data = self._make_api_request(quality_url)
             if quality_data:
                 validation['quality_metrics'] = quality_data
-                print("✓ Quality metrics")
+
             
         except Exception as e:
-            print(f"✗ Error fetching validation data: {e}")
-        
+            pass
         return validation
     
     def _make_api_request(self, url: str, timeout: int = 30) -> Optional[Dict]:
@@ -312,20 +303,17 @@ class EnhancedPDBPuller:
             if response.status_code == 200:
                 return response.json()
             elif response.status_code == 404:
-                print(f"Data not found: {url}")
+
                 return None
             else:
-                print(f"API request failed: {url} (Status: {response.status_code})")
+
                 return None
                 
         except requests.exceptions.Timeout:
-            print(f"Request timeout: {url}")
             return None
         except requests.exceptions.RequestException as e:
-            print(f"Request error: {url} - {e}")
             return None
         except json.JSONDecodeError as e:
-            print(f"JSON decode error: {url} - {e}")
             return None
     
     def _download_file(self, url: str, filepath: str, timeout: int = 60) -> bool:
@@ -339,11 +327,10 @@ class EnhancedPDBPuller:
                         f.write(chunk)
                 return True
             else:
-                print(f"Download failed: {url} (Status: {response.status_code})")
+
                 return False
                 
         except Exception as e:
-            print(f"Download error: {url} - {e}")
             return False
     
     def _parse_fasta_chains(self, fasta_content: str) -> List[Dict[str, str]]:
@@ -430,16 +417,14 @@ class EnhancedPDBPuller:
                     info['summary'] = json.load(f)
                 info['available'] = True
             except Exception as e:
-                print(f"Error loading summary: {e}")
-        
+                pass
         # Load full metadata
         if os.path.exists(metadata_file):
             try:
                 with open(metadata_file, 'r') as f:
                     info['metadata'] = json.load(f)
             except Exception as e:
-                print(f"Error loading metadata: {e}")
-        
+                pass
         # Check for files
         pdb_file = os.path.join(self.structures_dir, f"{pdb_id}.pdb")
         if os.path.exists(pdb_file):

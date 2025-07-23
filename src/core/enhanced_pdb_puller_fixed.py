@@ -71,7 +71,7 @@ class EnhancedPDBPuller:
         """
         pdb_id = pdb_id.upper().strip()
         
-        print(f"Fetching comprehensive data for PDB ID: {pdb_id}")
+
         
         result = {
             'pdb_id': pdb_id,
@@ -84,31 +84,27 @@ class EnhancedPDBPuller:
         
         try:
             # 1. Fetch structure files
-            print("Downloading structure files...")
             structure_files = self._fetch_structure_files(pdb_id, include_mmcif)
             result['files'].update(structure_files)
             
             # 2. Fetch comprehensive metadata using GraphQL
-            print("Fetching metadata via GraphQL...")
             metadata = self._fetch_metadata_graphql(pdb_id)
             result['metadata'] = metadata
             
             # 3. Fetch sequence information
             if include_sequences:
-                print("Fetching sequences...")
                 sequences = self._fetch_sequences(pdb_id)
                 result['sequences'] = sequences
             
             # 4. Fetch validation data (limited)
             if include_validation:
-                print("Fetching available validation data...")
                 validation = self._fetch_validation_data(pdb_id)
                 result['validation'] = validation
             
             # 5. Save comprehensive data summary
             self._save_data_summary(pdb_id, result)
             
-            print(f"Successfully fetched comprehensive data for {pdb_id}")
+
             
         except Exception as e:
             error_msg = f"Error fetching comprehensive data for {pdb_id}: {str(e)}"
@@ -144,12 +140,11 @@ class EnhancedPDBPuller:
             
             if os.path.exists(pdb_path):
                 files['pdb'] = pdb_path
-                print(f"✓ PDB file: {pdb_path}")
+
             else:
                 raise FileNotFoundError(f"Failed to download PDB file for {pdb_id}")
                 
         except Exception as e:
-            print(f"✗ Error downloading PDB file: {e}")
             raise
         
         # Fetch mmCIF file if requested
@@ -162,11 +157,10 @@ class EnhancedPDBPuller:
                 
                 if os.path.exists(mmcif_path):
                     files['mmcif'] = mmcif_path
-                    print(f"✓ mmCIF file: {mmcif_path}")
+
                     
             except Exception as e:
-                print(f"✗ Error downloading mmCIF file: {e}")
-        
+                pass
         return files
     
     def _fetch_metadata_graphql(self, pdb_id: str) -> Dict[str, Any]:
@@ -292,13 +286,12 @@ class EnhancedPDBPuller:
                 entry_data = response['data']['entry']
                 if entry_data:
                     metadata['entry'] = entry_data
-                    print("✓ Entry metadata via GraphQL")
+
                 else:
-                    print(f"✗ No entry data found for {pdb_id}")
+                    pass
             else:
-                print(f"✗ GraphQL entry query failed for {pdb_id}")
                 if response and 'errors' in response:
-                    print(f"   Errors: {response['errors']}")
+                    pass
             
             # Fetch additional entity details if available
             if 'entry' in metadata:
@@ -310,7 +303,7 @@ class EnhancedPDBPuller:
                 
                 if polymer_count > 0:
                     metadata['polymer_entity_count'] = polymer_count
-                    print(f"✓ Found {polymer_count} polymer entities")
+
                     
                     # Try to fetch detailed polymer entity information
                     polymer_entities = self._fetch_polymer_entities(pdb_id)
@@ -319,7 +312,7 @@ class EnhancedPDBPuller:
                 
                 if nonpolymer_count > 0:
                     metadata['nonpolymer_entity_count'] = nonpolymer_count
-                    print(f"✓ Found {nonpolymer_count} non-polymer entities")
+
                     
                     # Try to fetch detailed non-polymer entity information
                     nonpolymer_entities = self._fetch_nonpolymer_entities(pdb_id)
@@ -335,11 +328,10 @@ class EnhancedPDBPuller:
             metadata_file = os.path.join(self.metadata_dir, f"{pdb_id}_metadata.json")
             with open(metadata_file, 'w') as f:
                 json.dump(metadata, f, indent=2, default=str)
-            print(f"✓ Metadata saved: {metadata_file}")
+
             
         except Exception as e:
-            print(f"✗ Error fetching metadata: {e}")
-        
+            pass
         return metadata
     
     def _fetch_polymer_entities(self, pdb_id: str) -> List[Dict[str, Any]]:
@@ -388,12 +380,11 @@ class EnhancedPDBPuller:
             if response and 'data' in response and response['data']:
                 entities = response['data'].get('polymer_entities', [])
                 if entities:
-                    print(f"✓ Detailed polymer entity data: {len(entities)} entities")
+
                     return entities
             
         except Exception as e:
-            print(f"✗ Error fetching polymer entities: {e}")
-        
+            pass
         return []
     
     def _fetch_nonpolymer_entities(self, pdb_id: str) -> List[Dict[str, Any]]:
@@ -435,12 +426,11 @@ class EnhancedPDBPuller:
             if response and 'data' in response and response['data']:
                 entities = response['data'].get('nonpolymer_entities', [])
                 if entities:
-                    print(f"✓ Detailed non-polymer entity data: {len(entities)} entities")
+
                     return entities
             
         except Exception as e:
-            print(f"✗ Error fetching non-polymer entities: {e}")
-        
+            pass
         return []
     
     def _fetch_assemblies(self, pdb_id: str) -> List[Dict[str, Any]]:
@@ -480,12 +470,11 @@ class EnhancedPDBPuller:
             if response and 'data' in response and response['data']:
                 assemblies = response['data'].get('assemblies', [])
                 if assemblies:
-                    print(f"✓ Assembly data: {len(assemblies)} assemblies")
+
                     return assemblies
             
         except Exception as e:
-            print(f"✗ Error fetching assemblies: {e}")
-        
+            pass
         return []
     
     def _fetch_sequences(self, pdb_id: str) -> Dict[str, Any]:
@@ -510,7 +499,7 @@ class EnhancedPDBPuller:
                         break
                 
                 if not success:
-                    print(f"✗ FASTA file not available for {pdb_id} (tried {len(fasta_urls)} URLs)")
+
                     return sequences
             
             if os.path.exists(fasta_path):
@@ -522,11 +511,10 @@ class EnhancedPDBPuller:
                 
                 sequences['fasta_content'] = fasta_content
                 sequences['chains'] = self._parse_fasta_chains(fasta_content)
-                print(f"✓ FASTA sequences: {fasta_path}")
+
             
         except Exception as e:
-            print(f"✗ Error fetching sequences: {e}")
-        
+            pass
         return sequences
     
     def _fetch_validation_data(self, pdb_id: str) -> Dict[str, Any]:
@@ -541,13 +529,11 @@ class EnhancedPDBPuller:
                 success = self._download_file(pdf_url, pdf_path)
                 if success:
                     validation['pdf_report'] = pdf_path
-                    print(f"✓ Validation PDF: {pdf_path}")
+
                 else:
-                    print(f"✗ Validation PDF not available for {pdb_id}")
-            
+                    pass
         except Exception as e:
-            print(f"✗ Error fetching validation data: {e}")
-        
+            pass
         return validation
     
     def _make_graphql_request(self, query: Dict, timeout: int = 30) -> Optional[Dict]:
@@ -558,18 +544,13 @@ class EnhancedPDBPuller:
             if response.status_code == 200:
                 return response.json()
             else:
-                print(f"GraphQL request failed: Status {response.status_code}")
-                print(f"Response: {response.text[:200]}")
                 return None
                 
         except requests.exceptions.Timeout:
-            print(f"GraphQL request timeout")
             return None
         except requests.exceptions.RequestException as e:
-            print(f"GraphQL request error: {e}")
             return None
         except json.JSONDecodeError as e:
-            print(f"GraphQL JSON decode error: {e}")
             return None
     
     def _download_file(self, url: str, filepath: str, timeout: int = 60) -> bool:
@@ -583,11 +564,9 @@ class EnhancedPDBPuller:
                         f.write(chunk)
                 return True
             else:
-                print(f"Download failed: {url} (Status: {response.status_code})")
                 return False
                 
         except Exception as e:
-            print(f"Download error: {url} - {e}")
             return False
     
     def _parse_fasta_chains(self, fasta_content: str) -> List[Dict[str, str]]:
@@ -681,16 +660,14 @@ class EnhancedPDBPuller:
                     info['summary'] = json.load(f)
                 info['available'] = True
             except Exception as e:
-                print(f"Error loading summary: {e}")
-        
+                pass
         # Load full metadata
         if os.path.exists(metadata_file):
             try:
                 with open(metadata_file, 'r') as f:
                     info['metadata'] = json.load(f)
             except Exception as e:
-                print(f"Error loading metadata: {e}")
-        
+                pass
         # Check for files
         pdb_file = os.path.join(self.structures_dir, f"{pdb_id}.pdb")
         if os.path.exists(pdb_file):

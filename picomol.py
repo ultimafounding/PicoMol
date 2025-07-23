@@ -880,6 +880,42 @@ class ProteinViewerApp(QMainWindow):
         dlg.preferences_applied.connect(self.apply_preferences)
         dlg.exec_()
     
+    def notify_structure_loaded(self, structure_id, structure_path):
+        """Notify components that a new structure has been loaded.
+        
+        This method is called when a new protein structure is loaded and allows
+        various components (like the structural analysis tab) to update accordingly.
+        
+        Args:
+            structure_id (str): The PDB ID or identifier of the loaded structure
+            structure_path (str): Path to the loaded structure file
+        """
+        # Store current structure information
+        self.current_structure_id = structure_id
+        self.current_structure_path = structure_path
+        
+        # Notify the structural analysis tab if it exists
+        if hasattr(self, 'main_tabs'):
+            # Find the bioinformatics tab
+            for i in range(self.main_tabs.count()):
+                if self.main_tabs.tabText(i) == "Bioinformatics":
+                    bio_tab = self.main_tabs.widget(i)
+                    if hasattr(bio_tab, 'findChild'):
+                        # Look for the structural analysis tab within the bioinformatics tab
+                        from PyQt5.QtWidgets import QTabWidget
+                        bio_tabs = bio_tab.findChild(QTabWidget)
+                        if bio_tabs:
+                            for j in range(bio_tabs.count()):
+                                if bio_tabs.tabText(j) == "Structure":
+                                    structure_tab = bio_tabs.widget(j)
+                                    if hasattr(structure_tab, 'on_structure_loaded'):
+                                        structure_tab.on_structure_loaded(structure_id, structure_path)
+                                    break
+                    break
+        
+        # Update status bar
+        self.statusBar().showMessage(f"Structure {structure_id} loaded and components notified", 2000)
+    
     def apply_preferences(self):
         """Apply preferences to the current application state."""
         # Get visualization defaults and apply them
@@ -1088,6 +1124,9 @@ class ProteinViewerApp(QMainWindow):
                 
                 self.add_to_recent_files(pdb_path)
                 
+                # Notify structural analysis tab that a new structure is loaded
+                self.notify_structure_loaded(pdb_id, pdb_path)
+                
                 # Show summary of fetched data (non-blocking)
                 from PyQt5.QtCore import QTimer
                 QTimer.singleShot(100, lambda: self.show_fetch_summary(comprehensive_data))
@@ -1179,6 +1218,9 @@ class ProteinViewerApp(QMainWindow):
                 self.statusBar().showMessage(f"Loaded {pdb_id} with comprehensive data")
             
             self.add_to_recent_files(pdb_path)
+            
+            # Notify structural analysis tab that a new structure is loaded
+            self.notify_structure_loaded(pdb_id, pdb_path)
             
             # Show summary of fetched data
             self.show_fetch_summary(comprehensive_data)
@@ -1686,7 +1728,15 @@ class ProteinViewerApp(QMainWindow):
             self.statusBar().showMessage(f"Loading structure from {os.path.basename(file_path)}...")
             structure = self.pdb_parser.get_structure(structure_id, target_path)
             self.current_structure_id = structure_id  # Set the current structure ID
+            
+            # Clear comprehensive data since we're loading a local file without metadata
+            self.current_pdb_data = None
+            
             self.display_structure(structure)
+            
+            # Notify structural analysis tab that a new structure is loaded
+            self.notify_structure_loaded(structure_id, target_path)
+            
             self.statusBar().showMessage(f"Displayed {structure_id}")
             self.add_to_recent_files(target_path)
             
