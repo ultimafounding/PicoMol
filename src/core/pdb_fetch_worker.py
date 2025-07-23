@@ -11,7 +11,7 @@ from typing import Dict, Any, Optional
 import traceback
 
 try:
-    from .enhanced_pdb_puller import EnhancedPDBPuller
+    from .enhanced_pdb_puller_fixed import EnhancedPDBPuller
     OPTIMIZED_PULLER_AVAILABLE = True
 except ImportError:
     OPTIMIZED_PULLER_AVAILABLE = False

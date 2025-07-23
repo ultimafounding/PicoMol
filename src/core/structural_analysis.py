@@ -52,13 +52,41 @@ try:
     from .pdb_fetch_worker import PDBFetchManager
     OPTIMIZED_FETCH_AVAILABLE = True
 except ImportError:
-    OPTIMIZED_FETCH_AVAILABLE = False
+    try:
+        # Add project root to path for absolute imports
+        import sys
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        from src.core.pdb_fetch_worker import PDBFetchManager
+        OPTIMIZED_FETCH_AVAILABLE = True
+    except ImportError:
+        OPTIMIZED_FETCH_AVAILABLE = False
 
 try:
-    from .enhanced_pdb_puller import EnhancedPDBPuller
+    from .enhanced_pdb_puller_fixed import EnhancedPDBPuller
     ENHANCED_PDB_AVAILABLE = True
 except ImportError:
-    ENHANCED_PDB_AVAILABLE = False
+    try:
+        # Add project root to path for absolute imports
+        import sys
+        import os
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        if project_root not in sys.path:
+            sys.path.insert(0, project_root)
+        from src.core.enhanced_pdb_puller_fixed import EnhancedPDBPuller
+        ENHANCED_PDB_AVAILABLE = True
+    except ImportError:
+        try:
+            from .enhanced_pdb_puller import EnhancedPDBPuller
+            ENHANCED_PDB_AVAILABLE = True
+        except ImportError:
+            try:
+                from src.core.enhanced_pdb_puller import EnhancedPDBPuller
+                ENHANCED_PDB_AVAILABLE = True
+            except ImportError:
+                ENHANCED_PDB_AVAILABLE = False
 
 try:
     import numpy as np
@@ -105,11 +133,12 @@ class StructuralAnalysisWorker(QThread):
     error_occurred = pyqtSignal(str)
     progress_update = pyqtSignal(str)
     
-    def __init__(self, structure_path, analysis_types=None):
+    def __init__(self, structure_path, analysis_types=None, comprehensive_data=None):
         super().__init__()
         self.structure_path = structure_path
         self.analysis_types = analysis_types or ['basic', 'secondary', 'geometry']
         self.structure = None
+        self.comprehensive_data = comprehensive_data
         # Surface analysis uses SASA calculation
     
     def run(self):
@@ -214,45 +243,220 @@ class StructuralAnalysisWorker(QThread):
         
         results['composition'] = dict(composition)
         
-        # Try to get experimental information from PDB header
+        # Use comprehensive metadata if available, otherwise fall back to PDB header
+        if self.comprehensive_data and self.comprehensive_data.get('metadata'):
+            print(f"[DEBUG] Using comprehensive metadata for enhanced information")
+            metadata = self.comprehensive_data['metadata']
+            
+            if 'entry' in metadata:
+                entry = metadata['entry']
+                
+                # Extract comprehensive information
+                rcsb_info = entry.get('rcsb_entry_info', {})
+                
+                # Resolution from comprehensive metadata
+                resolution = rcsb_info.get('resolution_combined')
+                if isinstance(resolution, list) and resolution:
+                    results['resolution'] = resolution[0]
+                elif resolution:
+                    results['resolution'] = resolution
+                else:
+                    results['resolution'] = 'N/A'
+                
+                # Experimental method from comprehensive metadata
+                method = rcsb_info.get('experimental_method', 'N/A')
+                results['structure_method'] = method
+                results['experimental_method'] = method
+                
+                # Space group from comprehensive metadata
+                if 'symmetry' in entry and entry['symmetry']:
+                    space_group = entry['symmetry'].get('space_group_name_H_M', 'N/A')
+                    results['space_group'] = space_group
+                else:
+                    results['space_group'] = 'N/A'
+                
+                # Additional comprehensive information
+                if 'struct' in entry:
+                    struct_info = entry['struct']
+                    results['title'] = struct_info.get('title', 'N/A')
+                    results['pdbx_descriptor'] = struct_info.get('pdbx_descriptor', 'N/A')
+                
+                # Author information
+                if 'audit_author' in entry:
+                    authors = entry['audit_author']
+                    author_names = [author.get('name', '') for author in authors[:5]]
+                    results['authors'] = author_names
+                
+                # Dates
+                if 'rcsb_accession_info' in entry:
+                    accession_info = entry['rcsb_accession_info']
+                    results['deposition_date'] = accession_info.get('deposit_date', 'N/A')
+                    results['release_date'] = accession_info.get('initial_release_date', 'N/A')
+                
+                # Crystal information
+                if 'cell' in entry and entry['cell']:
+                    cell = entry['cell']
+                    results['unit_cell'] = {
+                        'a': cell.get('length_a'),
+                        'b': cell.get('length_b'),
+                        'c': cell.get('length_c'),
+                        'alpha': cell.get('angle_alpha'),
+                        'beta': cell.get('angle_beta'),
+                        'gamma': cell.get('angle_gamma'),
+                        'volume': cell.get('volume')
+                    }
+                
+                # Molecular weight from comprehensive metadata (more accurate)
+                comp_mol_weight = rcsb_info.get('molecular_weight')
+                if comp_mol_weight:
+                    results['molecular_weight'] = comp_mol_weight * 1000  # Convert kDa to Da for consistency
+                
+                print(f"[DEBUG] Using comprehensive metadata - Resolution: {results['resolution']}, Method: {results['experimental_method']}")
+            else:
+                print(f"[DEBUG] Comprehensive metadata available but no entry data")
+                self._extract_from_pdb_header(results)
+        else:
+            print(f"[DEBUG] No comprehensive metadata available, using PDB header")
+            self._extract_from_pdb_header(results)
+        
+        return results
+    
+    def _extract_from_pdb_header(self, results):
+        """Extract information from PDB header as fallback."""
         try:
             header = self.structure.header
             if header:
-                # Debug: print available header keys
                 print(f"[DEBUG] Available header keys: {list(header.keys()) if hasattr(header, 'keys') else 'No keys method'}")
+                print(f"[DEBUG] Full header content: {header}")
                 
-                # Try different possible keys for resolution
-                resolution = None
-                for res_key in ['resolution', 'Resolution', 'RESOLUTION']:
-                    if res_key in header:
-                        resolution = header[res_key]
-                        break
+                # Extract resolution - BioPython usually extracts this correctly
+                resolution = header.get('resolution')
+                print(f"[DEBUG] Initial resolution from header: {resolution} (type: {type(resolution)})")
+                
+                # Check if resolution is None or invalid, try to load from .ent file
+                if resolution is None:
+                    print(f"[DEBUG] Resolution is None, trying to load from .ent file...")
+                    ent_resolution = self._try_extract_from_ent_file('resolution')
+                    print(f"[DEBUG] Resolution from .ent file: {ent_resolution}")
+                    if ent_resolution is not None:
+                        resolution = ent_resolution
+                
+                results['resolution'] = resolution if resolution is not None else 'N/A'
+                print(f"[DEBUG] Final extracted resolution: {results['resolution']}")
                 
                 # Try different possible keys for space group
                 space_group = None
                 for sg_key in ['space_group', 'spacegroup', 'Space_group', 'SPACE_GROUP']:
                     if sg_key in header:
                         space_group = header[sg_key]
+                        print(f"[DEBUG] Found space_group with key '{sg_key}': {space_group}")
                         break
                 
-                results['resolution'] = resolution if resolution is not None else 'N/A'
                 results['space_group'] = space_group if space_group is not None else 'N/A'
                 
-                # Also try to get other useful header information
-                for key in ['deposition_date', 'release_date', 'structure_method', 'head']:
+                # Extract structure method
+                structure_method = header.get('structure_method')
+                print(f"[DEBUG] Initial structure method from header: {structure_method}")
+                if structure_method == 'unknown' or not structure_method:
+                    print(f"[DEBUG] Structure method is unknown/empty, trying to load from .ent file...")
+                    ent_method = self._try_extract_from_ent_file('method')
+                    print(f"[DEBUG] Structure method from .ent file: {ent_method}")
+                    if ent_method:
+                        structure_method = ent_method
+                
+                # Extract other useful header information
+                header_keys_to_check = [
+                    'deposition_date', 'release_date', 'head',
+                    'keywords', 'compound', 'source', 'author'
+                ]
+                for key in header_keys_to_check:
                     if key in header:
                         results[key] = header[key]
                         print(f"[DEBUG] Found header field {key}: {header[key]}")
+                
+                # Set the structure method and experimental method
+                results['structure_method'] = structure_method if structure_method else 'N/A'
+                results['experimental_method'] = results['structure_method']  # Store as both for compatibility
+                print(f"[DEBUG] Final structure method: {results['structure_method']}")
+                
+                # Print final results for debugging
+                print(f"[DEBUG] Final resolution: {results['resolution']}")
+                print(f"[DEBUG] Final space_group: {results['space_group']}")
+                print(f"[DEBUG] Final experimental_method: {results['experimental_method']}")
             else:
                 print("[DEBUG] No header information available in structure")
                 results['resolution'] = 'N/A'
                 results['space_group'] = 'N/A'
+                results['structure_method'] = 'N/A'
         except Exception as e:
             print(f"[DEBUG] Error extracting header information: {e}")
             results['resolution'] = 'N/A'
             results['space_group'] = 'N/A'
-        
-        return results
+            results['structure_method'] = 'N/A'
+    
+    def _try_extract_from_ent_file(self, info_type):
+        """Try to extract information from corresponding .ent file."""
+        try:
+            # Get the structure ID from the file path
+            structure_id = os.path.basename(self.structure_path).split('.')[0].lower()
+            
+            # Look for corresponding .ent file
+            base_dir = os.path.dirname(self.structure_path)
+            possible_ent_files = [
+                os.path.join(base_dir, f"pdb{structure_id}.ent"),
+                os.path.join(base_dir, f"{structure_id}.ent"),
+                os.path.join(base_dir, f"PDB{structure_id.upper()}.ent"),
+                os.path.join(base_dir, f"{structure_id.upper()}.ent")
+            ]
+            
+            for ent_file in possible_ent_files:
+                if os.path.exists(ent_file):
+                    print(f"[DEBUG] Found .ent file: {ent_file}")
+                    return self._extract_from_ent_file(ent_file, info_type)
+            
+            print(f"[DEBUG] No .ent file found for {structure_id}")
+            return None
+            
+        except Exception as e:
+            print(f"[DEBUG] Error trying to extract from .ent file: {e}")
+            return None
+    
+    def _extract_from_ent_file(self, ent_file_path, info_type):
+        """Extract specific information from .ent file."""
+        try:
+            with open(ent_file_path, 'r') as f:
+                lines = f.readlines()
+            
+            if info_type == 'resolution':
+                # Look for resolution in REMARK 2
+                for line in lines:
+                    if line.startswith('REMARK   2') and 'RESOLUTION' in line and 'ANGSTROM' in line:
+                        # Extract resolution value
+                        import re
+                        match = re.search(r'(\d+\.\d+)\s*ANGSTROM', line)
+                        if match:
+                            return float(match.group(1))
+                
+                # Also try title line
+                for line in lines:
+                    if line.startswith('TITLE') and 'ANGSTROM' in line:
+                        import re
+                        match = re.search(r'(\d+\.\d+)\s*ANGSTROM', line)
+                        if match:
+                            return float(match.group(1))
+            
+            elif info_type == 'method':
+                # Look for experimental method in EXPDTA
+                for line in lines:
+                    if line.startswith('EXPDTA'):
+                        method = line[10:].strip()
+                        return method if method else None
+            
+            return None
+            
+        except Exception as e:
+            print(f"[DEBUG] Error extracting {info_type} from .ent file: {e}")
+            return None
     
     def analyze_secondary_structure(self):
         """Analyze secondary structure using simple geometric rules and collect Ramachandran data."""
@@ -1773,6 +1977,9 @@ class StructuralAnalysisTab(QWidget):
         self.structure_label.setText(f"Current: {structure_id}")
         self.structure_label.setStyleSheet("color: #000; font-weight: bold;")
         
+        # Try to fetch comprehensive metadata for this structure
+        self._fetch_comprehensive_metadata_for_structure(structure_id)
+        
         if hasattr(self.parent_app, 'statusBar'):
             self.parent_app.statusBar().showMessage(f"Loaded structure {structure_id} for analysis")
     
@@ -1793,82 +2000,41 @@ class StructuralAnalysisTab(QWidget):
         
         try:
             if hasattr(self.parent_app, 'statusBar'):
-                self.parent_app.statusBar().showMessage(f"Fetching comprehensive data for PDB ID {pdb_id}...")
+                self.parent_app.statusBar().showMessage(f"🔄 Fetching comprehensive metadata for PDB ID {pdb_id}...")
             
-            # Use optimized fetch manager if available
-            if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
-                # Check if data is already cached
-                cached_info = self.pdb_fetch_manager.get_structure_info(pdb_id)
-                if cached_info['available'] and cached_info['files'].get('pdb'):
-                    pdb_path = cached_info['files']['pdb']
-                    # Create mock comprehensive data from cached info
-                    self.current_comprehensive_data = {
-                        'pdb_id': pdb_id,
-                        'files': cached_info['files'],
-                        'metadata': cached_info.get('metadata', {}),
-                        'sequences': {},
-                        'validation': {},
-                        'errors': []
-                    }
-                else:
-                    # Need to fetch - this will block, but it's in the analysis tab
-                    QMessageBox.information(self, "Fetching Data", 
-                        f"Fetching comprehensive data for {pdb_id}. This may take a moment...")
-                    
-                    # Use a simple synchronous approach for analysis tab
-                    from .enhanced_pdb_puller import EnhancedPDBPuller
-                    temp_puller = EnhancedPDBPuller(self.pulled_structures_dir)
-                    comprehensive_data = temp_puller.fetch_comprehensive_pdb_data(
-                        pdb_id,
-                        include_validation=False,  # Skip for speed
-                        include_sequences=True,
-                        include_mmcif=False
-                    )
-                    
-                    if comprehensive_data['errors']:
-                        error_details = "\n".join(comprehensive_data['errors'])
-                        raise Exception(f"Errors occurred during data fetching:\n{error_details}")
-                    
-                    pdb_path = comprehensive_data['files'].get('pdb')
-                    if not pdb_path or not os.path.exists(pdb_path):
-                        raise FileNotFoundError(f"PDB file not found for {pdb_id}")
-                    
-                    self.current_comprehensive_data = comprehensive_data
-                    
-            elif self.enhanced_pdb_puller:
-                # Use original enhanced puller
-                comprehensive_data = self.enhanced_pdb_puller.fetch_comprehensive_pdb_data(
-                    pdb_id,
-                    include_validation=False,  # Skip for speed
-                    include_sequences=True,
-                    include_mmcif=False
-                )
-                
-                if comprehensive_data['errors']:
-                    error_details = "\n".join(comprehensive_data['errors'])
-                    raise Exception(f"Errors occurred during data fetching:\n{error_details}")
-                
-                pdb_path = comprehensive_data['files'].get('pdb')
-                if not pdb_path or not os.path.exists(pdb_path):
-                    raise FileNotFoundError(f"PDB file not found for {pdb_id}")
-                
-                self.current_comprehensive_data = comprehensive_data
-                
-            else:
-                # Fallback to basic PDB fetching
-                pdb_path = os.path.join(self.pulled_structures_dir, f"{pdb_id}.pdb")
-                
-                if not os.path.exists(pdb_path):
-                    retrieved_file_path = self.pdb_list.retrieve_pdb_file(
-                        pdb_id, pdir=self.pulled_structures_dir, file_format="pdb"
-                    )
-                    if not os.path.exists(retrieved_file_path):
-                        raise FileNotFoundError(f"PDB file for {pdb_id} was not downloaded")
-                    if os.path.exists(pdb_path):
-                        os.remove(pdb_path)
-                    os.rename(retrieved_file_path, pdb_path)
-                
-                self.current_comprehensive_data = None
+            # Always fetch comprehensive metadata for structural analysis
+            # (No popup - using status bar for progress updates)
+            
+            # Use the comprehensive GraphQL-based puller for advanced metadata
+            try:
+                from .enhanced_pdb_puller_fixed import EnhancedPDBPuller
+            except ImportError:
+                # Fallback to absolute import if relative import fails
+                import sys
+                import os
+                # Add the project root to Python path
+                project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                if project_root not in sys.path:
+                    sys.path.insert(0, project_root)
+                from src.core.enhanced_pdb_puller_fixed import EnhancedPDBPuller
+            
+            temp_puller = EnhancedPDBPuller(self.pulled_structures_dir)
+            comprehensive_data = temp_puller.fetch_comprehensive_pdb_data(
+                pdb_id,
+                include_validation=True,   # Include validation for comprehensive analysis
+                include_sequences=True,
+                include_mmcif=False
+            )
+            
+            if comprehensive_data['errors']:
+                error_details = "\n".join(comprehensive_data['errors'])
+                raise Exception(f"Errors occurred during data fetching:\n{error_details}")
+            
+            pdb_path = comprehensive_data['files'].get('pdb')
+            if not pdb_path or not os.path.exists(pdb_path):
+                raise FileNotFoundError(f"PDB file not found for {pdb_id}")
+            
+            self.current_comprehensive_data = comprehensive_data
             
             # Set as current structure
             self.current_structure_path = pdb_path
@@ -1876,22 +2042,9 @@ class StructuralAnalysisTab(QWidget):
             self.structure_label.setStyleSheet("color: #000; font-weight: bold;")
             
             if hasattr(self.parent_app, 'statusBar'):
-                if self.enhanced_pdb_puller:
-                    self.parent_app.statusBar().showMessage(f"Fetched comprehensive data for {pdb_id}")
-                else:
-                    self.parent_app.statusBar().showMessage(f"Fetched basic PDB data for {pdb_id}")
+                self.parent_app.statusBar().showMessage(f"✅ Successfully fetched comprehensive metadata for {pdb_id}")
             
-            # Show appropriate success message
-            if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
-                QMessageBox.information(self, "Success", 
-                    f"Successfully loaded data for PDB {pdb_id}\n\n"
-                    f"Using optimized fetch system for better performance.")
-            elif self.enhanced_pdb_puller:
-                QMessageBox.information(self, "Success", 
-                    f"Successfully fetched comprehensive data for PDB {pdb_id}\n\n"
-                    f"Includes: structure, metadata, and sequences")
-            else:
-                QMessageBox.information(self, "Success", f"Successfully fetched PDB structure {pdb_id}")
+            # Success - comprehensive data fetched (no popup, just status bar update)
             
         except Exception as e:
             if hasattr(self.parent_app, 'statusBar'):
@@ -1917,11 +2070,205 @@ class StructuralAnalysisTab(QWidget):
             self.structure_label.setText(f"File: {filename}")
             self.structure_label.setStyleSheet("color: #000; font-weight: bold;")
             
+            # Try to extract PDB ID from filename and fetch comprehensive metadata
+            pdb_id = self._extract_pdb_id_from_filename(filename)
+            if pdb_id:
+                self._fetch_comprehensive_metadata_for_structure(pdb_id)
+            else:
+                # No PDB ID found, clear comprehensive data
+                self.current_comprehensive_data = None
+            
             if hasattr(self.parent_app, 'statusBar'):
                 self.parent_app.statusBar().showMessage(f"Loaded {filename} for analysis")
     
+    def _extract_pdb_id_from_filename(self, filename):
+        """Extract PDB ID from filename if possible."""
+        import re
+        
+        # Remove file extension
+        base_name = os.path.splitext(filename)[0]
+        
+        # Common PDB filename patterns
+        patterns = [
+            r'^([0-9][a-zA-Z0-9]{3})$',  # Standard PDB ID (e.g., 1CRN)
+            r'pdb([0-9][a-zA-Z0-9]{3})\.',  # pdb1xxx.ent or similar
+            r'([0-9][a-zA-Z0-9]{3})_model'  # 1xxx_model format
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, base_name, re.IGNORECASE)
+            if match:
+                return match.group(1).upper()
+                
+        return None
+    
+    def _fetch_comprehensive_metadata_for_structure(self, structure_id):
+        """Fetch comprehensive metadata for a structure ID."""
+        try:
+            print(f"[DEBUG] Fetching comprehensive metadata for {structure_id}")
+            
+            # Initialize comprehensive data if not exists
+            if not hasattr(self, 'current_comprehensive_data'):
+                self.current_comprehensive_data = None
+            
+            # Use optimized fetch manager if available
+            if OPTIMIZED_FETCH_AVAILABLE and self.pdb_fetch_manager:
+                print(f"[DEBUG] Using optimized fetch manager for {structure_id}")
+                # Check if data is already cached
+                cached_info = self.pdb_fetch_manager.get_structure_info(structure_id)
+                if cached_info['available'] and cached_info.get('metadata'):
+                    print(f"[DEBUG] Found cached metadata for {structure_id}")
+                    self.current_comprehensive_data = {
+                        'pdb_id': structure_id,
+                        'files': cached_info['files'],
+                        'metadata': cached_info.get('metadata', {}),
+                        'sequences': {},
+                        'validation': {},
+                        'errors': []
+                    }
+                    print(f"[DEBUG] Set comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+                    return
+            
+            # Use enhanced PDB puller if available
+            if ENHANCED_PDB_AVAILABLE and self.enhanced_pdb_puller:
+                print(f"[DEBUG] Using enhanced PDB puller for {structure_id}")
+                try:
+                    comprehensive_data = self.enhanced_pdb_puller.fetch_comprehensive_pdb_data(
+                        structure_id,
+                        include_validation=True,
+                        include_sequences=True,
+                        include_mmcif=False  # Skip mmCIF for speed
+                    )
+                    if comprehensive_data and not comprehensive_data.get('errors'):
+                        self.current_comprehensive_data = comprehensive_data
+                        print(f"[DEBUG] Enhanced puller set comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+                        return
+                    else:
+                        print(f"[DEBUG] Enhanced puller failed or returned errors: {comprehensive_data.get('errors', [])}")
+                except Exception as e:
+                    print(f"[DEBUG] Enhanced puller exception: {e}")
+            
+            # Fallback: create minimal metadata structure
+            print(f"[DEBUG] Creating fallback metadata for {structure_id}")
+            self.current_comprehensive_data = {
+                'pdb_id': structure_id,
+                'files': {},
+                'metadata': {
+                    'entry': {
+                        'struct': {
+                            'title': f"PDB Structure {structure_id}"
+                        },
+                        'rcsb_entry_info': {
+                            'experimental_method': 'Unknown'
+                        }
+                    }
+                },
+                'sequences': {},
+                'validation': {},
+                'errors': ['Comprehensive metadata not available']
+            }
+            print(f"[DEBUG] Fallback comprehensive data keys: {list(self.current_comprehensive_data.keys())}")
+            
+        except Exception as e:
+            print(f"[DEBUG] Error in _fetch_comprehensive_metadata_for_structure: {e}")
+            # Set minimal fallback data
+            self.current_comprehensive_data = {
+                'pdb_id': structure_id,
+                'files': {},
+                'metadata': {},
+                'sequences': {},
+                'validation': {},
+                'errors': [f'Error fetching metadata: {str(e)}']
+            }
+        
+        if hasattr(self.parent_app, 'statusBar'):
+            if self.current_comprehensive_data and self.current_comprehensive_data.get('metadata'):
+                self.parent_app.statusBar().showMessage(f"Comprehensive metadata loaded for {structure_id}")
+            else:
+                self.parent_app.statusBar().showMessage(f"Basic metadata only for {structure_id}")
+    
     def analyze_structure(self):
-        """Perform structural analysis."""
+        """Perform structural analysis on the current structure."""
+        if not self.current_structure_path:
+            QMessageBox.warning(self, "No Structure", "Please load a structure first.")
+            return
+        
+        if not BIOPYTHON_AVAILABLE:
+            QMessageBox.critical(
+                self, "Missing Dependency", 
+                "Biopython is required for structural analysis.\n\n"
+                "Please install it with: pip install biopython"
+            )
+            return
+        
+        # Get selected analysis types
+        analysis_types = []
+        if self.basic_checkbox.isChecked():
+            analysis_types.append('basic')
+        if self.secondary_checkbox.isChecked():
+            analysis_types.append('secondary')
+        if self.geometry_checkbox.isChecked():
+            analysis_types.append('geometry')
+        
+        if not analysis_types:
+            QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
+            return
+        
+        # Clear previous results
+        for i in reversed(range(self.results_layout.count())):
+            item = self.results_layout.itemAt(i)
+            if item is not None:
+                widget = item.widget()
+                if widget is not None:
+                    widget.setParent(None)
+                else:
+                    self.results_layout.removeItem(item)
+        
+        # Show progress bar
+        self.progress_bar.setVisible(True)
+        self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        
+        # Start analysis worker with comprehensive metadata if available
+        comprehensive_data = getattr(self, 'current_comprehensive_data', None)
+        self.analysis_worker = StructuralAnalysisWorker(
+            self.current_structure_path, 
+            analysis_types, 
+            comprehensive_data=comprehensive_data
+        )
+        self.analysis_worker.analysis_complete.connect(self.on_analysis_complete)
+        self.analysis_worker.error_occurred.connect(self.on_analysis_error)
+        self.analysis_worker.progress_update.connect(self.on_progress_update)
+        self.analysis_worker.start()
+        
+        if hasattr(self.parent_app, 'statusBar'):
+            self.parent_app.statusBar().showMessage("Running structural analysis...")
+    
+    def on_analysis_complete(self, results):
+        """Handle completion of structural analysis."""
+        self.progress_bar.setVisible(False)
+        self.current_results = results
+        self.export_btn.setEnabled(True)
+        
+        # Display results
+        self.display_results(results)
+        
+        if hasattr(self.parent_app, 'statusBar'):
+            self.parent_app.statusBar().showMessage("Structural analysis complete!")
+    
+    def on_analysis_error(self, error_message):
+        """Handle analysis error."""
+        self.progress_bar.setVisible(False)
+        QMessageBox.critical(self, "Analysis Error", error_message)
+        
+        if hasattr(self.parent_app, 'statusBar'):
+            self.parent_app.statusBar().showMessage("Analysis failed")
+    
+    def on_progress_update(self, message):
+        """Handle progress updates from analysis worker."""
+        if hasattr(self.parent_app, 'statusBar'):
+            self.parent_app.statusBar().showMessage(message)
+        
+    def load_current_structure(self):
         if not self.current_structure_path:
             QMessageBox.warning(self, "No Structure", "Please load a structure first.")
             return
@@ -2454,176 +2801,781 @@ class StructuralAnalysisTab(QWidget):
         return canvas
     
     def display_enhanced_metadata(self, basic_results):
-        """Display enhanced metadata from comprehensive PDB data."""
-        comprehensive_data = self.current_comprehensive_data
-        metadata = comprehensive_data.get('metadata', {})
+        """Display simplified structure information with essential details only."""
+        try:
+            comprehensive_data = self.current_comprehensive_data
+            if not comprehensive_data:
+                print("[DEBUG] No comprehensive data available")
+                self.display_basic_results_fallback(basic_results)
+                return
+            
+            metadata = comprehensive_data.get('metadata', {})
+            
+            # If no metadata, try to show what we have
+            if not metadata:
+                print("[DEBUG] No metadata in comprehensive data, showing basic info")
+                metadata = {
+                    'entry': {
+                        'struct': {
+                            'title': f"PDB Structure {basic_results.get('structure_id', 'Unknown')}"
+                        },
+                        'rcsb_entry_info': {
+                            'experimental_method': 'Unknown'
+                        }
+                    }
+                }
+        except Exception as e:
+            print(f"[DEBUG] Error accessing comprehensive data: {e}")
+            self.display_basic_results_fallback(basic_results)
+            return
         
-        # Enhanced Basic Properties
-        enhanced_basic_group = QGroupBox("Enhanced Structure Information")
+        # Simplified Structure Information with metadata source indicator
+        metadata_source = "📊 Comprehensive Metadata" if metadata.get('entry') else "📄 Basic PDB Header"
+        enhanced_basic_group = QGroupBox(f"Structure Information ({metadata_source})")
         enhanced_basic_layout = QVBoxLayout(enhanced_basic_group)
         
-        # Create tabs for different metadata sections
+        # Create simplified tabs with only essential information
         metadata_tabs = QTabWidget()
         
-        # Basic Information Tab
+        # 1. Basic Information Tab (Simplified)
+        self._create_simple_basic_tab(metadata_tabs, basic_results, metadata)
+        
+        # 2. Experimental Details Tab (Essential only)
+        self._create_simple_experimental_tab(metadata_tabs, metadata, basic_results)
+        
+        # 3. Sequence Information Tab (If available)
+        if basic_results.get('chains'):
+            self._create_simple_sequence_tab(metadata_tabs, basic_results)
+        
+        enhanced_basic_layout.addWidget(metadata_tabs)
+        self.results_layout.addWidget(enhanced_basic_group)
+        
+        # Add chain comparison charts if multiple chains
+        if basic_results.get('chains') and len(basic_results['chains']) > 1:
+            chain_charts_group = QGroupBox("Chain Size Comparison")
+            chain_charts_layout = QHBoxLayout(chain_charts_group)
+            
+            # Create bar charts for chain comparison
+            chain_residues = {f"Chain {chain['id']}": chain['residues'] for chain in basic_results['chains']}
+            chain_atoms = {f"Chain {chain['id']}": chain['atoms'] for chain in basic_results['chains']}
+            
+            residue_chart = self.create_bar_chart(chain_residues, "Residues per Chain", "Chain", "Number of Residues")
+            if residue_chart:
+                chain_charts_layout.addWidget(residue_chart)
+            
+            atom_chart = self.create_bar_chart(chain_atoms, "Atoms per Chain", "Chain", "Number of Atoms")
+            if atom_chart:
+                chain_charts_layout.addWidget(atom_chart)
+            
+            self.results_layout.addWidget(chain_charts_group)
+        
+        # Also display standard composition analysis
+        if basic_results.get('composition'):
+            self.display_composition_analysis(basic_results)
+    
+    def _create_simple_basic_tab(self, metadata_tabs, basic_results, metadata):
+        """Create simplified basic information tab."""
         basic_tab = QWidget()
-        basic_tab_layout = QFormLayout(basic_tab)
+        basic_tab_layout = QVBoxLayout(basic_tab)
+        
+        # Essential Structure Information
+        info_group = QGroupBox("Structure Information")
+        info_layout = QFormLayout(info_group)
+        
+        # Basic structure data
+        info_layout.addRow("Chains:", QLabel(str(len(basic_results.get('chains', [])))))
+        info_layout.addRow("Residues:", QLabel(str(basic_results.get('total_residues', 0))))
+        info_layout.addRow("Atoms:", QLabel(str(basic_results.get('total_atoms', 0))))
+        info_layout.addRow("Molecular Weight:", QLabel(f"{basic_results.get('molecular_weight', 0):.1f} Da"))
+        
+        # Title from metadata if available
+        if 'entry' in metadata:
+            entry = metadata['entry']
+            if entry.get('struct') and entry['struct'].get('title'):
+                title = entry['struct']['title']
+                title_label = QLabel(title)
+                title_label.setWordWrap(True)
+                # No width limit - allow full title display
+                info_layout.addRow("Title:", title_label)
+            
+            # Authors (first 3 only)
+            if entry.get('audit_author'):
+                authors = [author.get('name', '') for author in entry['audit_author'][:3] if author.get('name')]
+                if authors:
+                    authors_text = ', '.join(authors)
+                    if len(entry.get('audit_author', [])) > 3:
+                        authors_text += " et al."
+                    info_layout.addRow("Authors:", QLabel(authors_text))
+            
+            # Key dates
+            if entry.get('rcsb_accession_info'):
+                accession_info = entry['rcsb_accession_info']
+                deposit_date = accession_info.get('deposit_date', 'N/A')
+                release_date = accession_info.get('initial_release_date', 'N/A')
+                info_layout.addRow("Deposited:", QLabel(deposit_date))
+                info_layout.addRow("Released:", QLabel(release_date))
+        
+        basic_tab_layout.addWidget(info_group)
+        basic_tab_layout.addStretch()
+        metadata_tabs.addTab(basic_tab, "Basic Info")
+    
+    def _create_simple_experimental_tab(self, metadata_tabs, metadata, basic_results):
+        """Create simplified experimental information tab."""
+        exp_tab = QWidget()
+        exp_tab_layout = QVBoxLayout(exp_tab)
+        
+        # Debug: Print what we have in basic_results
+        print(f"[DEBUG] basic_results content: {basic_results}")
+        print(f"[DEBUG] metadata content: {metadata}")
+        
+        if 'entry' not in metadata:
+            exp_tab_layout.addWidget(QLabel("No experimental data available"))
+            metadata_tabs.addTab(exp_tab, "Experimental")
+            return
+        
+        entry = metadata['entry']
+        
+        # Essential Experimental Information
+        exp_group = QGroupBox("Experimental Details")
+        exp_layout = QFormLayout(exp_group)
+        
+        # Experimental method - try multiple sources
+        method = 'N/A'
+        # First try to use the structure_method we extracted from the .ent file
+        if basic_results.get('structure_method') and basic_results['structure_method'] != 'N/A':
+            method = basic_results['structure_method']
+            print(f"[DEBUG] Using basic_results structure_method: {method}")
+        # Then try comprehensive metadata sources
+        elif entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('experimental_method'):
+            method = entry['rcsb_entry_info']['experimental_method']
+            print(f"[DEBUG] Using rcsb_entry_info experimental_method: {method}")
+        elif entry.get('exptl') and entry['exptl']:
+            method = entry['exptl'][0].get('method', 'N/A')
+            print(f"[DEBUG] Using exptl method: {method}")
+        # Fallback to basic_results head if available
+        elif basic_results.get('head'):
+            method = basic_results['head']
+            print(f"[DEBUG] Using basic_results head: {method}")
+        elif basic_results.get('experiment_type'):
+            method = basic_results['experiment_type']
+            print(f"[DEBUG] Using basic_results experiment_type: {method}")
+        elif basic_results.get('method'):
+            method = basic_results['method']
+            print(f"[DEBUG] Using basic_results method: {method}")
+        elif basic_results.get('expdta'):
+            method = basic_results['expdta']
+            print(f"[DEBUG] Using basic_results expdta: {method}")
+        
+        print(f"[DEBUG] Final experimental method: {method}")
+        print(f"[DEBUG] Available basic_results keys: {list(basic_results.keys())}")
+        exp_layout.addRow("Method:", QLabel(method))
+        
+        # Resolution - try multiple sources
+        resolution = 'N/A'
+        if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
+            res_data = entry['rcsb_entry_info']['resolution_combined']
+            if isinstance(res_data, list) and res_data:
+                resolution = f"{res_data[0]} Å"
+            elif isinstance(res_data, (int, float)):
+                resolution = f"{res_data} Å"
+        elif basic_results.get('resolution') and basic_results['resolution'] != 'N/A':
+            # Use resolution from basic analysis (PDB header)
+            res_value = basic_results['resolution']
+            print(f"[DEBUG] Using basic_results resolution: {res_value} (type: {type(res_value)})")
+            if isinstance(res_value, (int, float)):
+                resolution = f"{res_value} Å"
+            else:
+                resolution = str(res_value)
+        else:
+            print(f"[DEBUG] No resolution found. basic_results.get('resolution'): {basic_results.get('resolution')}")
+            print(f"[DEBUG] Resolution check: {basic_results.get('resolution') != 'N/A'}")
+        
+        print(f"[DEBUG] Final experimental resolution: {resolution}")
+        print(f"[DEBUG] basic_results resolution value: {basic_results.get('resolution')}")
+        exp_layout.addRow("Resolution:", QLabel(resolution))
+        
+        # Key refinement statistics (if available)
+        if entry.get('refine') and entry['refine']:
+            refine_data = entry['refine'][0]
+            r_work = refine_data.get('ls_R_factor_R_work')
+            r_free = refine_data.get('ls_R_factor_R_free')
+            
+            if r_work is not None:
+                exp_layout.addRow("R-work:", QLabel(f"{r_work:.3f}" if isinstance(r_work, (int, float)) else str(r_work)))
+            if r_free is not None:
+                exp_layout.addRow("R-free:", QLabel(f"{r_free:.3f}" if isinstance(r_free, (int, float)) else str(r_free)))
+        
+        exp_tab_layout.addWidget(exp_group)
+        exp_tab_layout.addStretch()
+        metadata_tabs.addTab(exp_tab, "Experimental")
+    
+    def _create_simple_sequence_tab(self, metadata_tabs, basic_results):
+        """Create simplified sequence information tab."""
+        sequence_tab = QWidget()
+        sequence_tab_layout = QVBoxLayout(sequence_tab)
+        
+        # Chain Sequences
+        sequences_group = QGroupBox("Chain Sequences")
+        sequences_layout = QVBoxLayout(sequences_group)
+        
+        chains = basic_results.get('chains', [])
+        for chain in chains:
+            chain_info = QLabel(f"Chain {chain['id']}: {chain['residues']} residues")
+            sequences_layout.addWidget(chain_info)
+            
+            # Display sequence if available
+            if chain.get('sequence'):
+                sequence = chain['sequence']  # Show full sequence
+                
+                # Format sequence in blocks of 50
+                formatted_sequence = '\n'.join([sequence[i:i+50] for i in range(0, len(sequence), 50)])
+                sequence_text = QTextEdit()
+                sequence_text.setPlainText(formatted_sequence)
+                sequence_text.setMaximumHeight(80)
+                sequence_text.setReadOnly(True)
+                sequence_text.setFont(QFont("Courier", 9))
+                sequences_layout.addWidget(sequence_text)
+        
+        sequence_tab_layout.addWidget(sequences_group)
+        sequence_tab_layout.addStretch()
+        metadata_tabs.addTab(sequence_tab, "Sequences")
+    
+    def _create_basic_info_tab(self, metadata_tabs, basic_results, metadata):
+        """Create enhanced basic information tab."""
+        basic_tab = QWidget()
+        basic_tab_layout = QVBoxLayout(basic_tab)
+        
+        # Structure Overview Section
+        overview_group = QGroupBox("Structure Overview")
+        overview_layout = QFormLayout(overview_group)
         
         # Standard basic info
-        basic_tab_layout.addRow("Structure ID:", QLabel(basic_results.get('structure_id', 'N/A')))
-        basic_tab_layout.addRow("Total Chains:", QLabel(str(len(basic_results.get('chains', [])))))
-        basic_tab_layout.addRow("Total Residues:", QLabel(str(basic_results.get('total_residues', 0))))
-        basic_tab_layout.addRow("Total Atoms:", QLabel(str(basic_results.get('total_atoms', 0))))
-        basic_tab_layout.addRow("Molecular Weight:", QLabel(f"{basic_results.get('molecular_weight', 0):.1f} Da"))
+        overview_layout.addRow("PDB ID:", QLabel(basic_results.get('structure_id', 'N/A')))
+        overview_layout.addRow("Total Chains:", QLabel(str(len(basic_results.get('chains', [])))))
+        overview_layout.addRow("Total Residues:", QLabel(str(basic_results.get('total_residues', 0))))
+        overview_layout.addRow("Total Atoms:", QLabel(str(basic_results.get('total_atoms', 0))))
+        overview_layout.addRow("Molecular Weight:", QLabel(f"{basic_results.get('molecular_weight', 0):.1f} Da"))
         
         # Enhanced info from metadata
         if 'entry' in metadata:
             entry = metadata['entry']
             
             # Title and description
-            title = entry.get('struct', {}).get('title', 'N/A')
-            basic_tab_layout.addRow("Title:", QLabel(title))
+            title = 'N/A'
+            if entry.get('struct') and entry['struct'].get('title'):
+                title = entry['struct']['title']
+            title_label = QLabel(title)
+            title_label.setWordWrap(True)
+            # No width limit - allow full title display
+            overview_layout.addRow("Title:", title_label)
+            
+            # Classification
+            if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
+                keywords = entry['struct_keywords']['pdbx_keywords']
+                keywords_label = QLabel(keywords)
+                keywords_label.setWordWrap(True)
+                keywords_label.setMaximumWidth(400)
+                overview_layout.addRow("Keywords:", keywords_label)
+            
+            # Organism information
+            if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('selected_polymer_entity_types'):
+                entity_types = ', '.join(entry['rcsb_entry_info']['selected_polymer_entity_types'])
+                overview_layout.addRow("Entity Types:", QLabel(entity_types))
+        
+        basic_tab_layout.addWidget(overview_group)
+        
+        # Authors and Dates Section
+        authors_group = QGroupBox("Authors and Dates")
+        authors_layout = QFormLayout(authors_group)
+        
+        if 'entry' in metadata:
+            entry = metadata['entry']
             
             # Authors
-            authors = [author.get('name', '') for author in entry.get('audit_author', [])]
+            authors = []
+            if entry.get('audit_author'):
+                authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
             if authors:
-                authors_text = ', '.join(authors[:3])  # Show first 3 authors
-                if len(authors) > 3:
-                    authors_text += f" and {len(authors) - 3} others"
-                basic_tab_layout.addRow("Authors:", QLabel(authors_text))
+                authors_text = ', '.join(authors[:5])  # Show first 5 authors
+                if len(authors) > 5:
+                    authors_text += f" and {len(authors) - 5} others"
+                authors_label = QLabel(authors_text)
+                authors_label.setWordWrap(True)
+                authors_label.setMaximumWidth(400)
+                authors_layout.addRow("Authors:", authors_label)
             
             # Dates
-            deposit_date = entry.get('rcsb_accession_info', {}).get('deposit_date', 'N/A')
-            release_date = entry.get('rcsb_accession_info', {}).get('initial_release_date', 'N/A')
-            basic_tab_layout.addRow("Deposition Date:", QLabel(deposit_date))
-            basic_tab_layout.addRow("Release Date:", QLabel(release_date))
+            if entry.get('rcsb_accession_info'):
+                accession_info = entry['rcsb_accession_info']
+                deposit_date = accession_info.get('deposit_date', 'N/A')
+                release_date = accession_info.get('initial_release_date', 'N/A')
+                revision_date = accession_info.get('revision_date', 'N/A')
+                
+                authors_layout.addRow("Deposition Date:", QLabel(deposit_date))
+                authors_layout.addRow("Release Date:", QLabel(release_date))
+                if revision_date != 'N/A':
+                    authors_layout.addRow("Last Revision:", QLabel(revision_date))
         
+        basic_tab_layout.addWidget(authors_group)
+        basic_tab_layout.addStretch()
         metadata_tabs.addTab(basic_tab, "Basic Info")
+    
+
+    
+    def _create_quality_metrics_tab(self, metadata_tabs, metadata):
+        """Create quality metrics and validation tab."""
+        quality_tab = QWidget()
+        quality_tab_layout = QVBoxLayout(quality_tab)
         
-        # Experimental Information Tab
-        if 'experimental' in metadata or 'entry' in metadata:
-            exp_tab = QWidget()
-            exp_tab_layout = QFormLayout(exp_tab)
-            
-            if 'entry' in metadata:
-                entry = metadata['entry']
-                
-                # Experimental method
-                exptl_methods = entry.get('exptl', [])
-                if exptl_methods:
-                    method = exptl_methods[0].get('method', 'N/A')
-                    exp_tab_layout.addRow("Experimental Method:", QLabel(method))
-                
-                # Resolution
-                resolution = entry.get('rcsb_entry_info', {}).get('resolution_combined', 'N/A')
-                exp_tab_layout.addRow("Resolution:", QLabel(f"{resolution} Å" if resolution != 'N/A' else 'N/A'))
-                
-                # R-factors
-                refine = entry.get('refine', [])
-                if refine:
-                    r_work = refine[0].get('ls_R_factor_R_work', 'N/A')
-                    r_free = refine[0].get('ls_R_factor_R_free', 'N/A')
-                    if r_work != 'N/A':
-                        exp_tab_layout.addRow("R-work:", QLabel(f"{r_work:.3f}" if isinstance(r_work, (int, float)) else str(r_work)))
-                    if r_free != 'N/A':
-                        exp_tab_layout.addRow("R-free:", QLabel(f"{r_free:.3f}" if isinstance(r_free, (int, float)) else str(r_free)))
-                
-                # Space group
-                symmetry = entry.get('symmetry', {})
-                space_group = symmetry.get('space_group_name_H_M', 'N/A')
-                exp_tab_layout.addRow("Space Group:", QLabel(space_group))
-                
-                # Unit cell
-                cell = entry.get('cell', {})
-                if cell:
-                    a = cell.get('length_a', 'N/A')
-                    b = cell.get('length_b', 'N/A')
-                    c = cell.get('length_c', 'N/A')
-                    alpha = cell.get('angle_alpha', 'N/A')
-                    beta = cell.get('angle_beta', 'N/A')
-                    gamma = cell.get('angle_gamma', 'N/A')
-                    
-                    if all(x != 'N/A' for x in [a, b, c]):
-                        cell_text = f"a={a:.2f} b={b:.2f} c={c:.2f} Å"
-                        exp_tab_layout.addRow("Unit Cell (lengths):", QLabel(cell_text))
-                    
-                    if all(x != 'N/A' for x in [alpha, beta, gamma]):
-                        angles_text = f"α={alpha:.1f}° β={beta:.1f}° γ={gamma:.1f}°"
-                        exp_tab_layout.addRow("Unit Cell (angles):", QLabel(angles_text))
-            
-            metadata_tabs.addTab(exp_tab, "Experimental")
+        if 'entry' not in metadata:
+            quality_tab_layout.addWidget(QLabel("No quality data available"))
+            metadata_tabs.addTab(quality_tab, "Quality")
+            return
         
-        # Ligands and Entities Tab
-        if 'nonpolymer_entities' in metadata or 'polymer_entities' in metadata:
-            entities_tab = QWidget()
-            entities_tab_layout = QVBoxLayout(entities_tab)
-            
-            # Polymer entities (protein chains)
-            if 'polymer_entities' in metadata:
-                polymer_entities = metadata['polymer_entities']
-                if isinstance(polymer_entities, list) and polymer_entities:
-                    polymer_group = QGroupBox(f"Protein Chains ({len(polymer_entities)})")
-                    polymer_layout = QVBoxLayout(polymer_group)
-                    
-                    polymer_table = QTableWidget()
-                    polymer_table.setColumnCount(4)
-                    polymer_table.setHorizontalHeaderLabels(["Entity ID", "Description", "Type", "Chains"])
-                    polymer_table.setRowCount(len(polymer_entities))
-                    
-                    for i, entity in enumerate(polymer_entities):
-                        entity_id = entity.get('rcsb_id', 'N/A')
-                        description = entity.get('rcsb_polymer_entity', {}).get('pdbx_description', 'N/A')
-                        entity_type = entity.get('entity_poly', {}).get('type', 'N/A')
-                        chains = ', '.join(entity.get('rcsb_polymer_entity_container_identifiers', {}).get('asym_ids', []))
-                        
-                        polymer_table.setItem(i, 0, QTableWidgetItem(str(entity_id)))
-                        polymer_table.setItem(i, 1, QTableWidgetItem(description))
-                        polymer_table.setItem(i, 2, QTableWidgetItem(entity_type))
-                        polymer_table.setItem(i, 3, QTableWidgetItem(chains))
-                    
-                    polymer_table.resizeColumnsToContents()
-                    polymer_table.setMaximumHeight(200)
-                    polymer_layout.addWidget(polymer_table)
-                    entities_tab_layout.addWidget(polymer_group)
-            
-            # Non-polymer entities (ligands)
-            if 'nonpolymer_entities' in metadata:
-                nonpolymer_entities = metadata['nonpolymer_entities']
-                if isinstance(nonpolymer_entities, list) and nonpolymer_entities:
-                    ligand_group = QGroupBox(f"Ligands and Other Molecules ({len(nonpolymer_entities)})")
-                    ligand_layout = QVBoxLayout(ligand_group)
-                    
-                    ligand_table = QTableWidget()
-                    ligand_table.setColumnCount(4)
-                    ligand_table.setHorizontalHeaderLabels(["ID", "Name", "Formula", "Type"])
-                    ligand_table.setRowCount(len(nonpolymer_entities))
-                    
-                    for i, entity in enumerate(nonpolymer_entities):
-                        entity_id = entity.get('rcsb_id', 'N/A')
-                        name = entity.get('rcsb_nonpolymer_entity', {}).get('pdbx_description', 'N/A')
-                        formula = entity.get('rcsb_nonpolymer_entity', {}).get('formula_weight', 'N/A')
-                        entity_type = entity.get('rcsb_nonpolymer_entity', {}).get('type', 'N/A')
-                        
-                        ligand_table.setItem(i, 0, QTableWidgetItem(str(entity_id)))
-                        ligand_table.setItem(i, 1, QTableWidgetItem(name))
-                        ligand_table.setItem(i, 2, QTableWidgetItem(str(formula)))
-                        ligand_table.setItem(i, 3, QTableWidgetItem(entity_type))
-                    
-                    ligand_table.resizeColumnsToContents()
-                    ligand_table.setMaximumHeight(200)
-                    ligand_layout.addWidget(ligand_table)
-                    entities_tab_layout.addWidget(ligand_group)
-            
-            metadata_tabs.addTab(entities_tab, "Entities & Ligands")
+        entry = metadata['entry']
         
-        # Publications tab removed for performance
+        # Overall Quality Section
+        overall_group = QGroupBox("Overall Quality Assessment")
+        overall_layout = QFormLayout(overall_group)
         
-        enhanced_basic_layout.addWidget(metadata_tabs)
-        self.results_layout.addWidget(enhanced_basic_group)
+        # Resolution-based quality assessment
+        if entry.get('rcsb_entry_info') and entry['rcsb_entry_info'].get('resolution_combined'):
+            res_data = entry['rcsb_entry_info']['resolution_combined']
+            if isinstance(res_data, list) and res_data:
+                resolution = res_data[0]
+            elif isinstance(res_data, (int, float)):
+                resolution = res_data
+            else:
+                resolution = None
+            
+            if resolution:
+                if resolution <= 1.5:
+                    quality = "Excellent (≤1.5Å)"
+                elif resolution <= 2.0:
+                    quality = "Very Good (1.5-2.0Å)"
+                elif resolution <= 2.5:
+                    quality = "Good (2.0-2.5Å)"
+                elif resolution <= 3.0:
+                    quality = "Moderate (2.5-3.0Å)"
+                else:
+                    quality = "Low (>3.0Å)"
+                overall_layout.addRow("Resolution Quality:", QLabel(quality))
         
-        # Also display standard composition analysis
-        if basic_results.get('composition'):
-            self.display_composition_analysis(basic_results)
+        # R-factor based assessment
+        if entry.get('refine') and entry['refine']:
+            refine_data = entry['refine'][0]
+            r_work = refine_data.get('ls_R_factor_R_work')
+            r_free = refine_data.get('ls_R_factor_R_free')
+            
+            if r_work and r_free:
+                r_gap = r_free - r_work
+                if r_gap < 0.05:
+                    r_quality = "Excellent (gap < 0.05)"
+                elif r_gap < 0.07:
+                    r_quality = "Good (gap < 0.07)"
+                elif r_gap < 0.10:
+                    r_quality = "Acceptable (gap < 0.10)"
+                else:
+                    r_quality = "Poor (gap ≥ 0.10)"
+                overall_layout.addRow("R-factor Quality:", QLabel(r_quality))
+                overall_layout.addRow("R-free - R-work:", QLabel(f"{r_gap:.3f}"))
+        
+        quality_tab_layout.addWidget(overall_group)
+        
+        # Validation Information
+        validation_group = QGroupBox("Validation Information")
+        validation_layout = QVBoxLayout(validation_group)
+        validation_layout.addWidget(QLabel("Detailed validation data would be available from wwPDB validation reports."))
+        validation_layout.addWidget(QLabel("This includes Ramachandran plot analysis, bond geometry, and clash analysis."))
+        
+        quality_tab_layout.addWidget(validation_group)
+        quality_tab_layout.addStretch()
+        metadata_tabs.addTab(quality_tab, "Quality")
+    
+    def _create_biological_assembly_tab(self, metadata_tabs, metadata):
+        """Create biological assembly information tab."""
+        assembly_tab = QWidget()
+        assembly_tab_layout = QVBoxLayout(assembly_tab)
+        
+        if 'entry' not in metadata:
+            assembly_tab_layout.addWidget(QLabel("No biological assembly data available"))
+            metadata_tabs.addTab(assembly_tab, "Assembly")
+            return
+        
+        entry = metadata['entry']
+        
+        # Assembly Information
+        assembly_group = QGroupBox("Biological Assembly Information")
+        assembly_layout = QFormLayout(assembly_group)
+        
+        # Basic assembly info
+        if entry.get('rcsb_entry_info'):
+            entry_info = entry['rcsb_entry_info']
+            
+            # Assembly count
+            if entry_info.get('assembly_count'):
+                assembly_layout.addRow("Number of Assemblies:", QLabel(str(entry_info['assembly_count'])))
+            
+            # Polymer entity instances
+            polymer_count = entry_info.get('deposited_polymer_entity_instance_count', 0)
+            if polymer_count > 0:
+                assembly_layout.addRow("Polymer Chains:", QLabel(str(polymer_count)))
+            
+            # Non-polymer entities
+            nonpolymer_count = entry_info.get('deposited_nonpolymer_entity_instance_count', 0)
+            if nonpolymer_count > 0:
+                assembly_layout.addRow("Non-polymer Entities:", QLabel(str(nonpolymer_count)))
+        
+        # Symmetry information
+        if entry.get('symmetry'):
+            symmetry = entry['symmetry']
+            if symmetry.get('space_group_name_H_M'):
+                assembly_layout.addRow("Space Group:", QLabel(symmetry['space_group_name_H_M']))
+            if symmetry.get('Int_Tables_number'):
+                assembly_layout.addRow("Space Group Number:", QLabel(str(symmetry['Int_Tables_number'])))
+        
+        assembly_tab_layout.addWidget(assembly_group)
+        
+        # Quaternary Structure
+        quaternary_group = QGroupBox("Quaternary Structure")
+        quaternary_layout = QVBoxLayout(quaternary_group)
+        quaternary_layout.addWidget(QLabel("Detailed quaternary structure analysis would include:"))
+        quaternary_layout.addWidget(QLabel("• Oligomeric state and stoichiometry"))
+        quaternary_layout.addWidget(QLabel("• Interface analysis between chains"))
+        quaternary_layout.addWidget(QLabel("• Symmetry operations and transformations"))
+        
+        assembly_tab_layout.addWidget(quaternary_group)
+        assembly_tab_layout.addStretch()
+        metadata_tabs.addTab(assembly_tab, "Assembly")
+    
+    def _create_ligands_tab(self, metadata_tabs, metadata):
+        """Create ligands and binding sites tab."""
+        ligands_tab = QWidget()
+        ligands_tab_layout = QVBoxLayout(ligands_tab)
+        
+        if 'entry' not in metadata:
+            ligands_tab_layout.addWidget(QLabel("No ligand data available"))
+            metadata_tabs.addTab(ligands_tab, "Ligands")
+            return
+        
+        entry = metadata['entry']
+        
+        # Ligand Information
+        ligands_group = QGroupBox("Ligand and Small Molecule Information")
+        ligands_layout = QVBoxLayout(ligands_group)
+        
+        # Non-polymer entity count
+        if entry.get('rcsb_entry_info'):
+            entry_info = entry['rcsb_entry_info']
+            nonpolymer_count = entry_info.get('deposited_nonpolymer_entity_instance_count', 0)
+            
+            if nonpolymer_count > 0:
+                count_label = QLabel(f"This structure contains {nonpolymer_count} non-polymer entity instances.")
+                ligands_layout.addWidget(count_label)
+                
+                info_label = QLabel("Non-polymer entities may include:")
+                ligands_layout.addWidget(info_label)
+                
+                types_label = QLabel("• Small molecule ligands and inhibitors\n"
+                                   "• Cofactors and prosthetic groups\n"
+                                   "• Metal ions and coordination complexes\n"
+                                   "• Solvent molecules and crystallization additives")
+                ligands_layout.addWidget(types_label)
+            else:
+                no_ligands_label = QLabel("No non-polymer entities detected in this structure.")
+                ligands_layout.addWidget(no_ligands_label)
+        
+        ligands_tab_layout.addWidget(ligands_group)
+        
+        # Binding Sites Information
+        binding_group = QGroupBox("Binding Sites Analysis")
+        binding_layout = QVBoxLayout(binding_group)
+        binding_layout.addWidget(QLabel("Detailed binding site analysis would include:"))
+        binding_layout.addWidget(QLabel("• Identification of ligand binding pockets"))
+        binding_layout.addWidget(QLabel("• Analysis of protein-ligand interactions"))
+        binding_layout.addWidget(QLabel("• Binding affinity and thermodynamic data"))
+        binding_layout.addWidget(QLabel("• Comparison with known binding sites"))
+        
+        ligands_tab_layout.addWidget(binding_group)
+        ligands_tab_layout.addStretch()
+        metadata_tabs.addTab(ligands_tab, "Ligands")
+    
+    def _create_sequence_tab(self, metadata_tabs, metadata, basic_results):
+        """Create sequence information tab."""
+        sequence_tab = QWidget()
+        sequence_tab_layout = QVBoxLayout(sequence_tab)
+        
+        # Chain Sequences
+        sequences_group = QGroupBox("Chain Sequences")
+        sequences_layout = QVBoxLayout(sequences_group)
+        
+        chains = basic_results.get('chains', [])
+        if chains:
+            for i, chain in enumerate(chains):
+                chain_group = QGroupBox(f"Chain {chain['id']}")
+                chain_layout = QFormLayout(chain_group)
+                
+                chain_layout.addRow("Length:", QLabel(f"{chain['residues']} residues"))
+                chain_layout.addRow("Atoms:", QLabel(str(chain['atoms'])))
+                
+                # Display sequence if available
+                if chain.get('sequence'):
+                    sequence = chain['sequence']
+                    # Format sequence in blocks of 50
+                    formatted_sequence = '\n'.join([sequence[i:i+50] for i in range(0, len(sequence), 50)])
+                    sequence_text = QTextEdit()
+                    sequence_text.setPlainText(formatted_sequence)
+                    sequence_text.setMaximumHeight(100)
+                    sequence_text.setReadOnly(True)
+                    sequence_text.setFont(QFont("Courier", 9))
+                    chain_layout.addRow("Sequence:", sequence_text)
+                
+                sequences_layout.addWidget(chain_group)
+        else:
+            sequences_layout.addWidget(QLabel("No chain sequence information available"))
+        
+        sequence_tab_layout.addWidget(sequences_group)
+        
+        # Sequence Features
+        features_group = QGroupBox("Sequence Features")
+        features_layout = QVBoxLayout(features_group)
+        features_layout.addWidget(QLabel("Advanced sequence analysis would include:"))
+        features_layout.addWidget(QLabel("• Domain and motif identification"))
+        features_layout.addWidget(QLabel("• Post-translational modifications"))
+        features_layout.addWidget(QLabel("• Signal peptides and transmembrane regions"))
+        features_layout.addWidget(QLabel("• Homology and evolutionary relationships"))
+        
+        sequence_tab_layout.addWidget(features_group)
+        sequence_tab_layout.addStretch()
+        metadata_tabs.addTab(sequence_tab, "Sequences")
+    
+    def _create_cross_references_tab(self, metadata_tabs, metadata, basic_results):
+        """Create cross-references tab."""
+        xref_tab = QWidget()
+        xref_tab_layout = QVBoxLayout(xref_tab)
+        
+        # Database Cross-References
+        xref_group = QGroupBox("Database Cross-References")
+        xref_layout = QVBoxLayout(xref_group)
+        
+        if 'entry' in metadata:
+            entry = metadata['entry']
+            pdb_id = basic_results.get('structure_id', 'N/A')
+            
+            # Create clickable links (conceptual - would need proper implementation)
+            links_text = f"""Related database entries for {pdb_id}:
+            
+• RCSB PDB: https://www.rcsb.org/structure/{pdb_id}
+• PDBe: https://www.ebi.ac.uk/pdbe/entry/pdb/{pdb_id}
+• PDBj: https://pdbj.org/mine/summary/{pdb_id}
+• UniProt: Protein sequence database entries
+• Pfam: Protein family classifications
+• SCOP: Structural classification
+• CATH: Class, Architecture, Topology, Homology
+• ChEMBL: Bioactivity database
+• DrugBank: Drug and drug target database"""
+            
+            links_label = QLabel(links_text)
+            links_label.setWordWrap(True)
+            xref_layout.addWidget(links_label)
+        else:
+            xref_layout.addWidget(QLabel("No cross-reference data available"))
+        
+        xref_tab_layout.addWidget(xref_group)
+        xref_tab_layout.addStretch()
+        metadata_tabs.addTab(xref_tab, "Cross-Refs")
+    
+    def _create_citations_tab(self, metadata_tabs, metadata):
+        """Create citations and publications tab."""
+        citations_tab = QWidget()
+        citations_tab_layout = QVBoxLayout(citations_tab)
+        
+        # Publications
+        pubs_group = QGroupBox("Publications and Citations")
+        pubs_layout = QVBoxLayout(pubs_group)
+        
+        if 'entry' in metadata:
+            entry = metadata['entry']
+            
+            # Primary citation information
+            if entry.get('citation'):
+                citations = entry['citation']
+                for i, citation in enumerate(citations[:3]):  # Show first 3 citations
+                    citation_group = QGroupBox(f"Citation {i+1}")
+                    citation_layout = QFormLayout(citation_group)
+                    
+                    if citation.get('title'):
+                        title_label = QLabel(citation['title'])
+                        title_label.setWordWrap(True)
+                        # No width limit - allow full citation title display
+                        citation_layout.addRow("Title:", title_label)
+                    
+                    if citation.get('journal_abbrev'):
+                        citation_layout.addRow("Journal:", QLabel(citation['journal_abbrev']))
+                    
+                    if citation.get('year'):
+                        citation_layout.addRow("Year:", QLabel(str(citation['year'])))
+                    
+                    if citation.get('pdbx_database_id_PubMed'):
+                        pubmed_id = citation['pdbx_database_id_PubMed']
+                        pubmed_label = QLabel(f"PubMed ID: {pubmed_id}")
+                        citation_layout.addRow("PubMed:", pubmed_label)
+                    
+                    if citation.get('pdbx_database_id_DOI'):
+                        doi = citation['pdbx_database_id_DOI']
+                        doi_label = QLabel(f"DOI: {doi}")
+                        doi_label.setWordWrap(True)
+                        citation_layout.addRow("DOI:", doi_label)
+                    
+                    pubs_layout.addWidget(citation_group)
+            else:
+                pubs_layout.addWidget(QLabel("No citation information available"))
+        else:
+            pubs_layout.addWidget(QLabel("No publication data available"))
+        
+        citations_tab_layout.addWidget(pubs_group)
+        citations_tab_layout.addStretch()
+        metadata_tabs.addTab(citations_tab, "Citations")
+    
+    def _create_structural_features_tab(self, metadata_tabs, metadata):
+        """Create structural features tab."""
+        features_tab = QWidget()
+        features_tab_layout = QVBoxLayout(features_tab)
+        
+        # Structural Features
+        features_group = QGroupBox("Structural Features and Annotations")
+        features_layout = QVBoxLayout(features_group)
+        
+        features_layout.addWidget(QLabel("Comprehensive structural feature analysis includes:"))
+        
+        # Secondary Structure
+        ss_group = QGroupBox("Secondary Structure")
+        ss_layout = QVBoxLayout(ss_group)
+        ss_layout.addWidget(QLabel("• Alpha helices, beta sheets, and loop regions"))
+        ss_layout.addWidget(QLabel("• Secondary structure assignment (DSSP/STRIDE)"))
+        ss_layout.addWidget(QLabel("• Ramachandran plot analysis"))
+        features_layout.addWidget(ss_group)
+        
+        # Domains and Motifs
+        domains_group = QGroupBox("Domains and Motifs")
+        domains_layout = QVBoxLayout(domains_group)
+        domains_layout.addWidget(QLabel("• Protein domain identification and boundaries"))
+        domains_layout.addWidget(QLabel("• Functional motifs and active sites"))
+        domains_layout.addWidget(QLabel("• Structural motifs and supersecondary structure"))
+        features_layout.addWidget(domains_group)
+        
+        # Geometric Features
+        geometry_group = QGroupBox("Geometric Features")
+        geometry_layout = QVBoxLayout(geometry_group)
+        geometry_layout.addWidget(QLabel("• Disulfide bonds and cross-links"))
+        geometry_layout.addWidget(QLabel("• Hydrogen bonding patterns"))
+        geometry_layout.addWidget(QLabel("• Surface accessibility and cavities"))
+        features_layout.addWidget(geometry_group)
+        
+        features_tab_layout.addWidget(features_group)
+        features_tab_layout.addStretch()
+        metadata_tabs.addTab(features_tab, "Features")
+    
+    def _create_crystallographic_tab(self, metadata_tabs, metadata):
+        """Create detailed crystallographic information tab."""
+        crystal_tab = QWidget()
+        crystal_tab_layout = QVBoxLayout(crystal_tab)
+        
+        if 'entry' not in metadata:
+            crystal_tab_layout.addWidget(QLabel("No crystallographic data available"))
+            metadata_tabs.addTab(crystal_tab, "Crystal")
+            return
+        
+        entry = metadata['entry']
+        
+        # Crystal System and Symmetry
+        symmetry_group = QGroupBox("Crystal System and Symmetry")
+        symmetry_layout = QFormLayout(symmetry_group)
+        
+        if entry.get('symmetry'):
+            symmetry = entry['symmetry']
+            
+            if symmetry.get('space_group_name_H_M'):
+                symmetry_layout.addRow("Space Group:", QLabel(symmetry['space_group_name_H_M']))
+            
+            if symmetry.get('Int_Tables_number'):
+                symmetry_layout.addRow("Space Group Number:", QLabel(str(symmetry['Int_Tables_number'])))
+            
+            if symmetry.get('cell_setting'):
+                symmetry_layout.addRow("Crystal System:", QLabel(symmetry['cell_setting']))
+        
+        crystal_tab_layout.addWidget(symmetry_group)
+        
+        # Unit Cell Parameters
+        if entry.get('cell'):
+            cell_group = QGroupBox("Unit Cell Parameters")
+            cell_layout = QFormLayout(cell_group)
+            
+            cell = entry['cell']
+            
+            # Cell dimensions
+            a = cell.get('length_a')
+            b = cell.get('length_b')
+            c = cell.get('length_c')
+            if all(x is not None for x in [a, b, c]):
+                cell_layout.addRow("a:", QLabel(f"{a:.3f} Å"))
+                cell_layout.addRow("b:", QLabel(f"{b:.3f} Å"))
+                cell_layout.addRow("c:", QLabel(f"{c:.3f} Å"))
+            
+            # Cell angles
+            alpha = cell.get('angle_alpha')
+            beta = cell.get('angle_beta')
+            gamma = cell.get('angle_gamma')
+            if all(x is not None for x in [alpha, beta, gamma]):
+                cell_layout.addRow("α:", QLabel(f"{alpha:.2f}°"))
+                cell_layout.addRow("β:", QLabel(f"{beta:.2f}°"))
+                cell_layout.addRow("γ:", QLabel(f"{gamma:.2f}°"))
+            
+            # Cell volume
+            if all(x is not None for x in [a, b, c, alpha, beta, gamma]):
+                import math
+                # Calculate unit cell volume
+                alpha_rad = math.radians(alpha)
+                beta_rad = math.radians(beta)
+                gamma_rad = math.radians(gamma)
+                
+                volume = a * b * c * math.sqrt(1 + 2*math.cos(alpha_rad)*math.cos(beta_rad)*math.cos(gamma_rad) 
+                                             - math.cos(alpha_rad)**2 - math.cos(beta_rad)**2 - math.cos(gamma_rad)**2)
+                cell_layout.addRow("Volume:", QLabel(f"{volume:.1f} ų"))
+            
+            crystal_tab_layout.addWidget(cell_group)
+        
+        # Data Collection
+        data_group = QGroupBox("Data Collection Information")
+        data_layout = QVBoxLayout(data_group)
+        data_layout.addWidget(QLabel("Detailed data collection parameters would include:"))
+        data_layout.addWidget(QLabel("• Diffraction data statistics"))
+        data_layout.addWidget(QLabel("• Beamline and detector information"))
+        data_layout.addWidget(QLabel("• Data processing software and methods"))
+        data_layout.addWidget(QLabel("• Completeness and redundancy statistics"))
+        
+        crystal_tab_layout.addWidget(data_group)
+        crystal_tab_layout.addStretch()
+        metadata_tabs.addTab(crystal_tab, "Crystal")
+    
+    def display_basic_results_fallback(self, results):
+        """Display basic results when enhanced metadata is not available."""
+        basic_group = QGroupBox("Basic Properties")
+        basic_layout = QFormLayout(basic_group)
+        
+        basic_layout.addRow("Structure ID:", QLabel(results.get('structure_id', 'N/A')))
+        basic_layout.addRow("Total Chains:", QLabel(str(len(results.get('chains', [])))))
+        basic_layout.addRow("Total Residues:", QLabel(str(results.get('total_residues', 0))))
+        basic_layout.addRow("Total Atoms:", QLabel(str(results.get('total_atoms', 0))))
+        basic_layout.addRow("Molecular Weight:", QLabel(f"{results.get('molecular_weight', 0):.1f} Da"))
+        basic_layout.addRow("Resolution:", QLabel(str(results.get('resolution', 'N/A'))))
+        basic_layout.addRow("Space Group:", QLabel(str(results.get('space_group', 'N/A'))))
+        
+        self.results_layout.addWidget(basic_group)
+        
+        # Also display composition analysis
+        if results.get('composition'):
+            self.display_composition_analysis(results)
     
     def display_composition_analysis(self, results):
         """Display amino acid composition analysis."""

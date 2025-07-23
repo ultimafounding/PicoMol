@@ -227,7 +227,7 @@ try:
     from src.core.pdb_fetch_worker import PDBFetchManager
     OPTIMIZED_FETCH_AVAILABLE = True
 except ImportError:
-    from src.core.enhanced_pdb_puller import EnhancedPDBPuller
+    from src.core.enhanced_pdb_puller_fixed import EnhancedPDBPuller
     OPTIMIZED_FETCH_AVAILABLE = False
 
 
@@ -1193,7 +1193,7 @@ class ProteinViewerApp(QMainWindow):
             )
 
     def show_fetch_summary(self, comprehensive_data):
-        """Show a summary of the fetched comprehensive data."""
+        """Show a summary of the fetched comprehensive data with advanced metadata details."""
         pdb_id = comprehensive_data['pdb_id']
         files = comprehensive_data['files']
         metadata = comprehensive_data['metadata']
@@ -1202,44 +1202,93 @@ class ProteinViewerApp(QMainWindow):
         
         # Files downloaded
         if files:
-            summary_parts.append(f"\nFiles downloaded: {', '.join(files.keys())}")
+            summary_parts.append(f"\n📁 Files downloaded: {', '.join(files.keys())}")
         
-        # Metadata sections
+        # Advanced metadata sections
         if metadata:
-            summary_parts.append(f"Metadata sections: {', '.join(metadata.keys())}")
+            summary_parts.append(f"\n🔬 Advanced metadata sections: {', '.join(metadata.keys())}")
         
-        # Basic info if available
+        # Detailed info if available
         if 'entry' in metadata:
             entry = metadata['entry']
+            
+            # Basic structure info
             title = entry.get('struct', {}).get('title', 'N/A')
-            method = entry.get('exptl', [{}])[0].get('method', 'N/A')
-            resolution = entry.get('rcsb_entry_info', {}).get('resolution_combined', 'N/A')
+            rcsb_info = entry.get('rcsb_entry_info', {})
+            method = rcsb_info.get('experimental_method', 'N/A')
+            resolution = rcsb_info.get('resolution_combined', 'N/A')
+            if isinstance(resolution, list) and resolution:
+                resolution = resolution[0]
             
             summary_parts.extend([
-                f"\nTitle: {title}",
-                f"Method: {method}",
-                f"Resolution: {resolution}"
+                f"\n📋 Title: {title}",
+                f"🧪 Method: {method}",
+                f"🔍 Resolution: {resolution} Å" if resolution != 'N/A' else "🔍 Resolution: N/A"
             ])
+            
+            # Advanced experimental details
+            mol_weight = rcsb_info.get('molecular_weight', 'N/A')
+            atom_count = rcsb_info.get('deposited_atom_count', 'N/A')
+            if mol_weight != 'N/A':
+                summary_parts.append(f"⚖️ Molecular Weight: {mol_weight:,.0f} Da")
+            if atom_count != 'N/A':
+                summary_parts.append(f"⚛️ Total Atoms: {atom_count:,}")
+            
+            # Refinement statistics
+            if 'refine' in entry and entry['refine']:
+                refine = entry['refine'][0] if isinstance(entry['refine'], list) else entry['refine']
+                r_work = refine.get('ls_R_factor_R_work', 'N/A')
+                r_free = refine.get('ls_R_factor_R_free', 'N/A')
+                if r_work != 'N/A' and r_free != 'N/A':
+                    summary_parts.append(f"📊 R-factors: R-work={r_work:.3f}, R-free={r_free:.3f}")
+            
+            # Crystal parameters
+            if 'cell' in entry and entry['cell']:
+                cell = entry['cell']
+                volume = cell.get('volume', 'N/A')
+                if volume != 'N/A':
+                    summary_parts.append(f"💎 Unit Cell Volume: {volume:,.0f} Å³")
+            
+            # Space group
+            if 'symmetry' in entry and entry['symmetry']:
+                space_group = entry['symmetry'].get('space_group_name_H_M', 'N/A')
+                if space_group != 'N/A':
+                    summary_parts.append(f"🔷 Space Group: {space_group}")
+        
+        # Entity information
+        if 'polymer_entities' in metadata and metadata['polymer_entities']:
+            entity_count = len(metadata['polymer_entities'])
+            summary_parts.append(f"🧬 Polymer Entities: {entity_count} detailed entities")
+        
+        if 'nonpolymer_entities' in metadata and metadata['nonpolymer_entities']:
+            ligand_count = len(metadata['nonpolymer_entities'])
+            summary_parts.append(f"💊 Ligands/Small Molecules: {ligand_count} entities")
+        
+        # Assembly information
+        if 'assemblies' in metadata and metadata['assemblies']:
+            assembly_count = len(metadata['assemblies'])
+            summary_parts.append(f"🏗️ Biological Assemblies: {assembly_count} assemblies")
         
         # Sequences info
         sequences = comprehensive_data.get('sequences', {})
         if sequences.get('chains'):
             chain_count = len(sequences['chains'])
-            summary_parts.append(f"Sequences: {chain_count} chains")
+            summary_parts.append(f"🔗 Sequences: {chain_count} protein chains")
         
-        # Ligands info
-        if 'nonpolymer_entities' in metadata:
-            ligands = metadata['nonpolymer_entities']
-            if isinstance(ligands, list) and ligands:
-                summary_parts.append(f"Ligands: {len(ligands)} non-polymer entities")
+        # Publication info
+        if 'entry' in metadata and 'rcsb_primary_citation' in metadata['entry']:
+            citation = metadata['entry']['rcsb_primary_citation']
+            if citation and citation.get('title'):
+                summary_parts.append(f"📚 Primary Citation: Available")
         
         summary_text = "\n".join(summary_parts)
+        summary_text += "\n\n✨ This comprehensive dataset includes experimental details, refinement statistics, crystal parameters, entity information, and much more!"
         
         # Show in a message box
         from PyQt5.QtWidgets import QMessageBox, QTextEdit
         msg = QMessageBox(self)
-        msg.setWindowTitle("Comprehensive Data Fetched")
-        msg.setText(f"Successfully fetched comprehensive data for {pdb_id}")
+        msg.setWindowTitle("🎉 Advanced Metadata Fetched Successfully")
+        msg.setText(f"Successfully fetched comprehensive PDB data for {pdb_id}")
         msg.setDetailedText(summary_text)
         msg.setIcon(QMessageBox.Information)
         msg.exec_()
@@ -1321,7 +1370,7 @@ class ProteinViewerApp(QMainWindow):
         dialog.exec_()
     
     def format_pdb_summary(self, comprehensive_data):
-        """Format PDB summary for display."""
+        """Format PDB summary for display with comprehensive metadata."""
         pdb_id = comprehensive_data['pdb_id']
         metadata = comprehensive_data.get('metadata', {})
         
@@ -1338,22 +1387,89 @@ class ProteinViewerApp(QMainWindow):
             html += "<h4>Basic Information</h4><ul>"
             
             # Method and resolution
-            exptl_methods = entry.get('exptl', [])
-            if exptl_methods:
-                method = exptl_methods[0].get('method', 'N/A')
-                html += f"<li><b>Experimental Method:</b> {method}</li>"
+            rcsb_info = entry.get('rcsb_entry_info', {})
+            method = rcsb_info.get('experimental_method', 'N/A')
+            html += f"<li><b>Experimental Method:</b> {method}</li>"
             
-            resolution = entry.get('rcsb_entry_info', {}).get('resolution_combined', 'N/A')
+            resolution = rcsb_info.get('resolution_combined', 'N/A')
             if resolution != 'N/A':
+                if isinstance(resolution, list) and resolution:
+                    resolution = resolution[0]
                 html += f"<li><b>Resolution:</b> {resolution} Å</li>"
             
+            # Molecular weight and composition
+            mol_weight = rcsb_info.get('molecular_weight', 'N/A')
+            if mol_weight != 'N/A':
+                html += f"<li><b>Molecular Weight:</b> {mol_weight:,.0f} Da</li>"
+            
+            # Atom and residue counts
+            atom_count = rcsb_info.get('deposited_atom_count', 'N/A')
+            residue_count = rcsb_info.get('deposited_residue_count', 'N/A')
+            if atom_count != 'N/A':
+                html += f"<li><b>Total Atoms:</b> {atom_count:,}</li>"
+            if residue_count != 'N/A':
+                html += f"<li><b>Total Residues:</b> {residue_count:,}</li>"
+            
+            # Entity counts
+            polymer_count = rcsb_info.get('deposited_polymer_entity_instance_count', 0)
+            nonpolymer_count = rcsb_info.get('deposited_nonpolymer_entity_instance_count', 0)
+            if polymer_count > 0:
+                html += f"<li><b>Polymer Entities:</b> {polymer_count}</li>"
+            if nonpolymer_count > 0:
+                html += f"<li><b>Non-polymer Entities (Ligands):</b> {nonpolymer_count}</li>"
+            
             # Dates
-            deposit_date = entry.get('rcsb_accession_info', {}).get('deposit_date', 'N/A')
-            release_date = entry.get('rcsb_accession_info', {}).get('initial_release_date', 'N/A')
+            accession_info = entry.get('rcsb_accession_info', {})
+            deposit_date = accession_info.get('deposit_date', 'N/A')
+            release_date = accession_info.get('initial_release_date', 'N/A')
+            revision_date = accession_info.get('revision_date', 'N/A')
             html += f"<li><b>Deposition Date:</b> {deposit_date}</li>"
             html += f"<li><b>Release Date:</b> {release_date}</li>"
+            if revision_date != 'N/A':
+                html += f"<li><b>Last Revision:</b> {revision_date}</li>"
             
             html += "</ul>"
+            
+            # Experimental details
+            if 'refine' in entry and entry['refine']:
+                refine = entry['refine'][0] if isinstance(entry['refine'], list) else entry['refine']
+                html += "<h4>Refinement Statistics</h4><ul>"
+                
+                r_work = refine.get('ls_R_factor_R_work', 'N/A')
+                r_free = refine.get('ls_R_factor_R_free', 'N/A')
+                if r_work != 'N/A':
+                    html += f"<li><b>R-work:</b> {r_work:.3f}</li>"
+                if r_free != 'N/A':
+                    html += f"<li><b>R-free:</b> {r_free:.3f}</li>"
+                
+                res_high = refine.get('ls_d_res_high', 'N/A')
+                res_low = refine.get('ls_d_res_low', 'N/A')
+                if res_high != 'N/A':
+                    html += f"<li><b>High Resolution Limit:</b> {res_high} Å</li>"
+                if res_low != 'N/A':
+                    html += f"<li><b>Low Resolution Limit:</b> {res_low} Å</li>"
+                
+                html += "</ul>"
+            
+            # Crystal information
+            if 'cell' in entry and entry['cell']:
+                cell = entry['cell']
+                html += "<h4>Crystal Parameters</h4><ul>"
+                html += f"<li><b>Unit Cell:</b> a={cell.get('length_a', 'N/A')} Å, "
+                html += f"b={cell.get('length_b', 'N/A')} Å, c={cell.get('length_c', 'N/A')} Å</li>"
+                html += f"<li><b>Angles:</b> α={cell.get('angle_alpha', 'N/A')}°, "
+                html += f"β={cell.get('angle_beta', 'N/A')}°, γ={cell.get('angle_gamma', 'N/A')}°</li>"
+                
+                volume = cell.get('volume', 'N/A')
+                if volume != 'N/A':
+                    html += f"<li><b>Volume:</b> {volume:,.0f} Å³</li>"
+                html += "</ul>"
+            
+            if 'symmetry' in entry and entry['symmetry']:
+                symmetry = entry['symmetry']
+                space_group = symmetry.get('space_group_name_H_M', 'N/A')
+                if space_group != 'N/A':
+                    html += f"<h4>Space Group</h4><p>{space_group}</p>"
             
             # Authors
             authors = [author.get('name', '') for author in entry.get('audit_author', [])]
@@ -1363,6 +1479,44 @@ class ProteinViewerApp(QMainWindow):
                 if len(authors) > 5:
                     html += f" and {len(authors) - 5} others"
                 html += "</p>"
+            
+            # Publication information
+            if 'rcsb_primary_citation' in entry and entry['rcsb_primary_citation']:
+                citation = entry['rcsb_primary_citation']
+                html += "<h4>Primary Citation</h4>"
+                title = citation.get('title', 'N/A')
+                journal = citation.get('journal_abbrev', 'N/A')
+                year = citation.get('year', 'N/A')
+                doi = citation.get('pdbx_database_id_DOI', 'N/A')
+                
+                html += f"<p><b>Title:</b> {title}</p>"
+                html += f"<p><b>Journal:</b> {journal} ({year})</p>"
+                if doi != 'N/A':
+                    html += f"<p><b>DOI:</b> <a href='https://doi.org/{doi}' target='_blank'>{doi}</a></p>"
+        
+        # Enhanced entity information
+        if 'polymer_entities' in metadata and metadata['polymer_entities']:
+            entities = metadata['polymer_entities']
+            html += f"<h4>Polymer Entities ({len(entities)})</h4><ul>"
+            for entity in entities[:3]:  # Show first 3
+                entity_info = entity.get('rcsb_polymer_entity', {})
+                description = entity_info.get('pdbx_description', 'Unknown')
+                entity_type = entity_info.get('type', 'Unknown')
+                html += f"<li><b>{entity_type}:</b> {description}</li>"
+            if len(entities) > 3:
+                html += f"<li><i>... and {len(entities) - 3} more entities</i></li>"
+            html += "</ul>"
+        
+        if 'nonpolymer_entities' in metadata and metadata['nonpolymer_entities']:
+            ligands = metadata['nonpolymer_entities']
+            html += f"<h4>Ligands and Small Molecules ({len(ligands)})</h4><ul>"
+            for ligand in ligands[:5]:  # Show first 5
+                ligand_info = ligand.get('rcsb_nonpolymer_entity', {})
+                description = ligand_info.get('pdbx_description', 'Unknown')
+                html += f"<li>{description}</li>"
+            if len(ligands) > 5:
+                html += f"<li><i>... and {len(ligands) - 5} more ligands</i></li>"
+            html += "</ul>"
         
         # Files information
         files = comprehensive_data.get('files', {})
