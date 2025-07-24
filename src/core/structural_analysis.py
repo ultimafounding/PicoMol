@@ -2,12 +2,10 @@
 """
 Structural Analysis Tools for PicoMol.
 
-This module provides comprehensive protein structural analysis including:
+This module provides protein structural analysis including:
 - Secondary structure analysis
 - Geometric property calculations
-- Surface area and volume estimation
-- Cavity and binding site detection
-- Structural comparison tools
+- Basic structural properties
 """
 
 import os
@@ -108,21 +106,7 @@ except ImportError:
             return math.sqrt(variance)
 
 
-# Van der Waals radii for common elements (in Angstroms)
-VDW_RADII = {
-    'H': 1.20, 'C': 1.70, 'N': 1.55, 'O': 1.52, 'S': 1.80,
-    'P': 1.80, 'F': 1.47, 'CL': 1.75, 'BR': 1.85, 'I': 1.98,
-    'FE': 2.00, 'ZN': 1.39, 'MG': 1.73, 'CA': 2.31, 'MN': 1.61,
-    'CU': 1.40, 'NI': 1.63, 'CO': 1.26, 'SE': 1.90
-}
 
-# Maximum SASA values for amino acids (in Ų) - for RSA calculation
-MAX_SASA_VALUES = {
-    'ALA': 129.0, 'ARG': 274.0, 'ASN': 195.0, 'ASP': 193.0, 'CYS': 167.0,
-    'GLN': 225.0, 'GLU': 223.0, 'GLY': 104.0, 'HIS': 224.0, 'ILE': 197.0,
-    'LEU': 201.0, 'LYS': 236.0, 'MET': 224.0, 'PHE': 240.0, 'PRO': 159.0,
-    'SER': 155.0, 'THR': 172.0, 'TRP': 285.0, 'TYR': 263.0, 'VAL': 174.0
-}
 
 class StructuralAnalysisWorker(QThread):
     """Worker thread for structural analysis calculations."""
@@ -137,7 +121,6 @@ class StructuralAnalysisWorker(QThread):
         self.analysis_types = analysis_types or ['basic', 'secondary', 'geometry']
         self.structure = None
         self.comprehensive_data = comprehensive_data
-        # Surface analysis uses SASA calculation
     
     def run(self):
         try:
@@ -169,12 +152,6 @@ class StructuralAnalysisWorker(QThread):
             if 'geometry' in self.analysis_types:
                 self.progress_update.emit("Analyzing geometric properties...")
                 results['geometry'] = self.analyze_geometry()
-            
-            if 'surface' in self.analysis_types:
-                self.progress_update.emit("Calculating surface properties using SASA...")
-                results['surface'] = self.analyze_surface_properties()
-            
-
             
             self.progress_update.emit("Analysis complete!")
             self.analysis_complete.emit(results)
@@ -449,1130 +426,27 @@ class StructuralAnalysisWorker(QThread):
         results['bond_lengths'] = bond_lengths[:100]  # Sample first 100
         results['bond_angles'] = bond_angles[:100]   # Sample first 100
     
-    def analyze_surface_properties(self):
-        """Analyze surface properties using optimized SASA calculation.
-        
-        Uses an optimized Shrake-Rupley algorithm with NeighborSearch for
-        efficient and accurate surface area calculation.
-        
-        Returns:
-            dict: Surface analysis results
-        """
-        import time
-        start_time = time.time()
-        
-        results = self.analyze_surface_properties_sasa()
-        
-        # Add timing information
-        calculation_time = time.time() - start_time
-        results['calculation_time'] = calculation_time
-        results['method_used'] = 'SASA'
-        
-        self.progress_update.emit(f"Surface analysis completed in {calculation_time:.2f} seconds using SASA calculation")
-        
-        return results
-    
-
-    
-    def analyze_surface_properties_sasa(self):
-        """Surface analysis using configurable SASA calculation.
-        
-        Uses an optimized Shrake-Rupley algorithm with NeighborSearch for
-        efficient and accurate surface area calculation.
-        """
-        # Get SASA configuration
-        config = getattr(self, 'sasa_config', {
-            'probe_radius': 1.4,
-            'n_points': 30,
-            'rsa_threshold': 20.0,
-            'include_hydrogens': False
-        })
-        results = {
-            'accessible_surface_area': 0.0,
-            'buried_surface_area': 0.0,
-            'surface_residues': [],
-            'buried_residues': [],
-            'surface_percentage': 0.0,
-            'buried_percentage': 0.0,
-            'total_sasa': 0.0,
-            'average_rsa': 0.0
-        }
-        
-        # Get all atoms for neighbor search
-        all_atoms = []
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):
-                        for atom in residue:
-                            # Filter hydrogens if not included
-                            if not config['include_hydrogens']:
-                                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-                                if element == 'H':
-                                    continue
-                            all_atoms.append(atom)
-        
-        if not all_atoms:
-            return results
-        
-        # Create NeighborSearch for efficient neighbor finding
-        try:
-            neighbor_search = NeighborSearch(all_atoms)
-        except Exception as e:
-            self.progress_update.emit(f"NeighborSearch creation failed: {e}")
-            return self._analyze_surface_fallback()
-        
-        all_residues = []
-        total_sasa = 0.0
-        total_rsa = 0.0
-        
-        residue_count = 0
-        total_residues_to_process = sum(1 for model in self.structure 
-                                      for chain in model 
-                                      for residue in chain if is_aa(residue))
-        
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):
-                        residue_count += 1
-                        
-                        # Update progress
-                        if residue_count % 10 == 0:
-                            progress = (residue_count / total_residues_to_process) * 100
-                            self.progress_update.emit(f"Calculating SASA: {progress:.1f}% ({residue_count}/{total_residues_to_process})")
-                        
-                        try:
-                            # Calculate SASA for this residue with configuration
-                            residue_sasa = self.calculate_residue_sasa_optimized(
-                                residue, neighbor_search, 
-                                probe_radius=config['probe_radius'],
-                                n_points=config['n_points'],
-                                include_hydrogens=config['include_hydrogens']
-                            )
-                            
-                            # Calculate RSA
-                            res_name = residue.get_resname()
-                            max_sasa = MAX_SASA_VALUES.get(res_name, 150.0)
-                            rsa = (residue_sasa / max_sasa) * 100 if max_sasa > 0 else 0
-                            
-                            residue_info = {
-                                'residue': res_name,
-                                'chain': chain.id,
-                                'position': residue.id[1],
-                                'sasa': residue_sasa,
-                                'rsa': rsa,
-                                'max_sasa': max_sasa
-                            }
-                            
-                            all_residues.append(residue_info)
-                            total_sasa += residue_sasa
-                            total_rsa += rsa
-                            
-                            # Classification based on configurable RSA threshold
-                            if rsa < config['rsa_threshold']:
-                                results['buried_residues'].append(residue_info)
-                            else:
-                                results['surface_residues'].append(residue_info)
-                                
-                        except Exception as e:
-                            self.progress_update.emit(f"SASA calculation failed for residue {residue}: {e}")
-                            continue
-        
-        # Calculate summary statistics
-        total_residues = len(all_residues)
-        if total_residues > 0:
-            surface_count = len(results['surface_residues'])
-            buried_count = len(results['buried_residues'])
-            
-            results['surface_percentage'] = (surface_count / total_residues) * 100
-            results['buried_percentage'] = (buried_count / total_residues) * 100
-            results['total_sasa'] = total_sasa
-            results['accessible_surface_area'] = sum(r['sasa'] for r in results['surface_residues'])
-            results['buried_surface_area'] = sum(r['sasa'] for r in results['buried_residues'])
-            results['average_rsa'] = total_rsa / total_residues
-        
-        return results
-    
-    def _analyze_surface_fallback(self):
-        """Fallback surface analysis when NeighborSearch fails.
-        
-        Uses a simplified approach but still calculates actual SASA values.
-        """
-        results = {
-            'accessible_surface_area': 0.0,
-            'buried_surface_area': 0.0,
-            'surface_residues': [],
-            'buried_residues': [],
-            'surface_percentage': 0.0,
-            'buried_percentage': 0.0,
-            'total_sasa': 0.0,
-            'average_rsa': 0.0
-        }
-        
-        # Get all atoms for fallback calculation
-        all_atoms = []
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):
-                        for atom in residue:
-                            # Filter hydrogens if not included
-                            if not config['include_hydrogens']:
-                                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-                                if element == 'H':
-                                    continue
-                            all_atoms.append(atom)
-        
-        all_residues = []
-        total_sasa = 0.0
-        total_rsa = 0.0
-        
-        residue_count = 0
-        total_residues_to_process = sum(1 for model in self.structure 
-                                      for chain in model 
-                                      for residue in chain if is_aa(residue))
-        
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):
-                        residue_count += 1
-                        
-                        # Update progress
-                        if residue_count % 10 == 0:
-                            progress = (residue_count / total_residues_to_process) * 100
-                            self.progress_update.emit(f"Fallback SASA calculation: {progress:.1f}% ({residue_count}/{total_residues_to_process})")
-                        
-                        try:
-                            # Calculate SASA using fallback method with configuration
-                            config = getattr(self, 'sasa_config', {
-                                'probe_radius': 1.4,
-                                'n_points': 100,  # Use more points for fallback accuracy
-                                'rsa_threshold': 20.0
-                            })
-                            residue_sasa = self.calculate_residue_sasa(
-                                residue, model,
-                                probe_radius=config['probe_radius'],
-                                n_points=config['n_points'],
-                                include_hydrogens=config['include_hydrogens']
-                            )
-                            
-                            # Calculate RSA
-                            res_name = residue.get_resname()
-                            max_sasa = MAX_SASA_VALUES.get(res_name, 150.0)
-                            rsa = (residue_sasa / max_sasa) * 100 if max_sasa > 0 else 0
-                            
-                            residue_info = {
-                                'residue': res_name,
-                                'chain': chain.id,
-                                'position': residue.id[1],
-                                'sasa': residue_sasa,
-                                'rsa': rsa,
-                                'max_sasa': max_sasa
-                            }
-                            
-                            all_residues.append(residue_info)
-                            total_sasa += residue_sasa
-                            total_rsa += rsa
-                            
-                            # Classification based on configurable RSA threshold
-                            if rsa < config['rsa_threshold']:
-                                results['buried_residues'].append(residue_info)
-                            else:
-                                results['surface_residues'].append(residue_info)
-                                
-                        except Exception as e:
-                            self.progress_update.emit(f"Fallback SASA calculation failed for residue {residue}: {e}")
-                            continue
-        
-        # Calculate summary statistics
-        total_residues = len(all_residues)
-        if total_residues > 0:
-            surface_count = len(results['surface_residues'])
-            buried_count = len(results['buried_residues'])
-            
-            results['surface_percentage'] = (surface_count / total_residues) * 100
-            results['buried_percentage'] = (buried_count / total_residues) * 100
-            results['total_sasa'] = total_sasa
-            results['accessible_surface_area'] = sum(r['sasa'] for r in results['surface_residues'])
-            results['buried_surface_area'] = sum(r['sasa'] for r in results['buried_residues'])
-            results['average_rsa'] = total_rsa / total_residues
-        
-        return results
-    
-    def calculate_residue_sasa_optimized(self, residue, neighbor_search, probe_radius=1.4, n_points=30, include_hydrogens=False):
-        """Calculate SASA for a residue using optimized Shrake-Rupley algorithm.
-        
-        Args:
-            residue: The residue to calculate SASA for
-            neighbor_search: Pre-built NeighborSearch object for efficient neighbor finding
-            probe_radius: Probe radius in Angstroms (1.4Å for water)
-            n_points: Number of points to generate on each atom sphere (reduced for speed)
-            include_hydrogens: Whether to include hydrogen atoms
-        
-        Returns:
-            float: SASA value in Ų
-        """
-        total_sasa = 0.0
-        
-        # Calculate SASA for each atom in the residue
-        for atom in residue:
-            # Filter hydrogens if not included
-            if not include_hydrogens:
-                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-                if element == 'H':
-                    continue
-            
-            atom_sasa = self.calculate_atom_sasa_optimized(atom, neighbor_search, probe_radius, n_points)
-            total_sasa += atom_sasa
-        
-        return total_sasa
-    
-    def calculate_atom_sasa_optimized(self, atom, neighbor_search, probe_radius=1.4, n_points=30):
-        """Calculate SASA for a single atom using optimized Shrake-Rupley algorithm.
-        
-        Args:
-            atom: The atom to calculate SASA for
-            neighbor_search: Pre-built NeighborSearch object
-            probe_radius: Probe radius in Angstroms
-            n_points: Number of points to generate on the sphere (reduced for speed)
-        
-        Returns:
-            float: SASA value for the atom in Ų
-        """
-        # Get van der Waals radius for this atom
-        element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-        vdw_radius = VDW_RADII.get(element, 1.7)  # Default to carbon radius
-        
-        # Total radius = vdw radius + probe radius
-        total_radius = vdw_radius + probe_radius
-        
-        # Find nearby atoms efficiently using NeighborSearch
-        # Search within a reasonable distance (total_radius + max_other_radius + probe_radius)
-        search_radius = total_radius + 3.0  # Conservative estimate
-        nearby_atoms = neighbor_search.search(atom.get_coord(), search_radius)
-        
-        # Remove self from nearby atoms
-        nearby_atoms = [a for a in nearby_atoms if a != atom]
-        
-        # If no nearby atoms, the entire surface is accessible
-        if not nearby_atoms:
-            return 4 * math.pi * (total_radius ** 2)
-        
-        # Generate points on sphere surface (fewer points for speed)
-        sphere_points = self.generate_sphere_points(atom.get_coord(), total_radius, n_points)
-        
-        # Check which points are accessible (not buried by nearby atoms only)
-        accessible_points = 0
-        
-        for point in sphere_points:
-            is_accessible = True
-            
-            # Check against nearby atoms only (major optimization)
-            for other_atom in nearby_atoms:
-                # Get other atom's properties
-                other_element = other_atom.element.upper() if hasattr(other_atom, 'element') else other_atom.get_name()[0]
-                other_vdw_radius = VDW_RADII.get(other_element, 1.7)
-                other_total_radius = other_vdw_radius + probe_radius
-                
-                # Check if point is inside other atom's sphere
-                distance = np.linalg.norm(point - other_atom.get_coord())
-                if distance < other_total_radius:
-                    is_accessible = False
-                    break
-            
-            if is_accessible:
-                accessible_points += 1
-        
-        # Calculate surface area
-        total_surface_area = 4 * math.pi * (total_radius ** 2)
-        accessible_fraction = accessible_points / n_points if n_points > 0 else 0
-        atom_sasa = total_surface_area * accessible_fraction
-        
-        return atom_sasa
-    
-    def calculate_residue_sasa(self, residue, model, probe_radius=1.4, n_points=100, include_hydrogens=False):
-        """Calculate SASA for a residue using Shrake-Rupley algorithm.
-        
-        DEPRECATED: Use calculate_residue_sasa_optimized for better performance.
-        
-        Args:
-            residue: The residue to calculate SASA for
-            model: The PDB model containing all atoms
-            probe_radius: Probe radius in Angstroms (1.4Å for water)
-            n_points: Number of points to generate on each atom sphere
-            include_hydrogens: Whether to include hydrogen atoms
-        
-        Returns:
-            float: SASA value in Ų
-        """
-        total_sasa = 0.0
-        
-        # Get all atoms in the protein for neighbor checking
-        all_atoms = []
-        for chain in model:
-            for res in chain:
-                for atom in res:
-                    # Filter hydrogens if not included
-                    if not include_hydrogens:
-                        element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-                        if element == 'H':
-                            continue
-                    all_atoms.append(atom)
-        
-        # Calculate SASA for each atom in the residue
-        for atom in residue:
-            # Filter hydrogens if not included
-            if not include_hydrogens:
-                element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-                if element == 'H':
-                    continue
-            
-            atom_sasa = self.calculate_atom_sasa(atom, all_atoms, probe_radius, n_points)
-            total_sasa += atom_sasa
-        
-        return total_sasa
-    
-    def calculate_atom_sasa(self, atom, all_atoms, probe_radius=1.4, n_points=100):
-        """Calculate SASA for a single atom using Shrake-Rupley algorithm.
-        
-        Args:
-            atom: The atom to calculate SASA for
-            all_atoms: List of all atoms in the protein
-            probe_radius: Probe radius in Angstroms
-            n_points: Number of points to generate on the sphere
-        
-        Returns:
-            float: SASA value for the atom in Ų
-        """
-        # Get van der Waals radius for this atom
-        element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-        vdw_radius = VDW_RADII.get(element, 1.7)  # Default to carbon radius
-        
-        # Total radius = vdw radius + probe radius
-        total_radius = vdw_radius + probe_radius
-        
-        # Generate points on sphere surface
-        sphere_points = self.generate_sphere_points(atom.get_coord(), total_radius, n_points)
-        
-        # Check which points are accessible (not buried by other atoms)
-        accessible_points = 0
-        
-        for point in sphere_points:
-            is_accessible = True
-            
-            # Check against all other atoms
-            for other_atom in all_atoms:
-                if other_atom == atom:
-                    continue
-                
-                # Get other atom's properties
-                other_element = other_atom.element.upper() if hasattr(other_atom, 'element') else other_atom.get_name()[0]
-                other_vdw_radius = VDW_RADII.get(other_element, 1.7)
-                other_total_radius = other_vdw_radius + probe_radius
-                
-                # Check if point is inside other atom's sphere
-                distance = np.linalg.norm(point - other_atom.get_coord())
-                if distance < other_total_radius:
-                    is_accessible = False
-                    break
-            
-            if is_accessible:
-                accessible_points += 1
-        
-        # Calculate surface area
-        # Surface area of sphere = 4π * r²
-        total_surface_area = 4 * math.pi * (total_radius ** 2)
-        accessible_fraction = accessible_points / n_points if n_points > 0 else 0
-        atom_sasa = total_surface_area * accessible_fraction
-        
-        return atom_sasa
-    
-    def generate_sphere_points(self, center, radius, n_points):
-        """Generate uniformly distributed points on a sphere surface.
-        
-        Args:
-            center: Center coordinates of the sphere
-            radius: Radius of the sphere
-            n_points: Number of points to generate
-        
-        Returns:
-            numpy.ndarray: Array of 3D points on the sphere surface
-        """
-        points = []
-        
-        # Use golden spiral method for uniform distribution
-        golden_angle = math.pi * (3.0 - math.sqrt(5.0))  # Golden angle in radians
-        
-        for i in range(n_points):
-            # y goes from 1 to -1
-            y = 1 - (i / float(n_points - 1)) * 2
-            
-            # radius at y
-            radius_at_y = math.sqrt(1 - y * y)
-            
-            # golden angle increment
-            theta = golden_angle * i
-            
-            x = math.cos(theta) * radius_at_y
-            z = math.sin(theta) * radius_at_y
-            
-            # Scale by radius and translate to center
-            point = np.array([x * radius + center[0],
-                             y * radius + center[1], 
-                             z * radius + center[2]])
-            points.append(point)
-        
-        return np.array(points)
-    
-    def count_neighbors(self, atom, model, radius=8.0, ca_only=True):
-        """Count neighboring atoms within radius (legacy method for compatibility).
-        
-        Args:
-            atom: The central atom to count neighbors for
-            model: The PDB model containing all atoms
-            radius: Distance cutoff in Angstroms (default 8.0Å)
-            ca_only: If True, count only CA atoms (default True for surface analysis)
-        
-        Returns:
-            int: Number of neighboring atoms within the radius
-        """
-        count = 0
-        atom_coord = atom.get_coord()
-        
-        for chain in model:
-            for residue in chain:
-                if ca_only:
-                    # Count only CA atoms for surface analysis
-                    if 'CA' in residue:
-                        other_atom = residue['CA']
-                        if other_atom != atom:
-                            distance = np.linalg.norm(atom_coord - other_atom.get_coord())
-                            if distance <= radius:
-                                count += 1
-                else:
-                    # Count all atoms
-                    for other_atom in residue:
-                        if other_atom != atom:
-                            distance = np.linalg.norm(atom_coord - other_atom.get_coord())
-                            if distance <= radius:
-                                count += 1
-        
-        return count
-    
 
     
 
-    
-    def detect_cavities(self):
-        """Detect potential binding sites and cavities using improved geometric methods.
-        
-        Uses a combination of grid-based and probe-based approaches inspired by
-        conventional cavity detection algorithms like CASTp and fpocket.
-        """
-        import time
-        start_time = time.time()
-        
-        results = {
-            'potential_cavities': [],
-            'surface_pockets': [],
-            'cavity_volume': 0.0,
-            'largest_cavity': None,
-            'druggable_cavities': [],
-            'calculation_time': 0.0,
-            'total_grid_points': 0,
-            'cavity_points_found': 0
-        }
-        
-        self.progress_update.emit("Cavity detection: Initializing...")
-        
-        # Get all protein atoms
-        all_atoms = []
-        for model in self.structure:
-            for chain in model:
-                for residue in chain:
-                    if is_aa(residue):  # Only protein atoms
-                        for atom in residue:
-                            all_atoms.append(atom)
-        
-        if not all_atoms:
-            self.progress_update.emit("Cavity detection: No protein atoms found")
-            return results
-        
-        self.progress_update.emit(f"Cavity detection: Analyzing {len(all_atoms)} protein atoms...")
-        
-        # Use improved cavity detection with multiple probe sizes
-        cavity_points = self.detect_cavity_points_improved(all_atoms)
-        results['cavity_points_found'] = len(cavity_points)
-        
-        if cavity_points:
-            # Cluster cavity points into distinct cavities
-            cavities = self.cluster_cavity_points_improved(cavity_points, all_atoms)
-            
-            if cavities:
-                # Filter and characterize cavities
-                characterized_cavities = self.characterize_cavities(cavities, all_atoms)
-                
-                results['potential_cavities'] = characterized_cavities
-                
-                if characterized_cavities:
-                    # Find largest cavity
-                    largest = max(characterized_cavities, key=lambda c: c['volume'])
-                    results['largest_cavity'] = largest
-                    results['cavity_volume'] = sum(c['volume'] for c in characterized_cavities)
-                    
-                    # Identify potentially druggable cavities
-                    druggable = [c for c in characterized_cavities if self.is_druggable_cavity(c)]
-                    results['druggable_cavities'] = druggable
-                    
-                    # Final summary
-                    calculation_time = time.time() - start_time
-                    results['calculation_time'] = calculation_time
-                    
-                    self.progress_update.emit(
-                        f"Cavity detection complete! Found {len(characterized_cavities)} cavities "
-                        f"({len(druggable)} druggable) in {calculation_time:.1f}s"
-                    )
-                else:
-                    self.progress_update.emit("Cavity detection: No significant cavities found after characterization")
-            else:
-                self.progress_update.emit("Cavity detection: No cavity clusters found")
-        else:
-            self.progress_update.emit("Cavity detection: No cavity points detected")
-        
-        # Add timing information
-        calculation_time = time.time() - start_time
-        results['calculation_time'] = calculation_time
-        
-        return results
-    
-    def detect_cavity_points_improved(self, all_atoms, grid_spacing=1.5, probe_radius=1.4):
-        """Detect cavity points using improved grid-based method with probe accessibility.
-        
-        Args:
-            all_atoms: List of all protein atoms
-            grid_spacing: Grid spacing in Angstroms
-            probe_radius: Probe radius in Angstroms (1.4Å for water)
-        
-        Returns:
-            list: List of cavity points
-        """
-        self.progress_update.emit("Cavity detection: Setting up grid...")
-        
-        # Get protein bounds
-        coords = np.array([atom.get_coord() for atom in all_atoms])
-        min_coords = np.min(coords, axis=0) - probe_radius - 3.0
-        max_coords = np.max(coords, axis=0) + probe_radius + 3.0
-        
-        # Generate grid points
-        x_range = np.arange(min_coords[0], max_coords[0], grid_spacing)
-        y_range = np.arange(min_coords[1], max_coords[1], grid_spacing)
-        z_range = np.arange(min_coords[2], max_coords[2], grid_spacing)
-        
-        cavity_points = []
-        
-        # Limit computation for large proteins
-        max_grid_points = 15000
-        total_points = len(x_range) * len(y_range) * len(z_range)
-        
-        if total_points > max_grid_points:
-            # Adaptive grid spacing
-            reduction_factor = (total_points / max_grid_points) ** (1/3)
-            grid_spacing *= reduction_factor
-            x_range = np.arange(min_coords[0], max_coords[0], grid_spacing)
-            y_range = np.arange(min_coords[1], max_coords[1], grid_spacing)
-            z_range = np.arange(min_coords[2], max_coords[2], grid_spacing)
-            total_points = len(x_range) * len(y_range) * len(z_range)
-        
-        self.progress_update.emit(f"Cavity detection: Scanning {total_points:,} grid points...")
-        
-        sample_count = 0
-        last_progress = 0
-        
-        for i, x in enumerate(x_range):
-            for j, y in enumerate(y_range):
-                for k, z in enumerate(z_range):
-                    point = np.array([x, y, z])
-                    
-                    # Check if point is in a cavity using improved criteria
-                    if self.is_cavity_point_improved(point, all_atoms, probe_radius):
-                        cavity_points.append(point)
-                    
-                    sample_count += 1
-                    
-                    # Update progress every 5%
-                    progress = (sample_count / min(total_points, max_grid_points)) * 100
-                    if progress - last_progress >= 5:
-                        self.progress_update.emit(f"Cavity detection: {progress:.0f}% complete ({len(cavity_points)} potential points found)")
-                        last_progress = progress
-                    
-                    if sample_count >= max_grid_points:
-                        break
-                if sample_count >= max_grid_points:
-                    break
-            if sample_count >= max_grid_points:
-                break
-        
-        self.progress_update.emit(f"Cavity detection: Found {len(cavity_points)} potential cavity points")
-        return cavity_points
-    
-    def is_cavity_point_improved(self, point, all_atoms, probe_radius):
-        """Check if a point represents a cavity using improved criteria.
-        
-        A point is considered a cavity point if:
-        1. It's not inside any atom (considering van der Waals radii + probe radius)
-        2. It's surrounded by protein atoms (not on the surface)
-        3. It's accessible to a probe of the given radius
-        """
-        min_distance = float('inf')
-        nearby_atoms = 0
-        
-        for atom in all_atoms:
-            # Get van der Waals radius
-            element = atom.element.upper() if hasattr(atom, 'element') else atom.get_name()[0]
-            vdw_radius = VDW_RADII.get(element, 1.7)
-            
-            distance = np.linalg.norm(point - atom.get_coord())
-            min_distance = min(min_distance, distance)
-            
-            # Check if point is inside atom (including probe radius)
-            if distance < (vdw_radius + probe_radius):
-                return False  # Point is inside an atom
-            
-            # Count nearby atoms within reasonable distance
-            if distance < 8.0:
-                nearby_atoms += 1
-        
-        # Point is a cavity if:
-        # 1. Not inside any atom (already checked above)
-        # 2. Has sufficient nearby atoms (indicating it's inside the protein)
-        # 3. Not too far from protein surface
-        return (nearby_atoms >= 3 and 
-                probe_radius < min_distance < 6.0)
-    
-    def cluster_cavity_points_improved(self, points, all_atoms, cluster_radius=3.5):
-        """Cluster cavity points into distinct cavities using improved clustering.
-        
-        Args:
-            points: List of cavity points
-            all_atoms: List of all protein atoms
-            cluster_radius: Maximum distance for clustering
-        
-        Returns:
-            list: List of cavity clusters
-        """
-        if not points:
-            return []
-        
-        self.progress_update.emit(f"Cavity clustering: Processing {len(points)} points...")
-        
-        points = np.array(points)
-        clusters = []
-        used = set()
-        total_points = len(points)
-        processed_points = 0
-        last_progress = 0
-        
-        for i, point in enumerate(points):
-            if i in used:
-                processed_points += 1
-                continue
-            
-            # Start new cluster with breadth-first search
-            cluster = [i]
-            queue = [i]
-            used.add(i)
-            
-            while queue:
-                current_idx = queue.pop(0)
-                current_point = points[current_idx]
-                
-                # Find all unused points within cluster radius
-                for j, other_point in enumerate(points):
-                    if j in used:
-                        continue
-                    
-                    distance = np.linalg.norm(current_point - other_point)
-                    if distance <= cluster_radius:
-                        cluster.append(j)
-                        queue.append(j)
-                        used.add(j)
-            
-            # Only keep clusters with minimum size
-            if len(cluster) >= 5:  # Minimum cluster size for meaningful cavity
-                cluster_points = points[cluster]
-                clusters.append({
-                    'points': cluster_points,
-                    'indices': cluster
-                })
-            
-            processed_points += len(cluster)
-            
-            # Update progress every 10%
-            progress = (processed_points / total_points) * 100
-            if progress - last_progress >= 10:
-                self.progress_update.emit(f"Cavity clustering: {progress:.0f}% complete ({len(clusters)} clusters found)")
-                last_progress = progress
-        
-        self.progress_update.emit(f"Cavity clustering: Found {len(clusters)} potential cavities")
-        return clusters
-    
-    def characterize_cavities(self, clusters, all_atoms):
-        """Characterize detected cavities with geometric and chemical properties.
-        
-        Args:
-            clusters: List of cavity clusters
-            all_atoms: List of all protein atoms
-        
-        Returns:
-            list: List of characterized cavities
-        """
-        characterized = []
-        total_clusters = len(clusters)
-        
-        if total_clusters == 0:
-            return characterized
-        
-        self.progress_update.emit(f"Cavity characterization: Analyzing {total_clusters} cavities...")
-        
-        for i, cluster in enumerate(clusters):
-            cluster_points = cluster['points']
-            
-            # Update progress
-            progress = ((i + 1) / total_clusters) * 100
-            self.progress_update.emit(f"Cavity characterization: {progress:.0f}% complete (cavity {i+1}/{total_clusters})")
-            
-            # Calculate geometric properties
-            center = np.mean(cluster_points, axis=0)
-            
-            # Calculate volume (using convex hull approximation)
-            volume = self.estimate_cavity_volume(cluster_points)
-            
-            # Calculate radius (maximum distance from center)
-            distances = np.linalg.norm(cluster_points - center, axis=1)
-            max_radius = np.max(distances)
-            avg_radius = np.mean(distances)
-            
-            # Find lining residues
-            lining_residues = self.find_lining_residues(center, max_radius + 2.0, all_atoms)
-            
-            # Calculate surface area (rough estimate)
-            surface_area = self.estimate_cavity_surface_area(cluster_points)
-            
-            # Calculate hydrophobicity score
-            hydrophobicity = self.calculate_cavity_hydrophobicity(lining_residues)
-            
-            cavity_info = {
-                'id': i + 1,
-                'center': center.tolist(),
-                'volume': volume,
-                'surface_area': surface_area,
-                'max_radius': max_radius,
-                'avg_radius': avg_radius,
-                'point_count': len(cluster_points),
-                'lining_residues': lining_residues,
-                'hydrophobicity_score': hydrophobicity,
-                'druggability_score': self.calculate_druggability_score(volume, surface_area, hydrophobicity)
-            }
-            
-            characterized.append(cavity_info)
-        
-        # Sort by volume (largest first)
-        characterized.sort(key=lambda x: x['volume'], reverse=True)
-        
-        self.progress_update.emit(f"Cavity characterization: Complete! Found {len(characterized)} characterized cavities")
-        
-        return characterized
-    
-    def estimate_cavity_volume(self, points):
-        """Estimate cavity volume using point density."""
-        # Simple volume estimation based on number of points and grid spacing
-        # More sophisticated methods would use convex hull or alpha shapes
-        grid_spacing = 1.5  # Approximate grid spacing used
-        volume_per_point = grid_spacing ** 3
-        return len(points) * volume_per_point
-    
-    def estimate_cavity_surface_area(self, points):
-        """Estimate cavity surface area."""
-        # Simple estimation based on volume
-        volume = self.estimate_cavity_volume(points)
-        # Assume roughly spherical cavity for surface area estimation
-        radius = (3 * volume / (4 * math.pi)) ** (1/3)
-        return 4 * math.pi * radius ** 2
-    
-    def find_lining_residues(self, cavity_center, search_radius, all_atoms):
-        """Find residues lining the cavity."""
-        lining_residues = set()
-        
-        for atom in all_atoms:
-            distance = np.linalg.norm(cavity_center - atom.get_coord())
-            if distance <= search_radius:
-                # Get residue info
-                residue = atom.get_parent()
-                if is_aa(residue):
-                    chain_id = residue.get_parent().id
-                    res_info = {
-                        'residue': residue.get_resname(),
-                        'chain': chain_id,
-                        'position': residue.id[1],
-                        'distance': distance
-                    }
-                    lining_residues.add((residue.get_resname(), chain_id, residue.id[1]))
-        
-        return list(lining_residues)
-    
-    def calculate_cavity_hydrophobicity(self, lining_residues):
-        """Calculate hydrophobicity score for cavity based on lining residues."""
-        # Hydrophobicity scale (Kyte-Doolittle)
-        hydrophobicity_scale = {
-            'ALA': 1.8, 'ARG': -4.5, 'ASN': -3.5, 'ASP': -3.5, 'CYS': 2.5,
-            'GLN': -3.5, 'GLU': -3.5, 'GLY': -0.4, 'HIS': -3.2, 'ILE': 4.5,
-            'LEU': 3.8, 'LYS': -3.9, 'MET': 1.9, 'PHE': 2.8, 'PRO': -1.6,
-            'SER': -0.8, 'THR': -0.7, 'TRP': -0.9, 'TYR': -1.3, 'VAL': 4.2
-        }
-        
-        if not lining_residues:
-            return 0.0
-        
-        total_hydrophobicity = 0.0
-        for res_name, chain, position in lining_residues:
-            total_hydrophobicity += hydrophobicity_scale.get(res_name, 0.0)
-        
-        return total_hydrophobicity / len(lining_residues)
-    
-    def calculate_druggability_score(self, volume, surface_area, hydrophobicity):
-        """Calculate a simple druggability score for the cavity."""
-        # Simple scoring based on known druggable cavity characteristics
-        volume_score = min(volume / 500.0, 1.0)  # Normalize to 500 Ų
-        surface_score = min(surface_area / 300.0, 1.0)  # Normalize to 300 Ų
-        hydrophobic_score = max(0, hydrophobicity + 1.0) / 3.0  # Normalize hydrophobicity
-        
-        # Weighted combination
-        druggability = (0.4 * volume_score + 0.3 * surface_score + 0.3 * hydrophobic_score)
-        return min(druggability, 1.0)
-    
-    def is_druggable_cavity(self, cavity):
-        """Determine if a cavity is potentially druggable."""
-        # Simple criteria for druggability
-        return (cavity['volume'] > 100 and  # Minimum volume
-                cavity['druggability_score'] > 0.3 and  # Minimum druggability score
-                len(cavity['lining_residues']) >= 5)  # Sufficient lining residues
 
 
-class SASAConfigDialog(QDialog):
-    """Dialog for configuring SASA calculation parameters."""
+
+
+
+
+
+
     
-    def __init__(self, parent=None, config=None):
-        super().__init__(parent)
-        self.setWindowTitle("SASA Configuration")
-        self.setModal(True)
-        self.resize(500, 450)  # Slightly larger for better usability
-        
-        # Default configuration
-        self.config = config or {
-            'probe_radius': 1.4,
-            'n_points': 30,
-            'rsa_threshold': 20.0,
-            'include_hydrogens': False,
-            'preset': 'balanced'
-        }
-        
-        self.init_ui()
+
+
     
-    def init_ui(self):
-        layout = QVBoxLayout(self)
-        
-        # Title
-        title = QLabel("<h3>SASA Calculation Configuration</h3>")
-        title.setAlignment(Qt.AlignCenter)
-        layout.addWidget(title)
-        
-        # Preset selection
-        preset_group = QGroupBox("Presets")
-        preset_layout = QVBoxLayout(preset_group)
-        
-        self.preset_combo = QComboBox()
-        self.preset_combo.addItems(["Fast", "Balanced", "Accurate", "Research", "Custom"])
-        self.preset_combo.currentTextChanged.connect(self.on_preset_changed)
-        preset_layout.addWidget(self.preset_combo)
-        
-        # Preset descriptions
-        preset_desc = QLabel(
-            "<b>Fast:</b> Quick calculation (10 points, 1.4Å probe)<br>"
-            "<b>Balanced:</b> Good speed/accuracy trade-off (30 points)<br>"
-            "<b>Accurate:</b> High accuracy (60 points)<br>"
-            "<b>Research:</b> Publication quality (100 points)<br>"
-            "<b>Custom:</b> User-defined parameters"
-        )
-        preset_desc.setWordWrap(True)
-        preset_desc.setStyleSheet("color: #666; font-size: 10px; margin: 5px;")
-        preset_layout.addWidget(preset_desc)
-        
-        layout.addWidget(preset_group)
-        
-        # Parameters group
-        params_group = QGroupBox("Parameters")
-        params_layout = QFormLayout(params_group)
-        
-        # Probe radius
-        self.probe_radius_spin = QDoubleSpinBox()
-        self.probe_radius_spin.setRange(0.5, 3.0)
-        self.probe_radius_spin.setSingleStep(0.1)
-        self.probe_radius_spin.setDecimals(2)
-        self.probe_radius_spin.setSuffix(" Å")
-        self.probe_radius_spin.setToolTip("Probe radius for SASA calculation (1.4Å = water)")
-        self.probe_radius_spin.valueChanged.connect(self.on_parameter_changed)
-        params_layout.addRow("Probe Radius:", self.probe_radius_spin)
-        
-        # Number of sphere points
-        self.n_points_spin = QSpinBox()
-        self.n_points_spin.setRange(10, 1000)
-        self.n_points_spin.setSingleStep(10)
-        self.n_points_spin.setToolTip("Number of points on sphere surface (more = accurate but slower)")
-        self.n_points_spin.valueChanged.connect(self.on_parameter_changed)
-        params_layout.addRow("Sphere Points:", self.n_points_spin)
-        
-        # RSA threshold
-        self.rsa_threshold_spin = QDoubleSpinBox()
-        self.rsa_threshold_spin.setRange(0.0, 100.0)
-        self.rsa_threshold_spin.setSingleStep(1.0)
-        self.rsa_threshold_spin.setDecimals(1)
-        self.rsa_threshold_spin.setSuffix("%")
-        self.rsa_threshold_spin.setToolTip("RSA threshold for surface/buried classification")
-        self.rsa_threshold_spin.valueChanged.connect(self.on_parameter_changed)
-        params_layout.addRow("RSA Threshold:", self.rsa_threshold_spin)
-        
-        # Include hydrogens
-        self.include_h_checkbox = QCheckBox("Include hydrogen atoms")
-        self.include_h_checkbox.setToolTip("Include hydrogen atoms in calculation (if present)")
-        self.include_h_checkbox.stateChanged.connect(self.on_parameter_changed)
-        params_layout.addRow("", self.include_h_checkbox)
-        
-        layout.addWidget(params_group)
-        
-        # Performance estimate
-        self.perf_label = QLabel()
-        self.perf_label.setStyleSheet("color: #666; font-style: italic; margin: 10px;")
-        self.perf_label.setWordWrap(True)
-        layout.addWidget(self.perf_label)
-        
-        # Buttons
-        button_layout = QHBoxLayout()
-        
-        reset_btn = QPushButton("Reset to Defaults")
-        reset_btn.clicked.connect(self.reset_to_defaults)
-        button_layout.addWidget(reset_btn)
-        
-        button_layout.addStretch()
-        
-        cancel_btn = QPushButton("Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-        
-        ok_btn = QPushButton("OK")
-        ok_btn.setDefault(True)
-        ok_btn.clicked.connect(self.accept)
-        button_layout.addWidget(ok_btn)
-        
-        layout.addLayout(button_layout)
-        
-        # Update performance estimate
-        self.update_performance_estimate()
-    
-    def load_config(self):
-        """Load configuration into UI elements."""
-        self.probe_radius_spin.setValue(self.config['probe_radius'])
-        self.n_points_spin.setValue(self.config['n_points'])
-        self.rsa_threshold_spin.setValue(self.config['rsa_threshold'])
-        self.include_h_checkbox.setChecked(self.config['include_hydrogens'])
-        
-        # Set preset
-        preset_map = {
-            'fast': 'Fast',
-            'balanced': 'Balanced', 
-            'accurate': 'Accurate',
-            'research': 'Research',
-            'custom': 'Custom'
-        }
-        preset_name = preset_map.get(self.config['preset'], 'Custom')
-        index = self.preset_combo.findText(preset_name)
-        if index >= 0:
-            self.preset_combo.setCurrentIndex(index)
-    
-    def on_preset_changed(self, preset_name):
-        """Handle preset selection change."""
-        presets = {
-            'Fast': {'probe_radius': 1.4, 'n_points': 10, 'rsa_threshold': 20.0, 'include_hydrogens': False},
-            'Balanced': {'probe_radius': 1.4, 'n_points': 30, 'rsa_threshold': 20.0, 'include_hydrogens': False},
-            'Accurate': {'probe_radius': 1.4, 'n_points': 60, 'rsa_threshold': 20.0, 'include_hydrogens': False},
-            'Research': {'probe_radius': 1.4, 'n_points': 100, 'rsa_threshold': 20.0, 'include_hydrogens': False}
-        }
-        
-        if preset_name in presets:
-            preset = presets[preset_name]
-            self.probe_radius_spin.setValue(preset['probe_radius'])
-            self.n_points_spin.setValue(preset['n_points'])
-            self.rsa_threshold_spin.setValue(preset['rsa_threshold'])
-            self.include_h_checkbox.setChecked(preset['include_hydrogens'])
-            self.update_performance_estimate()
-    
-    def on_parameter_changed(self):
-        """Handle parameter change - switch to custom preset."""
-        if self.preset_combo.currentText() != 'Custom':
-            self.preset_combo.setCurrentText('Custom')
-        self.update_performance_estimate()
-    
-    def update_performance_estimate(self):
-        """Update performance estimate based on current settings."""
-        n_points = self.n_points_spin.value()
-        
-        # Rough performance estimates
-        if n_points <= 15:
-            speed = "Very Fast"
-            time_est = "~1-2 seconds"
-            accuracy = "Good"
-        elif n_points <= 35:
-            speed = "Fast"
-            time_est = "~3-5 seconds"
-            accuracy = "Very Good"
-        elif n_points <= 70:
-            speed = "Medium"
-            time_est = "~8-15 seconds"
-            accuracy = "High"
-        else:
-            speed = "Slow"
-            time_est = "~20-60 seconds"
-            accuracy = "Very High"
-        
-        self.perf_label.setText(
-            f"<b>Performance Estimate:</b><br>"
-            f"Speed: {speed} ({time_est} for typical protein)<br>"
-            f"Accuracy: {accuracy} correlation with professional tools"
-        )
-    
-    def reset_to_defaults(self):
-        """Reset to default balanced configuration."""
-        self.preset_combo.setCurrentText('Balanced')
-        self.on_preset_changed('Balanced')
-    
-    def get_config(self):
-        """Get current configuration."""
-        preset_map = {
-            'Fast': 'fast',
-            'Balanced': 'balanced',
-            'Accurate': 'accurate', 
-            'Research': 'research',
-            'Custom': 'custom'
-        }
-        
-        return {
-            'probe_radius': self.probe_radius_spin.value(),
-            'n_points': self.n_points_spin.value(),
-            'rsa_threshold': self.rsa_threshold_spin.value(),
-            'include_hydrogens': self.include_h_checkbox.isChecked(),
-            'preset': preset_map.get(self.preset_combo.currentText(), 'custom')
-        }
+
+
+
+
+
+
 
 
 class StructuralAnalysisTab(QWidget):
@@ -1685,9 +559,7 @@ class StructuralAnalysisTab(QWidget):
         
 
         
-        # Surface Properties analysis removed - will be added in a future release
-        
-        # Binding Sites analysis moved to dedicated tab - removed from here
+
         
         options_layout.addStretch()
         control_layout.addLayout(options_layout)
@@ -2011,53 +883,7 @@ class StructuralAnalysisTab(QWidget):
             else:
                 self.parent_app.statusBar().showMessage(f"Basic metadata only for {structure_id}")
     
-    def load_current_structure_old(self):
-        """This method was incorrectly named - it should be removed."""
-        # This is a duplicate of analyze_structure - removing it
-        pass
-        analysis_types = []
-        if self.basic_checkbox.isChecked():
-            analysis_types.append('basic')
-        if self.secondary_checkbox.isChecked():
-            analysis_types.append('secondary')
-        if self.geometry_checkbox.isChecked():
-            analysis_types.append('geometry')
-        
-        if not analysis_types:
-            QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
-            return
-        
-        # Clear previous results
-        for i in reversed(range(self.results_layout.count())):
-            item = self.results_layout.itemAt(i)
-            if item is not None:
-                widget = item.widget()
-                if widget is not None:
-                    widget.setParent(None)
-                else:
-                    self.results_layout.removeItem(item)
-        
-        # Show progress bar
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # Indeterminate progress
-        
-        # Update comprehensive data from parent app before analysis
-        self.update_comprehensive_data()
-        
-        # Start analysis worker with comprehensive metadata if available
-        comprehensive_data = getattr(self, 'current_comprehensive_data', None)
-        self.analysis_worker = StructuralAnalysisWorker(
-            self.current_structure_path, 
-            analysis_types, 
-            comprehensive_data=comprehensive_data
-        )
-        self.analysis_worker.analysis_complete.connect(self.on_analysis_complete)
-        self.analysis_worker.error_occurred.connect(self.on_analysis_error)
-        self.analysis_worker.progress_update.connect(self.on_progress_update)
-        self.analysis_worker.start()
-        
-        if hasattr(self.parent_app, 'statusBar'):
-            self.parent_app.statusBar().showMessage("Running structural analysis...")
+
     
     def on_analysis_complete(self, results):
         """Handle completion of structural analysis."""
@@ -2107,7 +933,7 @@ class StructuralAnalysisTab(QWidget):
         if self.geometry_checkbox.isChecked():
             analysis_types.append('geometry')
 
-        # Surface analysis removed - will be added in a future release
+
         
         if not analysis_types:
             QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
@@ -2128,38 +954,13 @@ class StructuralAnalysisTab(QWidget):
             comprehensive_data=comprehensive_data
         )
         
-        # Surface analysis configuration removed - will be added in a future release
+
         self.analysis_worker.analysis_complete.connect(self.display_results)
         self.analysis_worker.error_occurred.connect(self.handle_analysis_error)
         self.analysis_worker.progress_update.connect(self.update_progress)
         self.analysis_worker.start()
     
-    def on_surface_checkbox_changed(self, state):
-        """Enable/disable SASA configuration button based on checkbox state."""
-        self.sasa_config_btn.setEnabled(state == Qt.Checked)
-    
-    def get_default_sasa_config(self):
-        """Get default SASA configuration."""
-        return {
-            'probe_radius': 1.4,      # Standard water probe radius (Å)
-            'n_points': 30,           # Number of sphere points (speed vs accuracy)
-            'rsa_threshold': 20.0,    # RSA threshold for surface/buried classification (%)
-            'include_hydrogens': False, # Whether to include hydrogen atoms
-            'preset': 'balanced'      # Preset name
-        }
-    
-    def show_sasa_config(self):
-        """Show SASA configuration dialog."""
-        dialog = SASAConfigDialog(self, getattr(self, 'sasa_config', self.get_default_sasa_config()))
-        if dialog.exec_() == QDialog.Accepted:
-            self.sasa_config = dialog.get_config()
-            # Update button tooltip to show current settings
-            config = self.sasa_config
-            tooltip = (f"SASA Settings: {config['preset']} preset\n"
-                      f"Probe radius: {config['probe_radius']} Å\n"
-                      f"Sphere points: {config['n_points']}\n"
-                      f"RSA threshold: {config['rsa_threshold']}%")
-            self.sasa_config_btn.setToolTip(tooltip)
+
     
     def update_progress(self, message):
         """Update progress message."""
@@ -3332,9 +2133,7 @@ class StructuralAnalysisTab(QWidget):
         
 
         
-        # Surface results display removed - will be added in a future release
-        
-        # Cavity analysis moved to dedicated tab - removed from here
+
         
         self.results_layout.addStretch()
         
@@ -4040,7 +2839,7 @@ class StructuralAnalysisTab(QWidget):
 
             
             # Surface Properties
-            # Surface Properties export removed - will be added in a future release
+
             if False:  # Surface export disabled
                 surface = self.current_results['surface']
                 writer.writerow(['=== SURFACE PROPERTIES ==='])
@@ -4144,7 +2943,7 @@ class StructuralAnalysisTab(QWidget):
 
                 
                 # Surface Properties
-                # Surface Properties export removed - will be added in a future release
+
                 if False:  # Surface export disabled
                     surface = self.current_results['surface']
                     
@@ -4261,7 +3060,7 @@ class StructuralAnalysisTab(QWidget):
 
             
             # Surface Properties
-            # Surface Properties export removed - will be added in a future release
+    
             if False:  # Surface export disabled
                 surface = self.current_results['surface']
                 f.write("SURFACE PROPERTIES\n")
@@ -5325,7 +4124,7 @@ class ExportDialog(QDialog):
             'include_secondary': self.include_secondary.isChecked(),
             'include_geometry': self.include_geometry.isChecked(),
 
-            # Surface Properties export removed
+
             'include_ramachandran': self.include_ramachandran.isChecked(),
             'include_residue_details': self.include_residue_details.isChecked()
         }
