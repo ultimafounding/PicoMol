@@ -45,6 +45,22 @@ class AboutDialog(QDialog):
         content = QWidget()
         layout = QVBoxLayout(content)
         
+        # Add logo at the top
+        try:
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            logo_path = os.path.join(project_root, "PicoMol.png")
+            if os.path.exists(logo_path):
+                logo_label = QLabel()
+                pixmap = QPixmap(logo_path)
+                if not pixmap.isNull():
+                    # Scale the logo to a reasonable size for the dialog
+                    scaled_pixmap = pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    logo_label.setPixmap(scaled_pixmap)
+                    logo_label.setAlignment(Qt.AlignCenter)
+                    layout.addWidget(logo_label)
+        except Exception as e:
+            print(f"Error adding logo to About dialog: {e}")
+        
         about_text = QLabel(
             """
             <style>
@@ -191,7 +207,7 @@ class AboutDialog(QDialog):
 from PyQt5.QtCore import QSettings
 from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
 from PyQt5.QtCore import QUrl, Qt
-from PyQt5.QtGui import QFont
+from PyQt5.QtGui import QFont, QPixmap, QIcon
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
@@ -242,6 +258,9 @@ class ProteinViewerApp(QMainWindow):
         self._is_restoring_state = False
         self.setWindowTitle("PicoMol - Molecular Visualization Suite")
         self.setAcceptDrops(True)
+        
+        # Set application icon
+        self.set_application_icon()
         
         # Set responsive window size based on screen dimensions
         self.setup_responsive_window()
@@ -359,6 +378,30 @@ class ProteinViewerApp(QMainWindow):
         
         # Set minimum size to ensure usability
         self.setMinimumSize(min_width, min_height)
+    
+    def set_application_icon(self):
+        """Set the application icon from the logo file."""
+        try:
+            # Get the path to the logo file
+            project_root = os.path.dirname(os.path.abspath(__file__))
+            logo_path = os.path.join(project_root, "PicoMol.png")
+            
+            if os.path.exists(logo_path):
+                # Load the logo and set as window icon
+                pixmap = QPixmap(logo_path)
+                if not pixmap.isNull():
+                    icon = QIcon(pixmap)
+                    self.setWindowIcon(icon)
+                    
+                    # Also set as application icon
+                    QApplication.instance().setWindowIcon(icon)
+                    print(f"Successfully set application icon from {logo_path}")
+                else:
+                    print(f"Failed to load logo from {logo_path}")
+            else:
+                print(f"Logo file not found at {logo_path}")
+        except Exception as e:
+            print(f"Error setting application icon: {e}")
 
     def show_error_dialog(self, title, summary, suggestion=None, details=None):
         dlg = QDialog(self)

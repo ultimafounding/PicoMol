@@ -38,6 +38,24 @@ class WelcomeDialog(QDialog):
         header_layout = QVBoxLayout(header_widget)
         header_layout.setAlignment(Qt.AlignCenter)
         
+        # Add logo
+        try:
+            import os
+            project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            logo_path = os.path.join(project_root, "PicoMol.png")
+            if os.path.exists(logo_path):
+                from PyQt5.QtGui import QPixmap
+                logo_label = QLabel()
+                pixmap = QPixmap(logo_path)
+                if not pixmap.isNull():
+                    # Scale the logo to a reasonable size for the welcome dialog
+                    scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    logo_label.setPixmap(scaled_pixmap)
+                    logo_label.setAlignment(Qt.AlignCenter)
+                    header_layout.addWidget(logo_label)
+        except Exception as e:
+            print(f"Error adding logo to Welcome dialog: {e}")
+        
         # Title
         title_label = QLabel("🧬 PicoMol")
         title_label.setAlignment(Qt.AlignCenter)

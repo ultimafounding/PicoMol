@@ -1,9 +1,17 @@
-# PicoMol: The Miniature Molecular Visualization and Bioinformatics Suite
+<div align="center">
+  <img src="PicoMol.png" alt="PicoMol Logo" width="200" height="200">
+  
+  # PicoMol: The Miniature Molecular Visualization and Bioinformatics Suite
+</div>
 
+<div align="center">
+  
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
 [![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/ultimafounding/PicoMol/releases)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+
+</div>
 
 PicoMol is a comprehensive desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
 
