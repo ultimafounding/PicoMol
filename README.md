@@ -44,8 +44,6 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
   - Bond angle and distance calculations
   - Secondary structure analysis
   - Ramachandran plot generation
-  - Contact map visualization
-  - Advanced structural metrics
   - **Enhanced Export System:** Complete data export in HTML, JSON, CSV, Excel, and Text formats with high-resolution graphs
 
 ### 🧪 BLAST Integration
@@ -135,7 +133,7 @@ pip install numpy matplotlib pandas openpyxl weasyprint
 2. **Choose Analysis Type:** Select from the available sub-tabs:
    - **Sequence Analysis:** Comprehensive sequence analysis tools
    - **Protein Motifs and Domains:** Motif and domain analysis tools
-   - **Structure:** Structural analysis tools (coming soon)
+   - **Structure:** Structural analysis tools
 
 #### Sequence Analysis
 1. **Input Methods:**
@@ -211,7 +209,7 @@ PicoMol combines several powerful technologies:
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
 - **Biopython:** Comprehensive bioinformatics tools for sequence and structure analysis
-- **NCBI BLAST+:** Online BLAST searches and sequence analysis
+- **NCBI BLAST:** Online BLAST searches and sequence analysis
 
 **Enhanced Features (Optional Dependencies):**
 - **NumPy:** Scientific computing for structural calculations
