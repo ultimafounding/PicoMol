@@ -1,0 +1,63 @@
+# =============================================================================
+# PicoMol Dependencies
+# =============================================================================
+
+# Core Dependencies (Required)
+# -----------------------------------------------------------------------------
+# These packages are essential for PicoMol to function
+
+# GUI Framework and Web Engine
+PyQt5>=5.15.0
+PyQtWebEngine>=5.15.0
+
+# Bioinformatics and molecular data handling
+biopython>=1.79
+ramachandraw>=1.0.1               # For Ramachandran plot generation
+
+# HTTP requests for downloading NGL.js, BLAST functionality, and API calls
+requests>=2.25.0
+
+
+
+# Optional Dependencies (Enhanced Functionality)
+# -----------------------------------------------------------------------------
+# These packages provide additional features but are not strictly required
+
+# Scientific computing and data analysis
+numpy>=1.19.0                    # For structural analysis calculations
+matplotlib>=3.3.0                # For plotting and visualization in structural analysis
+pandas>=1.2.0                    # For advanced data export (CSV, Excel)
+
+# Export functionality
+openpyxl>=3.0.0                  # For Excel file export (.xlsx)
+weasyprint>=54.0                 # For PDF export functionality
+
+# Development Dependencies (Optional)
+# -----------------------------------------------------------------------------
+# Uncomment these if you're developing or contributing to PicoMol
+
+# pytest>=6.0.0                  # For running tests
+# black>=21.0.0                  # For code formatting
+# flake8>=3.8.0                  # For code linting
+
+# =============================================================================
+# Installation Notes
+# =============================================================================
+#
+# Core Installation (minimum functionality):
+#   pip install PyQt5 PyQtWebEngine biopython requests
+#
+# Full Installation (all features):
+#   pip install -r requirements.txt
+#
+# Note: The following are included with Python standard library:
+# - functools, os, sys, threading, socketserver, http.server
+# - time, shutil, subprocess, warnings, webbrowser
+# - json, xml.etree.ElementTree, urllib.parse, urllib.request, urllib.error
+# - re, typing, collections, math, base64, io, tempfile, csv
+# - datetime, traceback, urllib.parse
+#
+# Platform-specific notes:
+# - On some Linux distributions, you may need to install additional Qt dependencies
+# - On macOS, ensure you have the latest Xcode command line tools
+# - On Windows, all dependencies should install without additional requirements

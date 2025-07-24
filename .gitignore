@@ -1,9 +1,47 @@
 # Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 
-# NGL.js assets (downloaded)
-ngl_assets/ngl.min.js
+# Project specific
+assets/ngl_assets/ngl.min.js
+data/pulled_structures/
 
-# Pulled structures and generated HTML
-pulled_structures/
+
+# Local development
+*.log
+*.sqlite
+local_settings.py
+
+# Virtual Environment
+venv/
+.env
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.qodo.yaml
+data/test_fixes/metadata/1CRN_metadata.json
+data/test_fixes/metadata/1CRN_summary.json
+data/test_fixes/structures/1CRN.pdb
+data/test_metadata_fix/metadata/1BNA_metadata.json
+data/test_metadata_fix/metadata/1BNA_summary.json
+data/test_metadata_fix/metadata/1CRN_metadata.json
+data/test_metadata_fix/metadata/1CRN_summary.json
+data/test_metadata_fix/metadata/4HHB_metadata.json
+data/test_metadata_fix/metadata/4HHB_summary.json
+data/test_metadata_fix/structures/1BNA.pdb
+data/test_metadata_fix/structures/1CRN.pdb
+data/test_metadata_fix/structures/4HHB.pdb
+data/test_pulled_structures/metadata/1CRN_metadata.json
+data/test_pulled_structures/metadata/1CRN_summary.json
+data/test_pulled_structures/structures/1CRN.pdb
