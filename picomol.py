@@ -59,7 +59,7 @@ class AboutDialog(QDialog):
             </style>
             
             <h2>🧬 PicoMol</h2>
-            <p><b>Version:</b> 0.0.4 (2025-07-20)</p>
+            <p><b>Version:</b> 0.1.0 (2025-01-20)</p>
             <p>A comprehensive molecular visualization and bioinformatics suite for protein structures, sequence analysis, and functional annotation.</p>
             
             <h3>🔬 Core Features</h3>
@@ -69,7 +69,7 @@ class AboutDialog(QDialog):
               <li><b>Motif & Domain Analysis:</b> InterPro and PROSITE integration for comprehensive functional annotation</li>
               <li><b>PDB Support:</b> Fetch from PDB database or load local files</li>
               <li><b>Sequence Analysis:</b> View and analyze protein/nucleotide sequences</li>
-              <li><b>Export Tools:</b> Save screenshots, structure files, and analysis reports</li>
+              <li><b>Comprehensive Data Export:</b> Export analysis results in multiple formats (HTML, JSON, CSV, Excel, Text)</li>
             </ul>
             
             <h3>🛠️ Technology Stack</h3>
@@ -90,110 +90,83 @@ class AboutDialog(QDialog):
             
             <p><b>NGL.js:</b></p>
             <div class="citation">
-            AS Rose, AR Bradley, Y Valasatava, JM Duarte, A Prlić and PW Rose. 
-            NGL viewer: web-based molecular graphics for large complexes. 
-            <i>Bioinformatics</i> 34(21): 3755-3758, 2018. 
+            Rose, A. S., Bradley, A. R., Valasatava, Y., Duarte, J. M., Prlić, A., & Rose, P. W. (2018). NGL viewer: web-based molecular graphics for large complexes. 
+            <i>Bioinformatics</i>, 34(21), 3755-3758. 
             <a href='https://doi.org/10.1093/bioinformatics/bty419'>doi:10.1093/bioinformatics/bty419</a>
             </div>
             
             <div class="citation">
-            AS Rose and PW Hildebrand. NGL Viewer: a web application for molecular visualization. 
-            <i>Nucleic Acids Research</i> 43(W1): W576-W579, 2015. 
+            Rose, A. S., & Hildebrand, P. W. (2015). NGL Viewer: a web application for molecular visualization. 
+            <i>Nucleic Acids Research</i>, 43(W1), W576-W579. 
             <a href='https://doi.org/10.1093/nar/gkv402'>doi:10.1093/nar/gkv402</a>
             </div>
             
             <p><b>BLAST:</b></p>
             <div class="citation">
-            Altschul SF, Gish W, Miller W, Myers EW, Lipman DJ. 
-            Basic local alignment search tool. 
-            <i>Journal of Molecular Biology</i> 215(3): 403-410, 1990.
+            Altschul, S. F., Gish, W., Miller, W., Myers, E. W., & Lipman, D. J. (1990). Basic local alignment search tool. 
+            <i>Journal of Molecular Biology</i>, 215(3), 403-410. 
             <a href='https://doi.org/10.1016/S0022-2836(05)80360-2'>doi:10.1016/S0022-2836(05)80360-2</a>
             </div>
             
             <div class="citation">
-            Altschul SF, Madden TL, Schäffer AA, Zhang J, Zhang Z, Miller W, Lipman DJ. 
-            Gapped BLAST and PSI-BLAST: a new generation of protein database search programs. 
-            <i>Nucleic Acids Research</i> 25(17): 3389-3402, 1997.
+            Altschul, S. F., Madden, T. L., Schäffer, A. A., Zhang, J., Zhang, Z., Miller, W., & Lipman, D. J. (1997). Gapped BLAST and PSI-BLAST: a new generation of protein database search programs. 
+            <i>Nucleic Acids Research</i>, 25(17), 3389-3402. 
             <a href='https://doi.org/10.1093/nar/25.17.3389'>doi:10.1093/nar/25.17.3389</a>
             </div>
             
             <p><b>InterPro:</b></p>
             <div class="citation">
-            Apweiler R, Attwood TK, Bairoch A, Bateman A, Birney E, Biswas M, Bucher P, Cerutti L, Corpet F, Croning MD, et al. 
-            The InterPro database, an integrated documentation resource for protein families, domains and functional sites. 
-            <i>Nucleic Acids Research</i> 29(1): 37-40, 2001.
+            Apweiler, R., Attwood, T. K., Bairoch, A., Bateman, A., Birney, E., Biswas, M., ... & Mulder, N. J. (2001). The InterPro database, an integrated documentation resource for protein families, domains and functional sites. 
+            <i>Nucleic Acids Research</i>, 29(1), 37-40. 
             <a href='https://doi.org/10.1093/nar/29.1.37'>doi:10.1093/nar/29.1.37</a>
             </div>
             
             <div class="citation">
-            Paysan-Lafosse T, Blum M, Chuguransky S, Grego T, Pinto BL, Salazar GA, Bileschi ML, Bork P, Bridge A, Colwell L, et al. 
-            InterPro in 2022. 
-            <i>Nucleic Acids Research</i> 51(D1): D418-D427, 2023.
+            Paysan-Lafosse, T., Blum, M., Chuguransky, S., Grego, T., Pinto, B. L., Salazar, G. A., ... & Bridge, A. (2023). InterPro in 2022. 
+            <i>Nucleic Acids Research</i>, 51(D1), D418-D427. 
             <a href='https://doi.org/10.1093/nar/gkac993'>doi:10.1093/nar/gkac993</a>
             </div>
             
             <p><b>Pfam:</b></p>
             <div class="citation">
-            Bateman A, Birney E, Durbin R, Eddy SR, Howe KL, Sonnhammer EL. 
-            The Pfam protein families database. 
-            <i>Nucleic Acids Research</i> 28(1): 263-266, 2000.
+            Bateman, A., Birney, E., Durbin, R., Eddy, S. R., Howe, K. L., & Sonnhammer, E. L. (2000). The Pfam protein families database. 
+            <i>Nucleic Acids Research</i>, 28(1), 263-266. 
             <a href='https://doi.org/10.1093/nar/28.1.263'>doi:10.1093/nar/28.1.263</a>
             </div>
             
             <div class="citation">
-            Mistry J, Chuguransky S, Williams L, Qureshi M, Salazar GA, Sonnhammer ELL, Tosatto SCE, Paladin L, Raj S, Richardson LJ, et al. 
-            Pfam: The protein families database in 2021. 
-            <i>Nucleic Acids Research</i> 49(D1): D412-D419, 2021.
+            Mistry, J., Chuguransky, S., Williams, L., Qureshi, M., Salazar, G. A., Sonnhammer, E. L., ... & Bateman, A. (2021). Pfam: The protein families database in 2021. 
+            <i>Nucleic Acids Research</i>, 49(D1), D412-D419. 
             <a href='https://doi.org/10.1093/nar/gkaa913'>doi:10.1093/nar/gkaa913</a>
             </div>
             
             <p><b>PROSITE:</b></p>
             <div class="citation">
-            Bairoch A. 
-            PROSITE: a dictionary of sites and patterns in proteins. 
-            <i>Nucleic Acids Research</i> 19(Suppl): 2241-2245, 1991.
+            Bairoch, A. (1991). PROSITE: a dictionary of sites and patterns in proteins. 
+            <i>Nucleic Acids Research</i>, 19(suppl), 2241-2245. 
             <a href='https://doi.org/10.1093/nar/19.suppl.2241'>doi:10.1093/nar/19.suppl.2241</a>
             </div>
             
             <div class="citation">
-            Bairoch A, Bucher P, Hofmann K. 
-            The PROSITE database, its status in 1997. 
-            <i>Nucleic Acids Research</i> 25(1): 217-221, 1997.
-            <a href='https://doi.org/10.1093/nar/25.1.217'>doi:10.1093/nar/25.1.217</a>
-            </div>
-            
-            <div class="citation">
-            Sigrist CJA, de Castro E, Cerutti L, Cuche BA, Hulo N, Bridge A, Bougueleret L, Xenarios I. 
-            New and continuing developments at PROSITE. 
-            <i>Nucleic Acids Research</i> 41(D1): D344-D347, 2013.
+            Sigrist, C. J., de Castro, E., Cerutti, L., Cuche, B. A., Hulo, N., Bridge, A., ... & Xenarios, I. (2013). New and continuing developments at PROSITE. 
+            <i>Nucleic Acids Research</i>, 41(D1), D344-D347. 
             <a href='https://doi.org/10.1093/nar/gks1067'>doi:10.1093/nar/gks1067</a>
             </div>
             
             <p><b>PDB Format:</b></p>
             <div class="citation">
-            Berman HM, Westbrook J, Feng Z, Gilliland G, Bhat TN, Weissig H, 
-            Shindyalov IN, Bourne PE. 
-            The Protein Data Bank. 
-            <i>Nucleic Acids Research</i> 28(1): 235-242, 2000.
+            Berman, H. M., Westbrook, J., Feng, Z., Gilliland, G., Bhat, T. N., Weissig, H., ... & Bourne, P. E. (2000). The Protein Data Bank. 
+            <i>Nucleic Acids Research</i>, 28(1), 235-242. 
             <a href='https://doi.org/10.1093/nar/28.1.235'>doi:10.1093/nar/28.1.235</a>
             </div>
             
-            <p><b>MolProbity Ramachandran Validation:</b></p>
+            <p><b>ramachandraw:</b></p>
             <div class="citation">
-            Davis IW, Leaver-Fay A, Chen VB, Block JN, Kapral GJ, Wang X, 
-            Murray LW, Arendall WB, Snoeyink J, Richardson JS, Richardson DC. 
-            MolProbity: all-atom contacts and structure validation for proteins and nucleic acids. 
-            <i>Nucleic Acids Research</i> 35(Web Server issue): W375-W383, 2007.
-            <a href='https://doi.org/10.1093/nar/gkm216'>doi:10.1093/nar/gkm216</a>
+            Alexandre Cirilo. (2024). ramachandraw: A Ramachandran plotting tool (v1.0.1). Zenodo. 
+            <a href='https://doi.org/10.5281/zenodo.10585423'>doi:10.5281/zenodo.10585423</a>
             </div>
             
-            <div class="citation">
-            Chen VB, Arendall WB, Headd JJ, Keedy DA, Immormino RM, 
-            Kapral GJ, Murray LW, Richardson JS, Richardson DC. 
-            MolProbity: all-atom structure validation for macromolecular crystallography. 
-            <i>Acta Crystallographica Section D</i> 66(1): 12-21, 2010.
-            <a href='https://doi.org/10.1107/S0907444909042073'>doi:10.1107/S0907444909042073</a>
-            </div>
+            
             """
         )
         about_text.setWordWrap(True)

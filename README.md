@@ -2,9 +2,22 @@
 
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/ultimafounding/PicoMol/releases)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 PicoMol is a comprehensive desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
+
+> 🎆 **Version 0.1.0 represents our first production-ready release**, featuring stable core functionality, comprehensive testing, and robust error handling. This milestone marks PicoMol's readiness for research and educational use.
+
+## 🆕 Latest Release (v0.1.0 - January 2025)
+
+**Major Milestone Release - Production Ready:**
+- **Stable Core Features:** Comprehensive molecular visualization, BLAST integration, and bioinformatics tools
+- **Enhanced Data Export:** Complete analysis results in HTML, JSON, CSV, Excel, and Text formats
+- **Professional HTML Reports:** High-resolution graphs with improved layouts and styling
+- **Robust API Integration:** InterPro and PROSITE integration with intelligent fallback systems
+- **Performance Optimizations:** Improved handling of large structures and complex analyses
+- **Production Quality:** Extensive testing, error handling, and user experience improvements
 
 ## Features
 
@@ -26,13 +39,14 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
   - PROSITE pattern matching with official API
   - Interactive visualization of domains and motifs
   - Sequence context display with highlighting
-  - Export capabilities (CSV, Excel, HTML, PDF)
+  - Advanced filtering options for high-probability motifs
 - **Structural Analysis**:
   - Bond angle and distance calculations
   - Secondary structure analysis
   - Ramachandran plot generation
   - Contact map visualization
   - Advanced structural metrics
+  - **Enhanced Export System:** Complete data export in HTML, JSON, CSV, Excel, and Text formats with high-resolution graphs
 
 ### 🧪 BLAST Integration
 - **All BLAST Variants**: BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX
@@ -45,13 +59,18 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Performance Optimized**: Handles large structures efficiently
 - **Drag & Drop**: Easy file loading with drag-and-drop support
+- **Comprehensive Reporting**: Professional HTML reports with embedded visualizations
+- **Multi-Format Export**: Choose from HTML, JSON, CSV, Excel, or Text export formats
 
 ## 🚀 Installation
 
 ### Prerequisites
-- Python 3.7 or higher (Python 3.8+ recommended)
-- Internet connection (for downloading NGL.js and online BLAST functionality)
+- Python 3.7 or higher (Python 3.8+ recommended for best performance)
+- Internet connection (for downloading NGL.js, online BLAST functionality, and API integrations)
 - At least 100MB of free disk space
+- Optional: Additional packages for enhanced export capabilities (see requirements.txt)
+
+> ℹ️ **Production Ready:** Version 0.1.0 is stable and suitable for research and educational use.
 
 ### Quick Install
 
@@ -77,8 +96,15 @@ The application will automatically download NGL.js on first run if needed.
 
 ### Manual Dependency Installation
 If you prefer to install dependencies manually:
+
+**Core Dependencies (Required):**
 ```bash
-pip install PyQt5 PyQtWebEngine biopython requests
+pip install PyQt5 PyQtWebEngine biopython requests ramachandraw
+```
+
+**Optional Dependencies (Enhanced Features):**
+```bash
+pip install numpy matplotlib pandas openpyxl weasyprint
 ```
 
 ## Usage
@@ -133,7 +159,7 @@ pip install PyQt5 PyQtWebEngine biopython requests
 3. **Advanced Features:**
    - **Filtering:** Exclude high-probability motifs for cleaner results
    - **Visualization:** Interactive domain and motif visualization
-   - **Export:** Save results and generate detailed HTML reports
+   - **Enhanced Export:** Professional HTML reports with embedded visualizations, plus JSON, CSV, Excel, and Text formats
    - **Context Display:** Click any motif in results to view sequence context with highlighting
    - **Progress Tracking:** Progress bar remains visible until all searches complete
 
@@ -189,10 +215,11 @@ PicoMol combines several powerful technologies:
 
 **Enhanced Features (Optional Dependencies):**
 - **NumPy:** Scientific computing for structural calculations
-- **Matplotlib:** Advanced plotting and visualization capabilities
-- **Pandas:** Data manipulation and export functionality
-- **OpenPyXL:** Excel file format support
+- **Matplotlib:** Advanced plotting and high-resolution graph generation
+- **Pandas:** Data manipulation and multi-format export functionality
+- **OpenPyXL:** Excel file format support (.xlsx)
 - **WeasyPrint:** PDF generation capabilities
+- **ramachandraw:** Ramachandran plot generation and analysis
 
 **Design Principles:**
 - **Modular Architecture:** Clean separation of concerns with organized source structure
@@ -208,6 +235,8 @@ PicoMol combines several powerful technologies:
 - **API Integration:** Direct connection to InterPro and PROSITE web services
 - **Fallback Systems:** Local pattern matching when APIs are unavailable
 - **Intelligent Parsing:** Robust parsing of various API response formats
+- **Enhanced Export System:** Multi-format export with consistent data across all formats
+- **High-Resolution Graphics:** Improved graph rendering for professional reports
 - **Extensible Design:** Easy to add new analysis tools and features
 
 ### BLAST Implementation
@@ -223,8 +252,32 @@ PicoMol combines several powerful technologies:
 - **Sequence Context Display:** Interactive motif context viewer with highlighting
 - **Progress Management:** Smart progress tracking for concurrent searches
 - **Result Caching:** Efficient storage and retrieval of analysis results
-- **Export System:** Multiple output formats including HTML reports
+- **Comprehensive Export System:** HTML, JSON, CSV, Excel, and Text formats with embedded visualizations
+- **Enhanced HTML Reports:** Professional layouts with high-resolution graphs and improved styling
+- **Data Consistency:** All calculated data consistently included across export formats
 - **Error Handling:** Robust error recovery and user feedback
+
+## 🔄 Version History
+
+### Version 0.1.0 (January 2025) - Production Ready 🎆
+**Major Milestone Release:**
+- **Production Quality:** Comprehensive testing, error handling, and stability improvements
+- **Performance Optimizations:** Enhanced handling of large structures and complex analyses
+- **Robust API Integration:** Stable InterPro and PROSITE integration with intelligent fallback systems
+- **Cross-Platform Compatibility:** Improved compatibility across Windows, macOS, and Linux
+- **Comprehensive Documentation:** Updated technical documentation and user guides
+
+### Version 0.0.5 (July 2024) - Enhanced Export & Visualization
+- **Comprehensive Data Export:** All analysis results in multiple formats (HTML, JSON, CSV, Excel, Text)
+- **Enhanced HTML Reports:** Professional layouts with high-resolution graphs
+- **Fixed Graph Rendering:** Resolved overlapping elements in exported visualizations
+- **Data Consistency:** All calculated data consistently included across export formats
+
+### Version 0.0.4 (July 2024) - Motif & Domain Analysis
+- **InterPro Integration:** Official EBI InterPro API for comprehensive domain annotation
+- **PROSITE Integration:** Official ExPASy PROSITE ScanProsite API for motif recognition
+- **Advanced Visualization:** Interactive domain and motif visualization
+- **Enhanced UI:** Updated welcome dialog, tooltips, and interface improvements
 
 ## Contributing
 
@@ -314,6 +367,17 @@ Shindyalov IN, Bourne PE.
 The Protein Data Bank.
 Nucleic Acids Research 28(1): 235-242, 2000.
 doi:10.1093/nar/28.1.235
+```
+
+### ramachandraw
+```
+@software{Cirilo_ramachandraw,
+  author = {Cirilo, Alexandre},
+  title = {{ramachandraw: A Ramachandran plotting tool}},
+  url = {https://github.com/alxdrcirilo/ramachandraw},
+  version = {1.0.1},
+  year = {2024}
+}
 ```
 
 ## 📄 License

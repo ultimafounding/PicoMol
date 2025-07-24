@@ -868,6 +868,7 @@ class StructuralAnalysisTab(QWidget):
             return
         
         try:
+            # Progress bar removed - no loading indicator shown
             if hasattr(self.parent_app, 'statusBar'):
                 self.parent_app.statusBar().showMessage(f"🔄 Fetching comprehensive metadata for PDB ID {pdb_id}...")
             
@@ -937,21 +938,31 @@ class StructuralAnalysisTab(QWidget):
         )
         
         if file_path:
-            self.current_structure_path = file_path
-            filename = os.path.basename(file_path)
-            self.structure_label.setText(f"File: {filename}")
-            self.structure_label.setStyleSheet("color: #000; font-weight: bold;")
-            
-            # Try to extract PDB ID from filename and fetch comprehensive metadata
-            pdb_id = self._extract_pdb_id_from_filename(filename)
-            if pdb_id:
-                self._fetch_comprehensive_metadata_for_structure(pdb_id)
-            else:
-                # No PDB ID found, clear comprehensive data
-                self.current_comprehensive_data = None
-            
+            # Progress bar removed - no loading indicator shown
             if hasattr(self.parent_app, 'statusBar'):
-                self.parent_app.statusBar().showMessage(f"Loaded {filename} for analysis")
+                self.parent_app.statusBar().showMessage(f"Loading PDB file: {os.path.basename(file_path)}...")
+            try:
+                self.current_structure_path = file_path
+                filename = os.path.basename(file_path)
+                self.structure_label.setText(f"File: {filename}")
+                self.structure_label.setStyleSheet("color: #000; font-weight: bold;")
+                
+                # Try to extract PDB ID from filename and fetch comprehensive metadata
+                pdb_id = self._extract_pdb_id_from_filename(filename)
+                if pdb_id:
+                    self._fetch_comprehensive_metadata_for_structure(pdb_id)
+                else:
+                    # No PDB ID found, clear comprehensive data
+                    self.current_comprehensive_data = None
+                
+                if hasattr(self.parent_app, 'statusBar'):
+                    self.parent_app.statusBar().showMessage(f"Loaded {filename} for analysis", 5000)
+            except Exception as e:
+                QMessageBox.critical(self, "Error Loading File", f"Failed to load file:\n{str(e)}")
+                if hasattr(self.parent_app, 'statusBar'):
+                    self.parent_app.statusBar().showMessage("File loading failed.", 5000)
+            finally:
+                pass  # Progress bar removed
     
     def _extract_pdb_id_from_filename(self, filename):
         """Extract PDB ID from filename if possible."""
@@ -1077,7 +1088,7 @@ class StructuralAnalysisTab(QWidget):
     
     def on_analysis_complete(self, results):
         """Handle completion of structural analysis."""
-        self.progress_bar.setVisible(False)
+        # Progress bar removed - no hiding needed
         self.current_results = results
         self.export_btn.setEnabled(True)
         
@@ -1089,7 +1100,7 @@ class StructuralAnalysisTab(QWidget):
     
     def on_analysis_error(self, error_message):
         """Handle analysis error."""
-        self.progress_bar.setVisible(False)
+        # Progress bar removed - no hiding needed
         QMessageBox.critical(self, "Analysis Error", error_message)
         
         if hasattr(self.parent_app, 'statusBar'):
@@ -1129,9 +1140,7 @@ class StructuralAnalysisTab(QWidget):
             QMessageBox.warning(self, "No Analysis Selected", "Please select at least one analysis type.")
             return
         
-        # Show progress
-        self.progress_bar.setVisible(True)
-        self.progress_bar.setRange(0, 0)  # Indeterminate progress
+        # Progress bar removed - no loading indicator shown
         
         # Update comprehensive data from parent app before analysis
         self.update_comprehensive_data()
@@ -1159,7 +1168,7 @@ class StructuralAnalysisTab(QWidget):
     
     def handle_analysis_error(self, error_message):
         """Handle analysis errors."""
-        self.progress_bar.setVisible(False)
+        # Progress bar removed - no hiding needed
         QMessageBox.critical(self, "Analysis Error", error_message)
         if hasattr(self.parent_app, 'statusBar'):
             self.parent_app.statusBar().showMessage("Analysis failed")
@@ -1193,7 +1202,7 @@ class StructuralAnalysisTab(QWidget):
             
             # Use larger figure for amino acid composition
             if "Amino Acid" in title:
-                fig = Figure(figsize=(12, 10), dpi=100)
+                fig = Figure(figsize=(12, 9), dpi=150)
             else:
                 fig = Figure(figsize=(8, 6), dpi=100)
             
@@ -1232,14 +1241,9 @@ class StructuralAnalysisTab(QWidget):
                 def autopct_func(pct):
                     return f'{pct:.1f}%' if pct > 2 else ''
                 
-                wedges, texts, autotexts = ax.pie(values, labels=labels, autopct=autopct_func, 
-                                                  colors=colors, startangle=90, 
-                                                  textprops={'fontsize': 9})
-                
-                # Position labels outside the pie
-                for text in texts:
-                    text.set_fontsize(10)
-                    text.set_fontweight('bold')
+                wedges, texts, autotexts = ax.pie(values, labels=None, autopct=autopct_func, 
+                                                  colors=colors, startangle=140, 
+                                                  textprops={'fontsize': 10, 'weight': 'bold'})
                 
                 # Make percentage text more readable
                 for autotext in autotexts:
@@ -1251,8 +1255,8 @@ class StructuralAnalysisTab(QWidget):
                 legend_labels = [f'{label}: {value} ({value/sum(values)*100:.1f}%)' 
                                for label, value in zip(labels, values)]
                 ax.legend(wedges, legend_labels, title="Amino Acids", 
-                         loc="center left", bbox_to_anchor=(1, 0, 0.5, 1),
-                         fontsize=9)
+                         loc="center left", bbox_to_anchor=(1.1, 0, 0.5, 1),
+                         fontsize=10)
             else:
                 # Standard pie chart for other data
                 wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
@@ -1268,9 +1272,9 @@ class StructuralAnalysisTab(QWidget):
                 for text in texts:
                     text.set_fontsize(10)
             
-            ax.set_title(title, fontsize=14, fontweight='bold')
+            ax.set_title(title, fontsize=16, fontweight='bold', pad=20)
             
-            fig.tight_layout()
+            fig.tight_layout(rect=[0, 0, 0.85, 1])
             
             if "Amino Acid" in title:
                 canvas.setMinimumSize(1200, 900)
@@ -2292,7 +2296,7 @@ class StructuralAnalysisTab(QWidget):
     
     def display_results(self, results):
         """Display analysis results."""
-        self.progress_bar.setVisible(False)
+        # Progress bar removed - no hiding needed
         
         # Store results for export
         self.current_results = results
@@ -2880,6 +2884,11 @@ class StructuralAnalysisTab(QWidget):
         if dialog.exec_() == QDialog.Accepted:
             export_format, file_path, options = dialog.get_export_settings()
 
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setRange(0, 0)  # Indeterminate progress
+            if hasattr(self.parent_app, 'statusBar'):
+                self.parent_app.statusBar().showMessage("Exporting results...", 0) # 0 means stay indefinitely
+
             try:
                 if export_format == "JSON":
                     self.export_to_json(file_path, options)
@@ -2893,12 +2902,15 @@ class StructuralAnalysisTab(QWidget):
                     self.export_complete_html(file_path)
 
                 QMessageBox.information(self, "Export Complete", f"Analysis results exported to:\n{file_path}")
-
                 if hasattr(self.parent_app, 'statusBar'):
-                    self.parent_app.statusBar().showMessage(f"Report exported successfully to {file_path}")
+                    self.parent_app.statusBar().showMessage(f"Report exported successfully to {file_path}", 5000) # Show for 5 seconds
 
             except Exception as e:
                 QMessageBox.critical(self, "Export Error", f"Failed to export report:\n{str(e)}")
+                if hasattr(self.parent_app, 'statusBar'):
+                    self.parent_app.statusBar().showMessage("Export failed.", 5000) # Show for 5 seconds
+            finally:
+                self.progress_bar.setVisible(False)
     
     def export_to_json(self, file_path, options):
         """Export results to JSON format."""
@@ -2923,13 +2935,21 @@ class StructuralAnalysisTab(QWidget):
         if hasattr(self, 'current_comprehensive_data') and self.current_comprehensive_data:
             export_data['comprehensive_metadata'] = self._extract_comprehensive_metadata_for_export()
         
-        # Experimental details removed
-        
         # Add selected analysis types
         for analysis_type in ['basic', 'secondary', 'geometry']:
             if analysis_type in self.current_results and options.get(f'include_{analysis_type}', True):
                 export_data['analysis_results'][analysis_type] = self.current_results[analysis_type]
         
+        # Add detailed Ramachandran data if requested
+        if options.get('include_ramachandran', False) and 'secondary' in self.current_results:
+            export_data['analysis_results']['secondary']['ramachandran_data'] = self.current_results['secondary'].get('ramachandran_data', [])
+
+        # Add detailed geometry data if requested
+        if options.get('include_residue_details', False) and 'geometry' in self.current_results:
+            export_data['analysis_results']['geometry']['detailed_bond_lengths'] = self.current_results['geometry'].get('detailed_bond_lengths', [])
+            export_data['analysis_results']['geometry']['detailed_bond_angles'] = self.current_results['geometry'].get('detailed_bond_angles', [])
+            export_data['analysis_results']['geometry']['detailed_b_factors'] = self.current_results['geometry'].get('detailed_b_factors', [])
+
         # Write JSON file
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(export_data, f, indent=2, default=str)
@@ -3020,6 +3040,30 @@ class StructuralAnalysisTab(QWidget):
                 center = geometry.get('geometric_center', [0, 0, 0])
                 writer.writerow(['Geometric Center (x, y, z)', f"({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})"])
                 writer.writerow([])
+
+                # Detailed Bond Lengths
+                if options.get('include_residue_details', False) and 'detailed_bond_lengths' in geometry:
+                    writer.writerow(['=== DETAILED BOND LENGTHS ==='])
+                    writer.writerow(['Bond Type', 'Length (Å)', 'Residue', 'Chain', 'Position'])
+                    for data in geometry['detailed_bond_lengths']:
+                        writer.writerow([data['bond_type'], f"{data['length']:.3f}", data['residue'], data['chain'], data['position']])
+                    writer.writerow([])
+
+                # Detailed Bond Angles
+                if options.get('include_residue_details', False) and 'detailed_bond_angles' in geometry:
+                    writer.writerow(['=== DETAILED BOND ANGLES ==='])
+                    writer.writerow(['Angle Type', 'Angle (°)', 'Residue', 'Chain', 'Position'])
+                    for data in geometry['detailed_bond_angles']:
+                        writer.writerow([data['angle_type'], f"{data['angle']:.2f}", data['residue'], data['chain'], data['position']])
+                    writer.writerow([])
+
+                # Detailed B-Factors
+                if options.get('include_residue_details', False) and 'detailed_b_factors' in geometry:
+                    writer.writerow(['=== DETAILED B-FACTORS ==='])
+                    writer.writerow(['Atom Name', 'Residue', 'Chain', 'Position', 'B-Factor'])
+                    for data in geometry['detailed_b_factors']:
+                        writer.writerow([data['atom_name'], data['residue'], data['chain'], data['position'], f"{data['b_factor']:.2f}"])
+                    writer.writerow([])
             
 
             
@@ -3124,7 +3168,27 @@ class StructuralAnalysisTab(QWidget):
                             })
                         if rama_data:
                             pd.DataFrame(rama_data).to_excel(writer, sheet_name='Ramachandran', index=False)
-                
+
+                # Geometry
+                if 'geometry' in self.current_results and options.get('include_geometry', True):
+                    geometry = self.current_results['geometry']
+                    geom_data = {
+                        'Property': ['Radius of Gyration (Å)', 'Geometric Center (x, y, z)'],
+                        'Value': [
+                            f"{geometry.get('radius_of_gyration', 0):.2f}",
+                            f"({geometry.get('geometric_center', [0,0,0])[0]:.2f}, {geometry.get('geometric_center', [0,0,0])[1]:.2f}, {geometry.get('geometric_center', [0,0,0])[2]:.2f})"
+                        ]
+                    }
+                    pd.DataFrame(geom_data).to_excel(writer, sheet_name='Geometry', index=False)
+
+                    # Detailed Geometry
+                    if options.get('include_residue_details', False):
+                        if 'detailed_bond_lengths' in geometry and geometry['detailed_bond_lengths']:
+                            pd.DataFrame(geometry['detailed_bond_lengths']).to_excel(writer, sheet_name='Bond Lengths', index=False)
+                        if 'detailed_bond_angles' in geometry and geometry['detailed_bond_angles']:
+                            pd.DataFrame(geometry['detailed_bond_angles']).to_excel(writer, sheet_name='Bond Angles', index=False)
+                        if 'detailed_b_factors' in geometry and geometry['detailed_b_factors']:
+                            pd.DataFrame(geometry['detailed_b_factors']).to_excel(writer, sheet_name='B-Factors', index=False)
 
                 
                 # Surface Properties
@@ -3241,6 +3305,29 @@ class StructuralAnalysisTab(QWidget):
                 center = geometry.get('geometric_center', [0, 0, 0])
                 f.write(f"Geometric Center: ({center[0]:.2f}, {center[1]:.2f}, {center[2]:.2f})\n")
                 f.write("\n")
+
+                # Detailed Geometry
+                if options.get('include_residue_details', False):
+                    if 'detailed_bond_lengths' in geometry and geometry['detailed_bond_lengths']:
+                        f.write("DETAILED BOND LENGTHS\n")
+                        f.write("-" * 40 + "\n")
+                        for data in geometry['detailed_bond_lengths']:
+                            f.write(f"{data['bond_type']}: {data['length']:.3f} Å at {data['residue']} {data['position']} (Chain {data['chain']})\n")
+                        f.write("\n")
+
+                    if 'detailed_bond_angles' in geometry and geometry['detailed_bond_angles']:
+                        f.write("DETAILED BOND ANGLES\n")
+                        f.write("-" * 40 + "\n")
+                        for data in geometry['detailed_bond_angles']:
+                            f.write(f"{data['angle_type']}: {data['angle']:.2f}° at {data['residue']} {data['position']} (Chain {data['chain']})\n")
+                        f.write("\n")
+
+                    if 'detailed_b_factors' in geometry and geometry['detailed_b_factors']:
+                        f.write("DETAILED B-FACTORS\n")
+                        f.write("-" * 40 + "\n")
+                        for data in geometry['detailed_b_factors']:
+                            f.write(f"{data['atom_name']} at {data['residue']} {data['position']} (Chain {data['chain']}): {data['b_factor']:.2f}\n")
+                        f.write("\n")
             
 
             
@@ -3966,7 +4053,10 @@ class StructuralAnalysisTab(QWidget):
             plt.rcParams['font.weight'] = 'bold'
             plt.rcParams['axes.labelweight'] = 'bold'
             
-            fig, ax = plt.subplots(figsize=(12, 9), dpi=300)  # Much larger and higher DPI
+            if chart_type == "pie" and "Amino Acid" in title:
+                fig, ax = plt.subplots(figsize=(18, 12), dpi=400)
+            else:
+                fig, ax = plt.subplots(figsize=(12, 9), dpi=400)  # Much larger and higher DPI
             
             if chart_type == "pie":
                 # Prepare data
@@ -3986,10 +4076,21 @@ class StructuralAnalysisTab(QWidget):
                     labels, values = list(labels), list(values)
                 
                 # Use better colors and formatting
-                colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F']
-                wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
-                                                 colors=colors[:len(values)], startangle=90, 
-                                                 textprops={'fontsize': 14, 'weight': 'bold'})
+                colors = plt.cm.tab20.colors
+                
+                if "Amino Acid" in title:
+                    wedges, texts, autotexts = ax.pie(values, autopct='%1.1f%%',
+                                                     colors=colors[:len(values)], startangle=140,
+                                                     textprops={'fontsize': 12, 'weight': 'bold'}, radius=1)
+                    ax.legend(wedges, [f'{l}: {v}' for l, v in zip(labels, values)],
+                              title="Amino Acids",
+                              loc="center left",
+                              bbox_to_anchor=(1, 0, 0.5, 1),
+                              fontsize=12)
+                else:
+                    wedges, texts, autotexts = ax.pie(values, labels=labels, autopct='%1.1f%%', 
+                                                     colors=colors[:len(values)], startangle=90, 
+                                                     textprops={'fontsize': 14, 'weight': 'bold'})
                 for autotext in autotexts:
                     autotext.set_color('white')
                     autotext.set_fontweight('bold')
@@ -4016,7 +4117,7 @@ class StructuralAnalysisTab(QWidget):
             
             # Save with ultra high quality
             chart_path = os.path.join(temp_dir, f"{title.replace(' ', '_').replace('/', '_')}.png")
-            plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none', 
+            plt.savefig(chart_path, dpi=400, bbox_inches='tight', facecolor='white', edgecolor='none', 
                        format='png')
             plt.close()
             plt.rcdefaults()  # Reset matplotlib settings
@@ -4222,7 +4323,7 @@ class ExportDialog(QDialog):
         self.format_combo = QComboBox()
         formats = ["JSON", "CSV", "Excel", "Text Report", "HTML Report"]
         self.format_combo.addItems(formats)
-        self.format_combo.setCurrentText("JSON")
+        self.format_combo.setCurrentText("HTML Report")
         self.format_combo.currentTextChanged.connect(self.on_format_changed)
         format_layout.addWidget(self.format_combo)
         
@@ -4304,7 +4405,7 @@ class ExportDialog(QDialog):
         layout.addLayout(button_layout)
         
         # Update format description
-        self.on_format_changed("JSON")
+        self.on_format_changed("HTML Report")
     
     def on_format_changed(self, format_name):
         """Update format description and file extension."""
