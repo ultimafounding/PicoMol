@@ -17,7 +17,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 
 > 🎆 **Version 0.1.0 represents our first production-ready release**, featuring stable core functionality, comprehensive testing, and robust error handling. This milestone marks PicoMol's readiness for research and educational use.
 
-## 🆕 Latest Release (v0.1.0 - January 2025)
+## 🆕 Latest Release (v0.1.0 - July 2025)
 
 **Major Milestone Release - Production Ready:**
 - **Stable Core Features:** Comprehensive molecular visualization, BLAST integration, and bioinformatics tools

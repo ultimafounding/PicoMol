@@ -75,7 +75,7 @@ class AboutDialog(QDialog):
             </style>
             
             <h2>🧬 PicoMol</h2>
-            <p><b>Version:</b> 0.1.0 (2025-01-20)</p>
+            <p><b>Version:</b> 0.1.0 (2025-07-24)</p>
             <p>A comprehensive molecular visualization and bioinformatics suite for protein structures, sequence analysis, and functional annotation.</p>
             
             <h3>🔬 Core Features</h3>
