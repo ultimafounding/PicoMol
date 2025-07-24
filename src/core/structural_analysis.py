@@ -2749,6 +2749,24 @@ class StructuralAnalysisTab(QWidget):
                 release_date = accession_info.get('initial_release_date', 'N/A')
                 info_layout.addRow("Deposited:", QLabel(deposit_date))
                 info_layout.addRow("Released:", QLabel(release_date))
+            
+            # Experimental method and resolution
+            if entry.get('rcsb_entry_info'):
+                rcsb_info = entry['rcsb_entry_info']
+                
+                # Experimental method
+                experimental_method = rcsb_info.get('experimental_method', 'N/A')
+                info_layout.addRow("Experimental Method:", QLabel(experimental_method))
+                
+                # Resolution
+                resolution = rcsb_info.get('resolution_combined', 'N/A')
+                if isinstance(resolution, list) and resolution:
+                    resolution = resolution[0]
+                if resolution != 'N/A' and isinstance(resolution, (int, float)):
+                    resolution_text = f"{resolution:.2f} Å"
+                else:
+                    resolution_text = str(resolution)
+                info_layout.addRow("Resolution:", QLabel(resolution_text))
         
         basic_tab_layout.addWidget(info_group)
         basic_tab_layout.addStretch()
@@ -4681,6 +4699,24 @@ class StructuralAnalysisTab(QWidget):
                 f.write(f"<tr><td>Deposited</td><td>{deposit_date}</td></tr>\n")
                 f.write(f"<tr><td>Released</td><td>{release_date}</td></tr>\n")
             
+            # Experimental method and resolution
+            if entry.get('rcsb_entry_info'):
+                rcsb_info = entry['rcsb_entry_info']
+                
+                # Experimental method
+                experimental_method = rcsb_info.get('experimental_method', 'N/A')
+                f.write(f"<tr><td>Experimental Method</td><td>{experimental_method}</td></tr>\n")
+                
+                # Resolution
+                resolution = rcsb_info.get('resolution_combined', 'N/A')
+                if isinstance(resolution, list) and resolution:
+                    resolution = resolution[0]
+                if resolution != 'N/A' and isinstance(resolution, (int, float)):
+                    resolution_text = f"{resolution:.2f} Å"
+                else:
+                    resolution_text = str(resolution)
+                f.write(f"<tr><td>Resolution</td><td>{resolution_text}</td></tr>\n")
+            
             # Keywords
             if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
                 keywords = entry['struct_keywords']['pdbx_keywords']
@@ -4803,6 +4839,24 @@ class StructuralAnalysisTab(QWidget):
                 release_date = accession_info.get('initial_release_date', 'N/A')
                 f.write(f"<tr><td>Deposited</td><td>{deposit_date}</td></tr>\n")
                 f.write(f"<tr><td>Released</td><td>{release_date}</td></tr>\n")
+            
+            # Experimental method and resolution
+            if entry.get('rcsb_entry_info'):
+                rcsb_info = entry['rcsb_entry_info']
+                
+                # Experimental method
+                experimental_method = rcsb_info.get('experimental_method', 'N/A')
+                f.write(f"<tr><td>Experimental Method</td><td>{experimental_method}</td></tr>\n")
+                
+                # Resolution
+                resolution = rcsb_info.get('resolution_combined', 'N/A')
+                if isinstance(resolution, list) and resolution:
+                    resolution = resolution[0]
+                if resolution != 'N/A' and isinstance(resolution, (int, float)):
+                    resolution_text = f"{resolution:.2f} Å"
+                else:
+                    resolution_text = str(resolution)
+                f.write(f"<tr><td>Resolution</td><td>{resolution_text}</td></tr>\n")
             
             # Keywords
             if entry.get('struct_keywords') and entry['struct_keywords'].get('pdbx_keywords'):
