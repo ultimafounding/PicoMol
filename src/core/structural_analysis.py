@@ -260,8 +260,18 @@ class StructuralAnalysisWorker(QThread):
                         res_id = residue.id[1]
                         chain_id = chain.id
                         
-                        # Classify Ramachandran region
+                        # Classify Ramachandran region with detailed classification
                         rama_region = self.classify_ramachandran_region(phi, psi, res_name)
+                        is_favored = self.is_in_favored_region(phi, psi, res_name)
+                        is_allowed = self.is_in_allowed_region(phi, psi, res_name)
+                        
+                        # Determine detailed region classification
+                        if is_favored:
+                            detailed_region = 'favored'
+                        elif is_allowed:
+                            detailed_region = 'allowed'
+                        else:
+                            detailed_region = 'outlier'
                         
                         ramachandran_data.append({
                             'residue': res_name,
@@ -269,7 +279,10 @@ class StructuralAnalysisWorker(QThread):
                             'position': res_id,
                             'phi': phi,
                             'psi': psi,
-                            'region': rama_region
+                            'region': rama_region,
+                            'detailed_region': detailed_region,
+                            'is_favored': is_favored,
+                            'is_allowed': is_allowed
                         })
                         
                         # Classify secondary structure based on phi/psi
@@ -345,6 +358,140 @@ class StructuralAnalysisWorker(QThread):
         else:
             return 'outlier'  # Everything else
     
+    def is_in_favored_region(self, phi, psi, residue_name=None):
+        """Check if phi/psi angles are in favored regions according to MolProbity standard.
+        
+        Args:
+            phi: Phi angle in degrees
+            psi: Psi angle in degrees
+            residue_name: Optional three-letter residue code for special cases
+            
+        Returns:
+            bool: True if in favored region, False otherwise
+        """
+        # Handle special cases first
+        if residue_name == 'GLY':
+            return self._is_glycine_favored(phi, psi)
+        elif residue_name == 'PRO':
+            return self._is_proline_favored(phi, psi)
+            
+        # General case for standard amino acids
+        # Core alpha-helix region (αR)
+        if (-100 <= phi <= -30 and -60 <= psi <= 10):
+            return True
+            
+        # Core beta-sheet region (β)
+        if (-160 <= phi <= -60 and 90 <= psi <= 180):  # Upper beta
+            return True
+        if (-160 <= phi <= -60 and -180 <= psi <= -80):  # Lower beta
+            return True
+            
+        # Core left-handed alpha-helix (αL)
+        if (30 <= phi <= 80 and 30 <= psi <= 80):
+            return True
+            
+        return False
+    
+    def is_in_allowed_region(self, phi, psi, residue_name=None):
+        """Check if phi/psi angles are in allowed regions according to MolProbity standard.
+        
+        Args:
+            phi: Phi angle in degrees
+            psi: Psi angle in degrees
+            residue_name: Optional three-letter residue code for special cases
+            
+        Returns:
+            bool: True if in allowed region, False otherwise
+        """
+        # Handle special cases first
+        if residue_name == 'GLY':
+            return self._is_glycine_allowed(phi, psi)
+        elif residue_name == 'PRO':
+            return self._is_proline_allowed(phi, psi)
+            
+        # General case for standard amino acids
+        # If already in favored region, it's also in allowed region
+        if self.is_in_favored_region(phi, psi, residue_name):
+            return True
+            
+        # Allowed alpha-helix region
+        if (-180 <= phi <= -25 and 20 <= psi <= 80):
+            return True
+        if (-25 <= phi <= 0 and -80 <= psi <= 80):
+            return True
+            
+        # Allowed beta-sheet region
+        if (-100 <= phi <= -25 and 80 <= psi <= 180):
+            return True
+        if (-100 <= phi <= -25 and -180 <= psi <= -100):
+            return True
+            
+        # Left-handed alpha-helix allowed region
+        if (0 <= phi <= 90 and 0 <= psi <= 90):
+            return True
+            
+        # Bridge region (connects alpha and beta)
+        if (-100 <= phi <= -25 and -100 <= psi <= 80):
+            return True
+            
+        return False
+    
+    def _is_glycine_favored(self, phi, psi):
+        """Check if glycine phi/psi angles are in favored regions."""
+        # Glycine has much larger allowed regions due to its flexibility
+        # Core alpha-helix region (αR)
+        if (-180 <= phi <= -25 and -120 <= psi <= 80):
+            return True
+            
+        # Core beta-sheet region (β)
+        if (-180 <= phi <= -25 and 80 <= psi <= 180):
+            return True
+            
+        # Core left-handed alpha-helix (αL)
+        if (25 <= phi <= 180 and 0 <= psi <= 180):
+            return True
+            
+        return False
+    
+    def _is_glycine_allowed(self, phi, psi):
+        """Check if glycine phi/psi angles are in allowed regions."""
+        # For glycine, almost all regions are allowed
+        # Only exclude the most sterically disfavored regions
+        if (-180 <= phi <= 180 and -180 <= psi <= 180):
+            # Only exclude the most disfavored region
+            if not (-30 <= phi <= 30 and -60 <= psi <= -30):
+                return True
+        return False
+    
+    def _is_proline_favored(self, phi, psi):
+        """Check if proline phi/psi angles are in favored regions."""
+        # Proline is highly constrained due to its ring structure
+        # Core alpha-helix region (αR)
+        if (-75 <= phi <= -45 and -60 <= psi <= -10):
+            return True
+            
+        # Polyproline II helix (common for proline)
+        if (-75 <= phi <= -45 and 120 <= psi <= 180):
+            return True
+            
+        return False
+    
+    def _is_proline_allowed(self, phi, psi):
+        """Check if proline phi/psi angles are in allowed regions."""
+        # Proline has very restricted allowed regions
+        if self._is_proline_favored(phi, psi):
+            return True
+            
+        # Slightly extended alpha-helix region
+        if (-90 <= phi <= -30 and -90 <= psi <= 30):
+            return True
+            
+        # Extended polyproline II region
+        if (-90 <= phi <= -30 and 90 <= psi <= 180):
+            return True
+            
+        return False
+    
     def analyze_geometry(self):
         """Analyze geometric properties of the structure."""
         results = {
@@ -392,9 +539,12 @@ class StructuralAnalysisWorker(QThread):
         return results
     
     def calculate_sample_geometry(self, results):
-        """Calculate sample bond lengths and angles."""
+        """Calculate detailed bond lengths and angles with residue context."""
         bond_lengths = []
         bond_angles = []
+        detailed_bond_lengths = []
+        detailed_bond_angles = []
+        detailed_b_factors = []
         
         for model in self.structure:
             for chain in model:
@@ -402,29 +552,69 @@ class StructuralAnalysisWorker(QThread):
                 
                 for residue in residues:
                     try:
-                        # Sample backbone bond lengths
+                        res_name = residue.get_resname()
+                        res_id = residue.id[1]
+                        chain_id = chain.id
+                        
+                        # Collect detailed B-factor data
+                        for atom in residue:
+                            detailed_b_factors.append({
+                                'atom_name': atom.get_name(),
+                                'residue': res_name,
+                                'chain': chain_id,
+                                'position': res_id,
+                                'b_factor': atom.get_bfactor(),
+                                'coordinates': atom.get_coord().tolist()
+                            })
+                        
+                        # Sample backbone bond lengths with context
                         if 'N' in residue and 'CA' in residue:
-                            n_ca = residue['N'] - residue['CA']
-                            bond_lengths.append(n_ca)
+                            n_ca_length = residue['N'] - residue['CA']
+                            bond_lengths.append(n_ca_length)
+                            detailed_bond_lengths.append({
+                                'bond_type': 'N-CA',
+                                'length': n_ca_length,
+                                'residue': res_name,
+                                'chain': chain_id,
+                                'position': res_id
+                            })
                         
                         if 'CA' in residue and 'C' in residue:
-                            ca_c = residue['CA'] - residue['C']
-                            bond_lengths.append(ca_c)
+                            ca_c_length = residue['CA'] - residue['C']
+                            bond_lengths.append(ca_c_length)
+                            detailed_bond_lengths.append({
+                                'bond_type': 'CA-C',
+                                'length': ca_c_length,
+                                'residue': res_name,
+                                'chain': chain_id,
+                                'position': res_id
+                            })
                         
-                        # Sample backbone bond angles
+                        # Sample backbone bond angles with context
                         if 'N' in residue and 'CA' in residue and 'C' in residue:
                             n_vec = residue['N'].get_vector()
                             ca_vec = residue['CA'].get_vector()
                             c_vec = residue['C'].get_vector()
                             
                             angle = calc_angle(n_vec, ca_vec, c_vec)
-                            bond_angles.append(math.degrees(angle))
+                            angle_degrees = math.degrees(angle)
+                            bond_angles.append(angle_degrees)
+                            detailed_bond_angles.append({
+                                'angle_type': 'N-CA-C',
+                                'angle': angle_degrees,
+                                'residue': res_name,
+                                'chain': chain_id,
+                                'position': res_id
+                            })
                             
                     except Exception:
                         continue
         
-        results['bond_lengths'] = bond_lengths[:100]  # Sample first 100
-        results['bond_angles'] = bond_angles[:100]   # Sample first 100
+        results['bond_lengths'] = bond_lengths  # For statistics and histograms
+        results['bond_angles'] = bond_angles     # For statistics and histograms
+        results['detailed_bond_lengths'] = detailed_bond_lengths  # For detailed export
+        results['detailed_bond_angles'] = detailed_bond_angles    # For detailed export
+        results['detailed_b_factors'] = detailed_b_factors        # For detailed export
     
 
     
@@ -1534,13 +1724,12 @@ class StructuralAnalysisTab(QWidget):
                 # No width limit - allow full title display
                 info_layout.addRow("Title:", title_label)
             
-            # Authors (first 3 only)
+            # Authors (all authors)
             if entry.get('audit_author'):
-                authors = [author.get('name', '') for author in entry['audit_author'][:3] if author.get('name')]
+                authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
                 if authors:
                     authors_text = ', '.join(authors)
-                    if len(entry.get('audit_author', [])) > 3:
-                        authors_text += " et al."
+                    # Show all authors without truncation
                     info_layout.addRow("Authors:", QLabel(authors_text))
             
             # Key dates
@@ -1662,9 +1851,7 @@ class StructuralAnalysisTab(QWidget):
             if entry.get('audit_author'):
                 authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
             if authors:
-                authors_text = ', '.join(authors[:5])  # Show first 5 authors
-                if len(authors) > 5:
-                    authors_text += f" and {len(authors) - 5} others"
+                authors_text = ', '.join(authors)  # Show all authors
                 authors_label = QLabel(authors_text)
                 authors_label.setWordWrap(True)
                 authors_label.setMaximumWidth(400)
@@ -1966,7 +2153,7 @@ class StructuralAnalysisTab(QWidget):
             # Primary citation information
             if entry.get('citation'):
                 citations = entry['citation']
-                for i, citation in enumerate(citations[:3]):  # Show first 3 citations
+                for i, citation in enumerate(citations):  # Show all citations
                     citation_group = QGroupBox(f"Citation {i+1}")
                     citation_layout = QFormLayout(citation_group)
                     
@@ -2645,7 +2832,7 @@ class StructuralAnalysisTab(QWidget):
         
         # Bar chart for cavity volumes
         if cavities and len(cavities) > 1:
-            cavity_volumes = {f"Cavity {i+1}": cavity.get('volume', 0) for i, cavity in enumerate(cavities[:10])}  # Show top 10
+            cavity_volumes = {f"Cavity {i+1}": cavity.get('volume', 0) for i, cavity in enumerate(cavities)}  # Show all cavities
             volume_chart = self.create_bar_chart(cavity_volumes, "Cavity Volumes", "Cavity", "Volume (ų)")
             if volume_chart:
                 summary_layout.addWidget(volume_chart, 2)
@@ -2688,32 +2875,30 @@ class StructuralAnalysisTab(QWidget):
         if not self.current_results:
             QMessageBox.warning(self, "Export Error", "No analysis results to export. Please run an analysis first.")
             return
-        
-        # Simple file dialog for HTML export
-        structure_id = self.current_results.get('structure_id', 'analysis')
-        suggested_name = f"{structure_id}_complete_analysis.html"
-        
-        file_path, _ = QFileDialog.getSaveFileName(
-            self,
-            "Export Complete Analysis Report",
-            suggested_name,
-            "HTML Files (*.html);;PDF Files (*.pdf)"
-        )
-        
-        if file_path:
+
+        dialog = ExportDialog(self, self.current_results)
+        if dialog.exec_() == QDialog.Accepted:
+            export_format, file_path, options = dialog.get_export_settings()
+
             try:
-                if file_path.endswith('.pdf'):
-                    self.export_complete_pdf(file_path)
-                else:
+                if export_format == "JSON":
+                    self.export_to_json(file_path, options)
+                elif export_format == "CSV":
+                    self.export_to_csv(file_path, options)
+                elif export_format == "Excel":
+                    self.export_to_excel(file_path, options)
+                elif export_format == "Text Report":
+                    self.export_to_text(file_path, options)
+                elif export_format == "HTML Report":
                     self.export_complete_html(file_path)
-                
-                QMessageBox.information(self, "Export Complete", f"Complete analysis report exported to:\n{file_path}")
-                
+
+                QMessageBox.information(self, "Export Complete", f"Analysis results exported to:\n{file_path}")
+
                 if hasattr(self.parent_app, 'statusBar'):
-                    self.parent_app.statusBar().showMessage(f"Complete report exported successfully")
-                    
+                    self.parent_app.statusBar().showMessage(f"Report exported successfully to {file_path}")
+
             except Exception as e:
-                QMessageBox.critical(self, "Export Error", f"Failed to export complete report:\n{str(e)}")
+                QMessageBox.critical(self, "Export Error", f"Failed to export report:\n{str(e)}")
     
     def export_to_json(self, file_path, options):
         """Export results to JSON format."""
@@ -2820,7 +3005,7 @@ class StructuralAnalysisTab(QWidget):
                 if 'ramachandran_data' in secondary and options.get('include_ramachandran', True):
                     writer.writerow(['=== RAMACHANDRAN DATA ==='])
                     writer.writerow(['Residue', 'Chain', 'Position', 'Phi (degrees)', 'Psi (degrees)'])
-                    for data in secondary['ramachandran_data'][:100]:  # Limit to first 100
+                    for data in secondary['ramachandran_data']:  # Export all Ramachandran data
                         writer.writerow([data['residue'], data['chain'], data['position'], 
                                        f"{data['phi']:.2f}", f"{data['psi']:.2f}"])
                     writer.writerow([])
@@ -2929,7 +3114,7 @@ class StructuralAnalysisTab(QWidget):
                     # Ramachandran data
                     if 'ramachandran_data' in secondary and options.get('include_ramachandran', True):
                         rama_data = []
-                        for data in secondary['ramachandran_data'][:500]:  # Limit to first 500
+                        for data in secondary['ramachandran_data']:  # Export all Ramachandran data
                             rama_data.append({
                                 'Residue': data['residue'],
                                 'Chain': data['chain'],
@@ -2964,7 +3149,7 @@ class StructuralAnalysisTab(QWidget):
                     # Surface residues
                     if 'surface_residues' in surface and options.get('include_residue_details', True):
                         surf_res_data = []
-                        for res in surface['surface_residues'][:1000]:  # Limit to first 1000
+                        for res in surface['surface_residues']:  # Export all surface residues
                             surf_res_data.append({
                                 'Residue': res['residue'],
                                 'Chain': res['chain'],
@@ -3321,6 +3506,17 @@ class StructuralAnalysisTab(QWidget):
                         if rama_chart_path:
                             f.write("<h3>Ramachandran Plot</h3>\n")
                             f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(rama_chart_path)}' alt='Ramachandran Plot'></div>\n")
+                        
+                        # Ramachandran data table
+                        if 'ramachandran_data' in secondary:
+                            f.write("<h3>Ramachandran Data</h3>\n")
+                            f.write("<table>\n")
+                            f.write("<tr><th>Residue</th><th>Chain</th><th>Position</th><th>Phi (")
+                            f.write("°)</th><th>Psi (")
+                            f.write("°)</th></tr>\n")
+                            for data in secondary['ramachandran_data']:
+                                f.write(f"<tr><td>{data['residue']}</td><td>{data['chain']}</td><td>{data['position']}</td><td>{data['phi']:.2f}</td><td>{data['psi']:.2f}</td></tr>\n")
+                            f.write("</table>\n")
                 
                 # Geometry
                 if 'geometry' in self.current_results:
@@ -3354,6 +3550,31 @@ class StructuralAnalysisTab(QWidget):
                         if bond_angle_chart_path:
                             f.write("<h3>Bond Angle Distribution</h3>\n")
                             f.write(f"<div class='chart'><img src='data:image/png;base64,{self.image_to_base64(bond_angle_chart_path)}' alt='Bond Angle Distribution'></div>\n")
+
+                    # Detailed geometry tables
+                    if 'detailed_bond_lengths' in geometry:
+                        f.write("<h3>Detailed Bond Lengths</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Bond Type</th><th>Length (Å)</th><th>Residue</th><th>Chain</th><th>Position</th></tr>\n")
+                        for data in geometry['detailed_bond_lengths']:
+                            f.write(f"<tr><td>{data['bond_type']}</td><td>{data['length']:.3f}</td><td>{data['residue']}</td><td>{data['chain']}</td><td>{data['position']}</td></tr>\n")
+                        f.write("</table>\n")
+
+                    if 'detailed_bond_angles' in geometry:
+                        f.write("<h3>Detailed Bond Angles</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Angle Type</th><th>Angle (°)</th><th>Residue</th><th>Chain</th><th>Position</th></tr>\n")
+                        for data in geometry['detailed_bond_angles']:
+                            f.write(f"<tr><td>{data['angle_type']}</td><td>{data['angle']:.2f}</td><td>{data['residue']}</td><td>{data['chain']}</td><td>{data['position']}</td></tr>\n")
+                        f.write("</table>\n")
+
+                    if 'detailed_b_factors' in geometry:
+                        f.write("<h3>Detailed B-Factors</h3>\n")
+                        f.write("<table>\n")
+                        f.write("<tr><th>Atom Name</th><th>Residue</th><th>Chain</th><th>Position</th><th>B-Factor</th></tr>\n")
+                        for data in geometry['detailed_b_factors']:
+                            f.write(f"<tr><td>{data['atom_name']}</td><td>{data['residue']}</td><td>{data['chain']}</td><td>{data['position']}</td><td>{data['b_factor']:.2f}</td></tr>\n")
+                        f.write("</table>\n")
                 
 
                     
@@ -3411,7 +3632,7 @@ class StructuralAnalysisTab(QWidget):
                     # Cavity volumes chart if multiple cavities
                     cavities = cavity.get('potential_cavities', [])
                     if len(cavities) > 1 and MATPLOTLIB_AVAILABLE:
-                        cavity_volumes = {f"Cavity {i+1}": cavity_info.get('volume', 0) for i, cavity_info in enumerate(cavities[:10])}
+                        cavity_volumes = {f"Cavity {i+1}": cavity_info.get('volume', 0) for i, cavity_info in enumerate(cavities)}
                         if any(vol > 0 for vol in cavity_volumes.values()):
                             volume_chart_path = self.save_chart_as_image(cavity_volumes, "Cavity Volumes", "bar", temp_dir, "Cavity", "Volume (Ų)")
                             if volume_chart_path:
@@ -3438,7 +3659,7 @@ class StructuralAnalysisTab(QWidget):
                         f.write("<h3>Cavity Details</h3>\n")
                         f.write("<table>\n")
                         f.write("<tr><th>Cavity ID</th><th>Volume (Ų)</th><th>Surface Area (Ų)</th><th>Max Radius (Å)</th><th>Druggability Score</th><th>Lining Residues</th></tr>\n")
-                        for cavity_info in cavities[:10]:  # Show top 10 cavities
+                        for cavity_info in cavities:  # Show all cavities
                             cavity_id = cavity_info.get('id', 'N/A')
                             volume = cavity_info.get('volume', 0)
                             surface_area = cavity_info.get('surface_area', 0)
@@ -3450,17 +3671,13 @@ class StructuralAnalysisTab(QWidget):
                 
                 # Footer
                 f.write("<hr>\n")
-                f.write(f"<p><em>Generated by PicoMol v1.0 on {datetime.now().strftime('%Y-%m-%d at %H:%M:%S')}</em></p>\n")
                 
                 f.write("</body>\n</html>")
         
         finally:
-            # Clean up temporary files
+            # Clean up the temporary directory
             import shutil
-            try:
-                shutil.rmtree(temp_dir)
-            except:
-                pass
+            shutil.rmtree(temp_dir, ignore_errors=True)
     
     def _export_comprehensive_metadata(self, f):
         """Export comprehensive metadata to HTML."""
@@ -3483,11 +3700,10 @@ class StructuralAnalysisTab(QWidget):
             
             # Authors
             if entry.get('audit_author'):
-                authors = [author.get('name', '') for author in entry['audit_author'][:5] if author.get('name')]
+                authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
                 if authors:
                     authors_text = ', '.join(authors)
-                    if len(entry.get('audit_author', [])) > 5:
-                        authors_text += " et al."
+                    # Show all authors without truncation
                     f.write(f"<tr><td>Authors</td><td>{authors_text}</td></tr>\n")
             
             # Dates
@@ -3624,11 +3840,10 @@ class StructuralAnalysisTab(QWidget):
             
             # Authors
             if entry.get('audit_author'):
-                authors = [author.get('name', '') for author in entry['audit_author'][:5] if author.get('name')]
+                authors = [author.get('name', '') for author in entry['audit_author'] if author.get('name')]
                 if authors:
                     authors_text = ', '.join(authors)
-                    if len(entry.get('audit_author', [])) > 5:
-                        authors_text += " et al."
+                    # Show all authors without truncation
                     f.write(f"<tr><td>Authors</td><td>{authors_text}</td></tr>\n")
             
             # Dates
@@ -3802,7 +4017,7 @@ class StructuralAnalysisTab(QWidget):
             # Save with ultra high quality
             chart_path = os.path.join(temp_dir, f"{title.replace(' ', '_').replace('/', '_')}.png")
             plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none', 
-                       format='png', quality=100)
+                       format='png')
             plt.close()
             plt.rcdefaults()  # Reset matplotlib settings
             
@@ -3812,10 +4027,50 @@ class StructuralAnalysisTab(QWidget):
             return None
     
     def save_ramachandran_plot(self, rama_data, temp_dir, pdb_id=None):
-        """Save Ramachandran plot as PNG image."""
+        """Save Ramachandran plot as PNG image using ramachandraw when available."""
         if not MATPLOTLIB_AVAILABLE or not rama_data:
             return None
         
+        # Try to use ramachandraw first (preferred method)
+        if RAMACHANDRAW_AVAILABLE and hasattr(self, 'current_structure_path') and self.current_structure_path:
+            try:
+                import ramachandraw.utils
+                import matplotlib.pyplot as plt
+                
+                # Use ramachandraw to create the plot
+                ax = ramachandraw.utils.plot(
+                    pdb_filepath=self.current_structure_path,
+                    cmap='viridis',
+                    alpha=0.7,
+                    dpi=300,  # High DPI for export
+                    save=False,  # Don't save to file yet
+                    show=False   # Don't show interactively
+                )
+                
+                # Override the title set by ramachandraw with PDB ID
+                if pdb_id:
+                    plot_title = f'Ramachandran Plot - {pdb_id}'
+                else:
+                    plot_title = 'Ramachandran Plot'
+                ax.set_title(plot_title, fontsize=20, fontweight='bold', pad=25)
+                
+                # Get the figure from the axes
+                fig = ax.get_figure()
+                
+                # Save the ramachandraw plot
+                chart_path = os.path.join(temp_dir, "ramachandran_plot.png")
+                fig.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none',
+                           format='png')
+                plt.close(fig)
+                
+                print(f"[DEBUG] Successfully saved Ramachandran plot using ramachandraw: {chart_path}")
+                return chart_path
+                
+            except Exception as e:
+                print(f"[DEBUG] Error using ramachandraw for export, falling back to manual plot: {e}")
+                # Fall through to manual implementation
+        
+        # Fallback to manual implementation
         try:
             import matplotlib.pyplot as plt
             import matplotlib.patches as patches
@@ -3872,10 +4127,11 @@ class StructuralAnalysisTab(QWidget):
             # Save with ultra high quality
             chart_path = os.path.join(temp_dir, "ramachandran_plot.png")
             plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none',
-                       format='png', quality=100)
+                       format='png')
             plt.close()
             plt.rcdefaults()
             
+            print(f"[DEBUG] Successfully saved Ramachandran plot using manual implementation: {chart_path}")
             return chart_path
         except Exception as e:
             print(f"Error saving Ramachandran plot: {e}")
@@ -3916,7 +4172,7 @@ class StructuralAnalysisTab(QWidget):
             # Save with ultra high quality
             chart_path = os.path.join(temp_dir, f"{title.replace(' ', '_')}.png")
             plt.savefig(chart_path, dpi=300, bbox_inches='tight', facecolor='white', edgecolor='none',
-                       format='png', quality=100)
+                       format='png')
             plt.close()
             plt.rcdefaults()
             
@@ -3936,10 +4192,7 @@ class StructuralAnalysisTab(QWidget):
             return ""
 
 
-    def export_to_html(self, file_path, options):
-        """Legacy HTML export method (simplified version)."""
-        # This is kept for compatibility but the main export now uses export_complete_html
-        self.export_complete_html(file_path)
+    
 
 
 class ExportDialog(QDialog):
