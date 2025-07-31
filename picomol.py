@@ -778,6 +778,11 @@ class ProteinViewerApp(QMainWindow):
         
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
+
+        # Create Plasmid Viewer tab
+        from src.gui.plasmid_viewer import create_plasmid_viewer_tab
+        plasmid_viewer_tab = create_plasmid_viewer_tab(self)
+        self.main_tabs.addTab(plasmid_viewer_tab, "Plasmid Viewer")
         
         # Create BLAST tab
         blast_tab = QWidget()
