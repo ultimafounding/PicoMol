@@ -779,6 +779,7 @@ class ProteinViewerApp(QMainWindow):
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
 
+<<<<<<< HEAD
         # Create Plasmid Viewer tab - REMOVED
         # from src.gui.plasmid_viewer import create_plasmid_viewer_tab
         # plasmid_viewer_tab = create_plasmid_viewer_tab(self)
@@ -786,6 +787,12 @@ class ProteinViewerApp(QMainWindow):
 
         # Create Picomol Plasmid Viewer tab
         from src.gui.sequence_viewer import SequenceViewer
+=======
+        
+
+        # Create SnapGene tab
+        
+>>>>>>> 794cb03c3947e10765de0be76b151f6ab3f72503
         snapgene_tab = SequenceViewer(self)
         self.main_tabs.addTab(snapgene_tab, "Picomol Plasmid Viewer")
         
