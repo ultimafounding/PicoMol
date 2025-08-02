@@ -6,11 +6,12 @@ from PyQt5.QtCore import Qt
 import math
 
 class VirtualGelDialog(QDialog):
-    def __init__(self, fragments, parent=None):
+    def __init__(self, fragments, parent=None, enzyme_fragments=None):
         super().__init__(parent)
         self.setWindowTitle("Virtual Agarose Gel Electrophoresis")
         self.setMinimumSize(700, 600)
         self.fragments = fragments
+        self.enzyme_fragments = enzyme_fragments
         
         # Main layout
         main_layout = QHBoxLayout(self)
@@ -44,7 +45,17 @@ class VirtualGelDialog(QDialog):
         
         # Marker selection
         self.marker_combo = QComboBox()
-        self.marker_combo.addItems(["1kb DNA Ladder", "100bp DNA Ladder", "λ DNA/HindIII", "No Marker"])
+        self.marker_combo.addItems([
+            "1kb DNA Ladder", 
+            "100bp DNA Ladder", 
+            "GeneRuler 1kb",
+            "GeneRuler 100bp Plus",
+            "NEB 1kb Plus",
+            "Quick-Load 1kb",
+            "Quick-Load 100bp",
+            "λ DNA/HindIII",
+            "No Marker"
+        ])
         self.marker_combo.currentTextChanged.connect(self.update_gel)
         controls_layout.addRow("DNA Marker:", self.marker_combo)
         
@@ -89,6 +100,11 @@ class VirtualGelDialog(QDialog):
             "1kb DNA Ladder": [10000, 8000, 6000, 5000, 4000, 3000, 2500, 2000, 1500, 1000, 750, 500, 250],
             "100bp DNA Ladder": [1500, 1200, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100],
             "λ DNA/HindIII": [23130, 9416, 6557, 4361, 2322, 2027, 564, 125],
+            "GeneRuler 1kb": [10000, 8000, 6000, 5000, 4000, 3500, 3000, 2500, 2000, 1500, 1000, 750, 500, 250],
+            "GeneRuler 100bp Plus": [3000, 2000, 1500, 1200, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100],
+            "NEB 1kb Plus": [12000, 11000, 10000, 9000, 8000, 7000, 6000, 5000, 4000, 3000, 2000, 1500, 1000, 650, 400, 300, 200, 100],
+            "Quick-Load 1kb": [10000, 8000, 6000, 5000, 4000, 3000, 2500, 2000, 1500, 1000, 500],
+            "Quick-Load 100bp": [1500, 1200, 1000, 900, 800, 700, 600, 500, 400, 300, 200, 100],
             "No Marker": []
         }
         return markers.get(marker_type, [])
@@ -174,7 +190,13 @@ class VirtualGelDialog(QDialog):
         # Calculate lanes
         marker_type = self.marker_combo.currentText()
         has_marker = marker_type != "No Marker"
-        num_sample_lanes = min(len(self.fragments), 8)  # Max 8 sample lanes
+        # Calculate number of sample lanes based on available data
+        if self.enzyme_fragments:
+            # One lane per enzyme (including those that don't cut)
+            num_sample_lanes = min(len(self.enzyme_fragments), 8)
+        else:
+            # Fallback to fragment-based calculation
+            num_sample_lanes = min(len(self.fragments), 8)
         num_lanes = num_sample_lanes + (1 if has_marker else 0)
         
         if num_lanes == 0:
@@ -231,52 +253,62 @@ class VirtualGelDialog(QDialog):
             lane_index += 1
         
         # Draw sample lanes
-        # Group fragments by size for better lane organization
-        fragment_groups = self.group_similar_fragments(self.fragments)
+        # Use enzyme-specific lanes if available, otherwise group by size
+        if self.enzyme_fragments:
+            # Create lanes for each enzyme (including those that don't cut)
+            enzyme_items = list(self.enzyme_fragments.items())
+            fragment_groups = [fragments for enzyme, fragments in enzyme_items]
+            enzyme_names = [enzyme for enzyme, fragments in enzyme_items]
+        else:
+            # Fallback to size-based grouping
+            fragment_groups = self.group_similar_fragments(self.fragments)
+            enzyme_names = None
         
         for group_idx, fragment_group in enumerate(fragment_groups[:num_sample_lanes]):
             lane_x = 50 + (lane_index + 0.5) * lane_spacing
             
             # Draw all fragments in this group
-            for frag_idx, fragment in enumerate(fragment_group):
-                fragment_size = len(fragment)
-                distance = self.calculate_migration_distance(fragment_size, gel_conc, voltage, time)
+            # Only draw fragments if the enzyme cuts
+            if fragment_group:
+                for frag_idx, fragment in enumerate(fragment_group):
+                    fragment_size = len(fragment)
+                    distance = self.calculate_migration_distance(fragment_size, gel_conc, voltage, time)
+                    band_y = 50 + 20 + distance
+                    
+                    # Skip bands that would run off the gel
+                    if band_y > 50 + gel_height - 10:
+                        continue
+                    
+                    # Band appearance based on fragment properties
+                    band_width = 25
+                    band_height = 3
+                    
+                    # Intensity based on fragment size (larger = brighter)
+                    base_intensity = min(255, max(80, 120 + fragment_size // 100))
+                    
+                    # Multiple fragments of same size = brighter band
+                    if len(fragment_group) > 1:
+                        base_intensity = min(255, base_intensity + 30)
+                    
+                    band_color = QColor(base_intensity, 0, base_intensity // 2)
+                    
+                    # Slight horizontal offset for multiple fragments
+                    x_offset = (frag_idx - len(fragment_group)/2) * 2
+                    
+                    band = self.scene.addRect(lane_x - band_width/2 + x_offset, band_y, 
+                                            band_width, band_height,
+                                            QPen(band_color), QBrush(band_color))
+                
+                # Add size label for the group
+                representative_size = len(fragment_group[0])
+                distance = self.calculate_migration_distance(representative_size, gel_conc, voltage, time)
                 band_y = 50 + 20 + distance
                 
-                # Skip bands that would run off the gel
-                if band_y > 50 + gel_height - 10:
-                    continue
-                
-                # Band appearance based on fragment properties
-                band_width = 25
-                band_height = 3
-                
-                # Intensity based on fragment size (larger = brighter)
-                base_intensity = min(255, max(80, 120 + fragment_size // 100))
-                
-                # Multiple fragments of same size = brighter band
-                if len(fragment_group) > 1:
-                    base_intensity = min(255, base_intensity + 30)
-                
-                band_color = QColor(base_intensity, 0, base_intensity // 2)
-                
-                # Slight horizontal offset for multiple fragments
-                x_offset = (frag_idx - len(fragment_group)/2) * 2
-                
-                band = self.scene.addRect(lane_x - band_width/2 + x_offset, band_y, 
-                                        band_width, band_height,
-                                        QPen(band_color), QBrush(band_color))
-            
-            # Add size label for the group
-            representative_size = len(fragment_group[0])
-            distance = self.calculate_migration_distance(representative_size, gel_conc, voltage, time)
-            band_y = 50 + 20 + distance
-            
-            if band_y <= 50 + gel_height - 10:  # Only if visible
-                if representative_size >= 1000:
-                    label_text = f"{representative_size/1000:.1f}kb"
-                else:
-                    label_text = f"{representative_size}bp"
+                if band_y <= 50 + gel_height - 10:  # Only if visible
+                    if representative_size >= 1000:
+                        label_text = f"{representative_size/1000:.1f}kb"
+                    else:
+                        label_text = f"{representative_size}bp"
                 
                 if len(fragment_group) > 1:
                     label_text += f" (×{len(fragment_group)})"
@@ -285,7 +317,13 @@ class VirtualGelDialog(QDialog):
                 label.setPos(lane_x + 18, band_y - 3)
             
             # Lane label
-            lane_label = self.scene.addText(f"Sample {group_idx+1}", QFont("Arial", 9))
+            # Create lane name - use enzyme name if available
+            if enzyme_names:
+                lane_name = str(enzyme_names[group_idx])
+            else:
+                lane_name = f"Sample {group_idx+1}"
+            
+            lane_label = self.scene.addText(lane_name, QFont("Arial", 9))
             lane_label.setPos(lane_x - 25, 15)
             lane_index += 1
         

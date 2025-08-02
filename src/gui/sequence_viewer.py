@@ -341,14 +341,16 @@ class SequenceViewer(QWidget):
         try:
             analysis = self.restriction_batch.search(self.record.seq)
             all_fragments = []
+            enzyme_fragments = {}
             
             for enzyme, sites in analysis.items():
                 if sites:  # Only process enzymes that cut
                     fragments = self.get_fragments(self.record.seq, sites)
                     all_fragments.extend(fragments)
+                    enzyme_fragments[str(enzyme)] = fragments
             
             if all_fragments:
-                dialog = VirtualGelDialog(all_fragments, self)
+                dialog = VirtualGelDialog(all_fragments, self, enzyme_fragments=enzyme_fragments)
                 dialog.exec_()
             else:
                 QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
@@ -364,22 +366,23 @@ class SequenceViewer(QWidget):
         fragments = []
         sorted_cuts = sorted(cuts)
         
-        # For linear sequences
-        prev_cut = 0
-        for cut in sorted_cuts:
-            if cut > prev_cut:
-                fragments.append(sequence[prev_cut:cut])
-            prev_cut = cut
-        
-        # Add the last fragment
-        if prev_cut < len(sequence):
-            fragments.append(sequence[prev_cut:])
-        
-        # For circular sequences, also consider the wraparound fragment
-        if len(sorted_cuts) > 1:
-            wraparound = sequence[sorted_cuts[-1]:] + sequence[:sorted_cuts[0]]
-            if len(wraparound) > 0:
-                fragments.append(wraparound)
+        # For circular sequences (plasmids), create fragments between consecutive cuts
+        if len(sorted_cuts) == 1:
+            # Single cut site: linearizes the plasmid into one fragment
+            linearized = sequence[sorted_cuts[0]:] + sequence[:sorted_cuts[0]]
+            return [linearized]
+        else:
+            # Multiple cut sites: create fragments between consecutive cuts
+            for i in range(len(sorted_cuts)):
+                start = sorted_cuts[i]
+                end = sorted_cuts[(i + 1) % len(sorted_cuts)]  # Wrap around for circular
+                
+                if end > start:
+                    # Normal fragment
+                    fragments.append(sequence[start:end])
+                else:
+                    # Wraparound fragment (from last cut to first cut)
+                    fragments.append(sequence[start:] + sequence[:end])
         
         return [f for f in fragments if len(f) > 0]
 

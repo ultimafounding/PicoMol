@@ -24,6 +24,17 @@ class CustomSequenceWidget(QWidget):
         self.ruler_font = QFont("Consolas", 9)
         self.number_font = QFont("Consolas", 10)
         
+        # Cache font objects for performance
+        self.cached_fonts = {
+            'base': self.base_font,
+            'ruler': self.ruler_font,
+            'number': self.number_font,
+            'header': QFont("Consolas", 12, QFont.Bold)
+        }
+        
+        # Performance optimization - batch updates
+        self._updating = False
+        
         # Measurements - use precise font metrics
         fm = QFontMetrics(self.base_font)
         self.char_width = fm.horizontalAdvance("A")  # Consolas is monospace
@@ -119,7 +130,7 @@ class CustomSequenceWidget(QWidget):
             return
         
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        # painter.setRenderHint(QPainter.Antialiasing)  # Disabled for performance
         
         # Fill background
         painter.fillRect(self.rect(), self.colors['background'])
@@ -128,11 +139,16 @@ class CustomSequenceWidget(QWidget):
         y_pos = self.margin
         
         # Draw header
-        painter.setFont(QFont("Consolas", 12, QFont.Bold))
+        painter.setFont(self.cached_fonts['header'])
         painter.setPen(QPen(Qt.black))
         painter.drawText(self.margin, y_pos, f"Sequence: {self.record.id} ({len(sequence)} bp)")
         y_pos += self.line_height * 2
         
+        
+        # Viewport culling - only paint visible area for performance
+        visible_rect = event.rect()
+        start_y = visible_rect.top()
+        end_y = visible_rect.bottom()
         # Draw sequence in blocks
         for i in range(0, len(sequence), self.bases_per_line):
             line_start = i + 1
@@ -140,6 +156,20 @@ class CustomSequenceWidget(QWidget):
             line_seq = sequence[i:line_end]
             
             block_start_y = y_pos
+            
+            # Calculate block height for viewport culling
+            lines_in_block = 2  # ruler + sequence
+            if self.show_features: lines_in_block += 1
+            if self.show_translation: lines_in_block += 1
+            if self.show_complement: lines_in_block += 1
+            if self.show_enzymes: lines_in_block += 1
+            lines_in_block += 1  # spacing
+            block_height = lines_in_block * self.line_height
+            
+            # Skip this block if it's not visible
+            if y_pos + block_height < start_y or y_pos > end_y:
+                y_pos += block_height
+                continue
             
             # Draw feature backgrounds first (behind everything)
             if self.show_features and hasattr(self.record, 'features'):
@@ -177,7 +207,7 @@ class CustomSequenceWidget(QWidget):
     
     def draw_ruler(self, painter, length, y_pos):
         """Draw position ruler"""
-        painter.setFont(self.ruler_font)
+        painter.setFont(self.cached_fonts['ruler'])
         painter.setPen(QPen(self.colors['ruler']))
         
         for i in range(length):
@@ -193,7 +223,7 @@ class CustomSequenceWidget(QWidget):
         if not hasattr(self.record, 'features'):
             return
         
-        painter.setFont(self.base_font)
+        painter.setFont(self.cached_fonts['base'])
         
         feature_chars = [" "] * len(sequence)
         
@@ -234,11 +264,9 @@ class CustomSequenceWidget(QWidget):
             "primer_bind": "^",
             "protein_bind": "#"
         }
-        return chars.get(feature_type, ".")
-    
     def draw_sequence_line(self, painter, sequence, line_number, y_pos):
         """Draw sequence line with colored bases"""
-        painter.setFont(self.base_font)
+        painter.setFont(self.cached_fonts['base'])
         
         # Draw line number and direction indicator
         painter.setPen(QPen(self.colors['numbers']))
@@ -256,10 +284,9 @@ class CustomSequenceWidget(QWidget):
                 painter.setPen(QPen(Qt.black))
             
             painter.drawText(x, y_pos, base)
-    
     def draw_translation(self, painter, sequence, start_pos, y_pos):
         """Draw translation line"""
-        painter.setFont(self.base_font)
+        painter.setFont(self.cached_fonts['base'])
         painter.setPen(QPen(self.colors['translation']))
         
         if not self.record:
@@ -300,7 +327,7 @@ class CustomSequenceWidget(QWidget):
     
     def draw_complement(self, painter, line_sequence, line_start_pos, y_pos):
         """Draw complement line (antiparallel strand, 3' to 5' direction)"""
-        painter.setFont(self.base_font)
+        painter.setFont(self.cached_fonts['base'])
         painter.setPen(QPen(self.colors['complement']))
         
         # Draw label for complement (3' to 5' direction)
@@ -333,7 +360,7 @@ class CustomSequenceWidget(QWidget):
         if not self.enzyme_sites:
             return
         
-        painter.setFont(self.base_font)
+        painter.setFont(self.cached_fonts['base'])
         painter.setPen(QPen(self.colors['enzyme']))
         
         enzyme_chars = [" "] * len(sequence)
@@ -451,17 +478,28 @@ class CustomSequenceWidget(QWidget):
     
     # Methods to match the original interface
     def set_show_features(self, show):
-        self.show_features = show
-        self.update_size()
-        self.update()
+        if self.show_features != show:
+            self.show_features = show
+            self.update_size()
+            self.update()
     
     def set_show_translation(self, show):
-        self.show_translation = show
-        self.update_size()
-        self.update()
+        if self.show_translation != show:
+            self.show_translation = show
+            self.update_size()
+            self.update()
     
     def set_show_complement(self, show):
-        self.show_complement = show
+        if self.show_complement != show:
+            self.show_complement = show
+            self.update_size()
+            self.update()
+    
+    def set_show_enzymes(self, show):
+        if self.show_enzymes != show:
+            self.show_enzymes = show
+            self.update_size()
+            self.update()
         self.update_size()
         self.update()
     

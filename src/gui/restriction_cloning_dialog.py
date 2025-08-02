@@ -365,7 +365,7 @@ class RestrictionCloningDialog(QDialog):
         fragments = []
         sorted_cuts = sorted(cuts)
         
-        if is_circular and len(sorted_cuts) > 1:
+        if is_circular and len(sorted_cuts) >= 1:
             # For circular sequences (plasmids)
             for i in range(len(sorted_cuts)):
                 start = sorted_cuts[i]
