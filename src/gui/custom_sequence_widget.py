@@ -262,21 +262,37 @@ class CustomSequenceWidget(QWidget):
         painter.setFont(self.base_font)
         painter.setPen(QPen(self.colors['translation']))
         
-        # Calculate reading frame offset
-        frame_offset = (start_pos - 1) % 3
+        if not self.record:
+            return
         
-        # Translate sequence in proper reading frame
-        for i in range(0, len(sequence) - 2, 3):
-            # Check if we're in the correct reading frame
-            if (i + frame_offset) % 3 == 0:
-                codon = sequence[i:i+3]
-                if len(codon) == 3 and all(c in 'ATCG' for c in codon):
+        # Get the full sequence for proper codon calculation
+        full_sequence = str(self.record.seq).upper()
+        
+        # Calculate which codons have their middle position in this line
+        line_start_abs = start_pos - 1  # Convert to 0-based
+        line_end_abs = line_start_abs + len(sequence)
+        
+        # Iterate through all possible codons in the sequence (reading frame 1)
+        for codon_start in range(0, len(full_sequence), 3):
+            codon_end = codon_start + 3
+            if codon_end > len(full_sequence):
+                break
+                
+            # Calculate the middle position of this codon (0-based)
+            codon_middle = codon_start + 1  # Middle of the 3-base codon
+            
+            # Check if this codon's middle position falls within the current line
+            if line_start_abs <= codon_middle < line_end_abs:
+                # Extract the codon from the full sequence
+                codon = full_sequence[codon_start:codon_end]
+                
+                if len(codon) == 3 and all(c in 'ATCGN' for c in codon):
                     try:
                         aa = str(Seq(codon).translate())
                         
-                        # Position amino acid at the middle of the codon
-                        middle_pos = i + 1  # Middle of the 3-base codon
-                        x = self.get_x_position(middle_pos)
+                        # Calculate the relative position within this line
+                        relative_pos = codon_middle - line_start_abs
+                        x = self.get_x_position(relative_pos)
                         
                         painter.drawText(x, y_pos, aa)
                     except:
