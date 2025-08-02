@@ -45,3 +45,12 @@ data/test_metadata_fix/structures/4HHB.pdb
 data/test_pulled_structures/metadata/1CRN_metadata.json
 data/test_pulled_structures/metadata/1CRN_summary.json
 data/test_pulled_structures/structures/1CRN.pdb
+screenshot_02082025_142101.jpg
+.gitignore
+.gitignore
+CLONING_IMPROVEMENTS.md
+SNAPGENE_TAB_FEATURES.md
+test_custom_sequence.py
+test_rendering_options.py
+test_plasmid.gb
+screenshot_02082025_142127.jpg

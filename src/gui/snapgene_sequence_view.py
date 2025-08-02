@@ -10,254 +10,19 @@ from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction
 import math
 
-class SnapGeneSequenceWidget(QTextEdit):
-    """Authentic SnapGene-style sequence display widget"""
-    
-    positionChanged = pyqtSignal(int)
-    
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.record = None
-        self.show_features = True
-        self.show_translation = True
-        self.show_complement = False
-        self.show_enzymes = False
-        self.bases_per_line = 60  # SnapGene default
-        self.current_position = 0
-        
-        # Setup authentic SnapGene appearance
-        self.setFont(QFont("Consolas", 11))  # SnapGene uses Consolas
-        self.setReadOnly(True)
-        self.setLineWrapMode(QTextEdit.NoWrap)
-        self.setStyleSheet("""
-            QTextEdit {
-                background-color: white;
-                border: none;
-                selection-background-color: #316AC5;
-                color: black;
-                padding: 10px;
-                line-height: 1.2;
-            }
-        """)
-        
-        # Authentic SnapGene feature colors
-        self.feature_colors = {
-            "gene": QColor(255, 255, 0, 100),        # Yellow
-            "CDS": QColor(255, 165, 0, 100),         # Orange  
-            "promoter": QColor(255, 0, 0, 100),      # Red
-            "terminator": QColor(128, 0, 128, 100),  # Purple
-            "rep_origin": QColor(0, 255, 0, 100),    # Green
-            "misc_feature": QColor(192, 192, 192, 100), # Gray
-            "regulatory": QColor(255, 192, 203, 100), # Pink
-            "enhancer": QColor(255, 255, 224, 100),   # Light yellow
-            "primer_bind": QColor(0, 255, 255, 100),  # Cyan
-            "protein_bind": QColor(144, 238, 144, 100) # Light green
-        }
-        
-        self.cursorPositionChanged.connect(self.on_cursor_changed)
-    
-    def display_sequence(self, record):
-        """Display sequence in authentic SnapGene style"""
-        self.record = record
-        self.update_display()
-    
-    def update_display(self):
-        """Update the sequence display with authentic SnapGene formatting"""
-        if not self.record:
-            self.clear()
-            return
-        
-        self.clear()
-        
-        sequence = str(self.record.seq).upper()
-        display_lines = []
-        
-        # Add header with sequence info
-        display_lines.append(f"Sequence: {self.record.id} ({len(sequence)} bp)")
-        display_lines.append("")
-        
-        # Process sequence in chunks
-        for i in range(0, len(sequence), self.bases_per_line):
-            line_start = i + 1
-            line_end = min(i + self.bases_per_line, len(sequence))
-            line_seq = sequence[i:line_end]
-            
-            # Add feature annotation line if features are shown
-            if self.show_features and hasattr(self.record, 'features'):
-                feature_line = self.create_feature_line(i, line_seq)
-                if feature_line.strip():
-                    display_lines.append(f"       {feature_line}")
-            
-            # Add position ruler
-            ruler = self.create_ruler(len(line_seq))
-            display_lines.append(f"       {ruler}")
-            
-            # Add main sequence line with position number
-            formatted_seq = self.format_sequence(line_seq)
-            display_lines.append(f"{line_start:>6} {formatted_seq}")
-            
-            # Add translation if enabled
-            if self.show_translation:
-                translation = self.create_translation(line_seq, line_start)
-                if translation.strip():
-                    display_lines.append(f"       {translation}")
-            
-            # Add complement if enabled
-            if self.show_complement:
-                complement = self.create_complement(line_seq)
-                display_lines.append(f"       {complement}")
-            
-            # Add spacing between blocks
-            display_lines.append("")
-        
-        # Set the formatted text
-        self.setPlainText("\n".join(display_lines))
-        
-        # Apply feature highlighting
-        if self.show_features:
-            self.apply_feature_highlighting()
-    
-    def create_ruler(self, length):
-        """Create position ruler like SnapGene"""
-        ruler = ""
-        for i in range(length):
-            if i % 10 == 0:
-                ruler += "|"
-            elif i % 5 == 0:
-                ruler += "."
-            else:
-                ruler += " "
-        return ruler
-    
-    def create_feature_line(self, start_pos, sequence):
-        """Create feature annotation line"""
-        feature_chars = [" "] * len(sequence)
-        
-        if hasattr(self.record, 'features'):
-            for feature in self.record.features:
-                if feature.type == 'source':
-                    continue
-                    
-                feat_start = int(feature.location.start)
-                feat_end = int(feature.location.end)
-                
-                # Check overlap with current line
-                line_end = start_pos + len(sequence)
-                if feat_start < line_end and feat_end > start_pos:
-                    # Calculate overlap positions
-                    overlap_start = max(feat_start - start_pos, 0)
-                    overlap_end = min(feat_end - start_pos, len(sequence))
-                    
-                    # Get feature character
-                    char = self.get_feature_char(feature.type)
-                    
-                    # Mark the feature
-                    for pos in range(overlap_start, overlap_end):
-                        if 0 <= pos < len(feature_chars):
-                            feature_chars[pos] = char
-        
-        return self.format_sequence("".join(feature_chars))
-    
-    def get_feature_char(self, feature_type):
-        """Get character for feature type"""
-        chars = {
-            "gene": "=",
-            "CDS": "-", 
-            "promoter": ">",
-            "terminator": "|",
-            "rep_origin": "o",
-            "misc_feature": ".",
-            "regulatory": "~",
-            "enhancer": "+",
-            "primer_bind": "^",
-            "protein_bind": "#"
-        }
-        return chars.get(feature_type, ".")
-    
-    def format_sequence(self, sequence):
-        """Format sequence with SnapGene-style spacing"""
-        formatted = ""
-        for i, char in enumerate(sequence):
-            if i > 0 and i % 10 == 0:
-                formatted += " "
-            formatted += char
-        return formatted
-    
-    def create_translation(self, sequence, start_pos):
-        """Create translation line"""
-        # Calculate reading frame
-        frame = (start_pos - 1) % 3
-        
-        # Pad sequence to align with reading frame
-        padded_seq = " " * frame + sequence
-        
-        translation = ""
-        for i in range(0, len(padded_seq), 3):
-            codon = padded_seq[i:i+3]
-            if len(codon) == 3 and all(c in 'ATCG ' for c in codon):
-                if ' ' not in codon:
-                    try:
-                        aa = str(Seq(codon).translate())
-                        translation += aa + "  "
-                    except:
-                        translation += "   "
-                else:
-                    translation += "   "
-            else:
-                translation += " " * (3 - len(codon)) if len(codon) < 3 else ""
-        
-        # Format with spacing
-        return self.format_sequence(translation.rstrip())
-    
-    def create_complement(self, sequence):
-        """Create complement line"""
-        comp_map = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
-        complement = "".join(comp_map.get(base, base) for base in sequence[::-1])
-        return self.format_sequence(complement)
-    
-    def apply_feature_highlighting(self):
-        """Apply feature highlighting"""
-        if not self.record or not hasattr(self.record, 'features'):
-            return
-        
-        # This is a simplified version - full implementation would be more complex
-        pass
-    
-    def on_cursor_changed(self):
-        """Handle cursor position changes"""
-        cursor = self.textCursor()
-        position = cursor.position()
-        
-        # Convert to sequence position (simplified)
-        seq_pos = max(0, position // 10)  # Rough estimate
-        if seq_pos != self.current_position:
-            self.current_position = seq_pos
-            self.positionChanged.emit(seq_pos)
-    
-    def set_show_features(self, show):
-        """Toggle feature display"""
-        self.show_features = show
-        self.update_display()
-    
-    def set_show_translation(self, show):
-        """Toggle translation display"""
-        self.show_translation = show
-        self.update_display()
-    
-    def set_show_complement(self, show):
-        """Toggle complement display"""
-        self.show_complement = show
-        self.update_display()
-    
-    def set_show_enzymes(self, show):
-        """Toggle enzyme display"""
-        self.show_enzymes = show
-        self.update_display()
-    
-    def set_bases_per_line(self, bases):
-        """Set bases per line"""
-        self.bases_per_line = bases
-        self.update_display()
+# Import custom sequence widget
+from src.gui.custom_sequence_widget import CustomSequenceWidget
+
+# Try to import Bio.Restriction for enzyme analysis
+try:
+    from Bio.Restriction import RestrictionBatch, Analysis
+    from Bio.Restriction import EcoRI, BamHI, HindIII, XhoI, SalI, XbaI, SpeI, NotI
+    from Bio.Restriction import PstI, SacI, KpnI, SmaI, BglII, NcoI, NdeI, ApaI
+    RESTRICTION_AVAILABLE = True
+except ImportError:
+    RESTRICTION_AVAILABLE = False
+
+# Old SnapGeneSequenceWidget class removed - now using CustomSequenceWidget
 
 class SnapGeneSequenceView(QWidget):
     """Main SnapGene-style sequence view widget"""
@@ -323,8 +88,8 @@ class SnapGeneSequenceView(QWidget):
         # Create main content area
         content_layout = QHBoxLayout()
         
-        # Left side - sequence display
-        self.sequence_widget = SnapGeneSequenceWidget()
+        # Left side - sequence display using custom painted widget
+        self.sequence_widget = CustomSequenceWidget()
         self.sequence_widget.positionChanged.connect(self.on_position_changed)
         
         # Add scroll area for sequence
@@ -374,6 +139,17 @@ class SnapGeneSequenceView(QWidget):
         pos_form.addRow("Base:", self.base_label)
         
         info_layout.addWidget(pos_group)
+        
+        # Enzyme info (only show if enzymes are enabled)
+        self.enzyme_group = QGroupBox("Restriction Enzymes")
+        self.enzyme_list = QLabel("Enable enzymes to see cut sites")
+        self.enzyme_list.setWordWrap(True)
+        self.enzyme_list.setStyleSheet("font-size: 10px;")
+        
+        enzyme_layout = QVBoxLayout(self.enzyme_group)
+        enzyme_layout.addWidget(self.enzyme_list)
+        
+        info_layout.addWidget(self.enzyme_group)
         info_layout.addStretch()
         
         content_layout.addWidget(info_panel)
@@ -401,6 +177,12 @@ class SnapGeneSequenceView(QWidget):
         
         # Update sequence display
         self.sequence_widget.display_sequence(record)
+        
+        # Update enzyme analysis if enzymes are enabled
+        if self.enzymes_check.isChecked():
+            self.analyze_enzymes()
+            self.sequence_widget.enzyme_sites = self.enzyme_sites
+            self.update_enzyme_info()
         
         # Update info panel
         if record:
@@ -442,7 +224,11 @@ class SnapGeneSequenceView(QWidget):
     
     def on_enzymes_toggled(self, checked):
         """Handle enzymes toggle"""
+        if checked and self.record:
+            self.analyze_enzymes()
+            self.sequence_widget.enzyme_sites = self.enzyme_sites
         self.sequence_widget.set_show_enzymes(checked)
+        self.update_enzyme_info()
     
     def on_bases_changed(self, bases):
         """Handle bases per line change"""
@@ -458,3 +244,44 @@ class SnapGeneSequenceView(QWidget):
             self.status_label.setText(f"Position {position + 1} | Base: {base}")
         else:
             self.base_label.setText("-")
+    
+    def analyze_enzymes(self):
+        """Analyze restriction enzyme cut sites"""
+        if not RESTRICTION_AVAILABLE or not self.record:
+            self.enzyme_sites = {}
+            return
+        
+        try:
+            # Create a common set of restriction enzymes
+            common_enzymes = RestrictionBatch([
+                EcoRI, BamHI, HindIII, XhoI, SalI, XbaI, SpeI, NotI,
+                PstI, SacI, KpnI, SmaI, BglII, NcoI, NdeI, ApaI
+            ])
+            
+            # Store cut sites - get individual enzyme results
+            self.enzyme_sites = {}
+            for enzyme in common_enzymes:
+                sites = enzyme.search(self.record.seq)
+                if sites:
+                    self.enzyme_sites[str(enzyme)] = sites
+                    
+        except Exception as e:
+            print(f"Error analyzing enzymes: {e}")
+            self.enzyme_sites = {}
+    
+    def update_enzyme_info(self):
+        """Update enzyme information display"""
+        if not hasattr(self, 'enzyme_sites') or not self.enzyme_sites:
+            self.enzyme_list.setText("No enzyme cut sites found" if self.enzymes_check.isChecked() else "Enable enzymes to see cut sites")
+            return
+        
+        enzyme_info = []
+        for enzyme_name, sites in self.enzyme_sites.items():
+            if sites:
+                site_list = ", ".join(str(site) for site in sorted(sites))
+                enzyme_info.append(f"{enzyme_name}: {site_list}")
+        
+        if enzyme_info:
+            self.enzyme_list.setText("\n".join(enzyme_info[:10]))  # Show first 10 enzymes
+        else:
+            self.enzyme_list.setText("No enzyme cut sites found")
