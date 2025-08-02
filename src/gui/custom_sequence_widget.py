@@ -27,10 +27,10 @@ class CustomSequenceWidget(QWidget):
         # Measurements - use precise font metrics
         fm = QFontMetrics(self.base_font)
         self.char_width = fm.horizontalAdvance("A")  # Consolas is monospace
-        self.line_height = fm.height() + 6  # Extra spacing for readability
+        self.line_height = fm.height() + 2  # Reduced extra spacing for readability
         self.margin = 20
-        self.number_width = 80  # More space for line numbers
-        self.group_spacing = self.char_width // 2  # Space between 10-base groups
+        self.number_width = 100  # Increased space for line numbers and 5' label
+        self.group_spacing = self.char_width  # Increased space between 10-base groups
         
         # Colors - SnapGene style
         self.colors = {
@@ -242,8 +242,8 @@ class CustomSequenceWidget(QWidget):
         
         # Draw line number and direction indicator
         painter.setPen(QPen(self.colors['numbers']))
-        painter.drawText(10, y_pos, f"{line_number:>6}")
-        painter.drawText(self.number_width - 20, y_pos, "5'->")
+        painter.drawText(10, y_pos + self.line_height // 2, f"{line_number:>6}")
+        painter.drawText(self.number_width - 20, y_pos + self.line_height // 2, "5'->")
         
         # Draw sequence with colored bases
         for i, base in enumerate(sequence):
@@ -288,7 +288,7 @@ class CustomSequenceWidget(QWidget):
         painter.setPen(QPen(self.colors['complement']))
         
         # Draw label for complement (3' to 5' direction)
-        painter.drawText(10, y_pos, "<-3'")
+        painter.drawText(10, y_pos + self.line_height // 2, "<-3'")
         
         comp_map = {'A': 'T', 'T': 'A', 'C': 'G', 'G': 'C'}
         
