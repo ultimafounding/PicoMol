@@ -783,6 +783,11 @@ class ProteinViewerApp(QMainWindow):
         from src.gui.plasmid_viewer import create_plasmid_viewer_tab
         plasmid_viewer_tab = create_plasmid_viewer_tab(self)
         self.main_tabs.addTab(plasmid_viewer_tab, "Plasmid Viewer")
+
+        # Create SnapGene tab
+        from src.gui.sequence_viewer import SequenceViewer
+        snapgene_tab = SequenceViewer(self)
+        self.main_tabs.addTab(snapgene_tab, "SnapGene")
         
         # Create BLAST tab
         blast_tab = QWidget()
