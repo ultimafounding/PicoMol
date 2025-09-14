@@ -264,14 +264,19 @@ class CustomSequenceWidget(QWidget):
             "primer_bind": "^",
             "protein_bind": "#"
         }
+        return chars.get(feature_type, "?")
     def draw_sequence_line(self, painter, sequence, line_number, y_pos):
-        """Draw sequence line with colored bases"""
+        """Draw sequence line with colored bases and restriction site highlighting"""
         painter.setFont(self.cached_fonts['base'])
         
         # Draw line number and direction indicator
         painter.setPen(QPen(self.colors['numbers']))
         painter.drawText(10, y_pos + self.line_height // 2, f"{line_number:>6}")
         painter.drawText(self.number_width - 20, y_pos + self.line_height // 2, "5'->")
+        
+        # First, draw restriction site backgrounds if enzymes are enabled
+        if self.show_enzymes and self.enzyme_sites:
+            self.draw_restriction_site_backgrounds(painter, line_number - 1, sequence, y_pos)
         
         # Draw sequence with colored bases
         for i, base in enumerate(sequence):
@@ -284,6 +289,67 @@ class CustomSequenceWidget(QWidget):
                 painter.setPen(QPen(Qt.black))
             
             painter.drawText(x, y_pos, base)
+    
+    def draw_restriction_site_backgrounds(self, painter, start_pos, sequence, y_pos):
+        """Draw SnapGene-style restriction site backgrounds"""
+        if not self.enzyme_sites:
+            return
+        
+        # Define colors for different enzymes
+        enzyme_colors = [
+            QColor(255, 100, 100),  # Light red
+            QColor(100, 255, 100),  # Light green
+            QColor(100, 100, 255),  # Light blue
+            QColor(255, 255, 100),  # Light yellow
+            QColor(255, 100, 255),  # Light magenta
+            QColor(100, 255, 255),  # Light cyan
+            QColor(255, 150, 100),  # Light orange
+            QColor(150, 255, 150),  # Pale green
+        ]
+        
+        color_index = 0
+        line_end = start_pos + len(sequence)
+        
+        # Draw background for each enzyme's recognition sites
+        for enzyme_name, sites in self.enzyme_sites.items():
+            if not sites:
+                continue
+                
+            # Get enzyme color
+            enzyme_color = enzyme_colors[color_index % len(enzyme_colors)]
+            color_index += 1
+            
+            # Try to get recognition site length (assume 6 bp if unknown)
+            recognition_length = 6  # Default length
+            
+            for site in sites:
+                site_start = site - 1  # Convert to 0-based
+                site_end = site_start + recognition_length
+                
+                # Check if site overlaps with current line
+                if site_start < line_end and site_end > start_pos:
+                    overlap_start = max(site_start - start_pos, 0)
+                    overlap_end = min(site_end - start_pos, len(sequence))
+                    
+                    if overlap_start < overlap_end:
+                        # Calculate rectangle position
+                        x_start = self.get_x_position(overlap_start)
+                        x_end = self.get_x_position(overlap_end - 1) + self.char_width
+                        width = x_end - x_start
+                        
+                        # Draw background rectangle
+                        bg_color = QColor(enzyme_color)
+                        bg_color.setAlpha(60)  # Semi-transparent
+                        painter.fillRect(
+                            x_start, y_pos - 3,
+                            width, self.line_height,
+                            bg_color
+                        )
+                        
+                        # Draw colored underline
+                        painter.setPen(QPen(enzyme_color.darker(120), 2))
+                        painter.drawLine(x_start, y_pos + self.line_height - 5,
+                                       x_start + width, y_pos + self.line_height - 5)
     def draw_translation(self, painter, sequence, start_pos, y_pos):
         """Draw translation line"""
         painter.setFont(self.cached_fonts['base'])
@@ -356,29 +422,77 @@ class CustomSequenceWidget(QWidget):
             painter.drawText(x, y_pos, base)
     
     def draw_enzyme_line(self, painter, start_pos, sequence, y_pos):
-        """Draw enzyme cut sites"""
+        """Draw SnapGene-style enzyme boxes above sequence"""
         if not self.enzyme_sites:
             return
         
-        painter.setFont(self.cached_fonts['base'])
-        painter.setPen(QPen(self.colors['enzyme']))
-        
-        enzyme_chars = [" "] * len(sequence)
         line_end = start_pos + len(sequence)
         
-        # Mark enzyme cut sites
-        for enzyme_name, sites in self.enzyme_sites.items():
-            for site in sites:
-                cut_pos = site - 1  # Convert to 0-based
-                if start_pos <= cut_pos < line_end:
-                    relative_pos = cut_pos - start_pos
-                    if 0 <= relative_pos < len(enzyme_chars):
-                        enzyme_chars[relative_pos] = "|"
+        # SnapGene-style enzyme colors
+        enzyme_colors = [
+            QColor(255, 102, 102),  # Light red
+            QColor(102, 255, 102),  # Light green  
+            QColor(102, 178, 255),  # Light blue
+            QColor(255, 255, 102),  # Light yellow
+            QColor(255, 178, 102),  # Light orange
+            QColor(178, 102, 255),  # Light purple
+            QColor(102, 255, 255),  # Light cyan
+            QColor(255, 102, 255),  # Light magenta
+        ]
         
-        # Draw enzyme characters
-        for i, char in enumerate(enzyme_chars):
-            x = self.get_x_position(i)
-            painter.drawText(x, y_pos, char)
+        color_index = 0
+        
+        # Draw SnapGene-style enzyme boxes
+        for enzyme_name, sites in self.enzyme_sites.items():
+            if not sites:
+                continue
+                
+            # Get enzyme color
+            enzyme_color = enzyme_colors[color_index % len(enzyme_colors)]
+            color_index += 1
+            
+            for site in sites:
+                site_start = site - 1  # Convert to 0-based
+                recognition_length = 6  # Assume 6bp recognition site
+                site_end = site_start + recognition_length
+                
+                # Check if enzyme site overlaps with this line
+                if site_start < line_end and site_end > start_pos:
+                    overlap_start = max(site_start - start_pos, 0)
+                    overlap_end = min(site_end - start_pos, len(sequence))
+                    
+                    if overlap_start < overlap_end:
+                        # Calculate box position
+                        x_start = self.get_x_position(overlap_start)
+                        x_end = self.get_x_position(overlap_end - 1) + self.char_width
+                        box_width = max(x_end - x_start, len(enzyme_name) * 8)  # Minimum width for text
+                        
+                        # Center the box over the recognition site
+                        box_x = x_start - (box_width - (x_end - x_start)) // 2
+                        box_y = y_pos - self.line_height - 5
+                        box_height = self.line_height - 2
+                        
+                        # Draw SnapGene-style enzyme box
+                        painter.fillRect(box_x, box_y, box_width, box_height, enzyme_color)
+                        
+                        # Draw border
+                        painter.setPen(QPen(enzyme_color.darker(120), 1))
+                        painter.drawRect(box_x, box_y, box_width, box_height)
+                        
+                        # Draw enzyme name in white text
+                        painter.setPen(QPen(QColor(255, 255, 255)))
+                        painter.setFont(QFont("Arial", 8, QFont.Bold))
+                        
+                        # Center text in box
+                        text_x = box_x + (box_width - len(enzyme_name) * 6) // 2
+                        text_y = box_y + box_height - 3
+                        
+                        painter.drawText(text_x, text_y, enzyme_name)
+                        
+                        # Draw connection line to sequence
+                        painter.setPen(QPen(enzyme_color.darker(120), 1))
+                        center_x = box_x + box_width // 2
+                        painter.drawLine(center_x, box_y + box_height, center_x, y_pos - 2)
     
     def draw_feature_backgrounds(self, painter, start_pos, sequence, y_pos):
         """Draw feature background highlights"""

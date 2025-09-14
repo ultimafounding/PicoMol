@@ -171,16 +171,20 @@ class SnapGeneSequenceView(QWidget):
         """)
         layout.addWidget(self.status_label)
     
-    def display_sequence(self, record):
+    def display_sequence(self, record, restriction_batch=None):
         """Display a sequence record"""
         self.record = record
+        self.restriction_batch = restriction_batch
         
         # Update sequence display
         self.sequence_widget.display_sequence(record)
         
-        # Update enzyme analysis if enzymes are enabled
+        # Update enzyme analysis - use provided restriction batch or default
         if self.enzymes_check.isChecked():
-            self.analyze_enzymes()
+            if restriction_batch:
+                self.analyze_enzymes_from_batch(restriction_batch)
+            else:
+                self.analyze_enzymes()
             self.sequence_widget.enzyme_sites = self.enzyme_sites
             self.update_enzyme_info()
         
@@ -246,7 +250,7 @@ class SnapGeneSequenceView(QWidget):
             self.base_label.setText("-")
     
     def analyze_enzymes(self):
-        """Analyze restriction enzyme cut sites"""
+        """Analyze restriction enzyme cut sites using default enzymes"""
         if not RESTRICTION_AVAILABLE or not self.record:
             self.enzyme_sites = {}
             return
@@ -268,6 +272,37 @@ class SnapGeneSequenceView(QWidget):
         except Exception as e:
             print(f"Error analyzing enzymes: {e}")
             self.enzyme_sites = {}
+    
+    def analyze_enzymes_from_batch(self, restriction_batch):
+        """Analyze restriction enzyme cut sites from provided batch"""
+        if not restriction_batch or not self.record:
+            self.enzyme_sites = {}
+            return
+        
+        try:
+            # Get analysis from the restriction batch
+            analysis = restriction_batch.search(self.record.seq)
+            
+            # Store cut sites
+            self.enzyme_sites = {}
+            for enzyme, sites in analysis.items():
+                if sites:
+                    self.enzyme_sites[str(enzyme)] = sites
+                    
+        except Exception as e:
+            print(f"Error analyzing enzymes from batch: {e}")
+            self.enzyme_sites = {}
+    
+    def update_restriction_highlighting(self, restriction_batch):
+        """Update restriction site highlighting with new enzyme selection"""
+        self.restriction_batch = restriction_batch
+        
+        # Update enzyme analysis if enzymes are enabled
+        if self.enzymes_check.isChecked() and self.record:
+            self.analyze_enzymes_from_batch(restriction_batch)
+            self.sequence_widget.enzyme_sites = self.enzyme_sites
+            self.update_enzyme_info()
+            self.sequence_widget.update()  # Refresh the display
     
     def update_enzyme_info(self):
         """Update enzyme information display"""

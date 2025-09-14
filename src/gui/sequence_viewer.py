@@ -17,6 +17,15 @@ from src.gui.restriction_cloning_dialog import RestrictionCloningDialog
 from src.gui.gibson_assembly_dialog import GibsonAssemblyDialog
 from src.gui.virtual_gel_dialog import VirtualGelDialog
 from src.gui.golden_gate_dialog import GoldenGateDialog
+# Import new enhanced features
+try:
+    from src.gui.export_dialog import ExportDialog
+    from src.gui.sequence_editor import SequenceEditor
+    from src.gui.advanced_analysis import AdvancedAnalysisDialog
+    ENHANCED_FEATURES_AVAILABLE = True
+except ImportError as e:
+    print(f"Enhanced features not available: {e}")
+    ENHANCED_FEATURES_AVAILABLE = False
 import math
 import os
 
@@ -75,6 +84,25 @@ class SequenceViewer(QWidget):
         self.enzyme_action.setToolTip("Choose restriction enzymes to display")
         self.enzyme_action.triggered.connect(self.select_enzymes)
         toolbar.addAction(self.enzyme_action)
+
+        toolbar.addSeparator()
+        
+        # Enhanced features if available
+        if ENHANCED_FEATURES_AVAILABLE:
+            self.export_action = QAction("📤 Export", self)
+            self.export_action.setToolTip("Export sequence maps and data")
+            self.export_action.triggered.connect(self.open_export_dialog)
+            toolbar.addAction(self.export_action)
+            
+            self.edit_action = QAction("✏️ Edit Sequence", self)
+            self.edit_action.setToolTip("Edit sequence and features")
+            self.edit_action.triggered.connect(self.open_sequence_editor)
+            toolbar.addAction(self.edit_action)
+            
+            self.advanced_action = QAction("🔬 Advanced Analysis", self)
+            self.advanced_action.setToolTip("Advanced sequence analysis tools")
+            self.advanced_action.triggered.connect(self.open_advanced_analysis)
+            toolbar.addAction(self.advanced_action)
 
         toolbar.addSeparator()
 
@@ -249,6 +277,31 @@ class SequenceViewer(QWidget):
         
         layout.addWidget(cloning_group)
         
+        # Enhanced tools if available
+        if ENHANCED_FEATURES_AVAILABLE:
+            enhanced_group = QGroupBox("Enhanced Tools")
+            enhanced_layout = QVBoxLayout(enhanced_group)
+            
+            # Export tools
+            export_button = QPushButton("📤 Export Maps & Sequences")
+            export_button.setToolTip("Export high-quality maps and sequence data")
+            export_button.clicked.connect(self.open_export_dialog)
+            enhanced_layout.addWidget(export_button)
+            
+            # Sequence editor
+            edit_button = QPushButton("✏️ Sequence Editor")
+            edit_button.setToolTip("Edit sequence and manage features")
+            edit_button.clicked.connect(self.open_sequence_editor)
+            enhanced_layout.addWidget(edit_button)
+            
+            # Advanced analysis
+            analysis_button = QPushButton("🔬 Advanced Analysis")
+            analysis_button.setToolTip("ORF finding, primer design, sequence comparison")
+            analysis_button.clicked.connect(self.open_advanced_analysis)
+            enhanced_layout.addWidget(analysis_button)
+            
+            layout.addWidget(enhanced_group)
+        
         # Add spacer
         layout.addStretch()
         
@@ -403,6 +456,15 @@ class SequenceViewer(QWidget):
                 if selected_enzymes:
                     self.restriction_batch = RestrictionBatch(selected_enzymes)
                     self.update_view()
+                    
+                    # Update sequence view highlighting
+                    if hasattr(self, 'sequence_view'):
+                        self.sequence_view.update_restriction_highlighting(self.restriction_batch)
+                    
+                    # Update SnapGene view highlighting
+                    if hasattr(self, 'snapgene_view'):
+                        self.snapgene_view.update_restriction_highlighting(self.restriction_batch)
+                    
                     if hasattr(self, 'parent_app') and self.parent_app:
                         self.parent_app.statusBar().showMessage(f"Selected {len(selected_enzymes)} restriction enzymes", 3000)
                 else:
@@ -462,11 +524,11 @@ class SequenceViewer(QWidget):
         
         # Update sequence view
         if hasattr(self, 'sequence_view'):
-            self.sequence_view.display_sequence(record)
+            self.sequence_view.display_sequence(record, self.restriction_batch)
         
         # Update SnapGene sequence view
         if hasattr(self, 'snapgene_view'):
-            self.snapgene_view.display_sequence(record)
+            self.snapgene_view.display_sequence(record, self.restriction_batch)
         
         # Update sequence information
         if hasattr(self, 'info_label'):
@@ -613,13 +675,29 @@ class SequenceViewer(QWidget):
                         # Add restriction cut arrow
                         self.add_circular_restriction_arrow(site, enzyme)
                         
-                        # Add enzyme label (only for some enzymes to avoid clutter)
-                        if len(sites) <= 3:  # Only label if few cut sites
-                            label = self.scene.addText(str(enzyme), QFont("Arial", 7))
+                        # Add enzyme label with cut position indicator
+                        if len(sites) <= 5:  # Show labels for enzymes with few cut sites
+                            # Get cut position information
+                            cut_info = ""
+                            try:
+                                recognition_site = str(enzyme.site)
+                                # Use fst5 for 5' cut position (1-based, convert to 0-based)
+                                cut_pos = getattr(enzyme, 'fst5', None)
+                                if cut_pos is not None and cut_pos > 0:
+                                    cut_pos_0based = cut_pos - 1
+                                    if 0 <= cut_pos_0based < len(recognition_site):
+                                        # Show cut position within recognition site
+                                        cut_site_display = recognition_site[:cut_pos_0based] + "↓" + recognition_site[cut_pos_0based:]
+                                        cut_info = f" ({cut_site_display})"
+                            except:
+                                pass
+                            
+                            label_text = f"{str(enzyme)}{cut_info}"
+                            label = self.scene.addText(label_text, QFont("Arial", 6))
                             label.setDefaultTextColor(Qt.darkRed)
-                            label_x = center_x + (radius + 15) * math.cos(rad_angle)
-                            label_y = center_y + (radius + 15) * math.sin(rad_angle)
-                            label.setPos(label_x - 10, label_y - 5)
+                            label_x = center_x + (radius + 20) * math.cos(rad_angle)
+                            label_y = center_y + (radius + 20) * math.sin(rad_angle)
+                            label.setPos(label_x - 15, label_y - 8)
             except Exception as e:
                 print(f"Error drawing restriction sites: {e}")
         
@@ -695,10 +773,27 @@ class SequenceViewer(QWidget):
                         # Add restriction cut arrow
                         self.add_linear_restriction_arrow(site, enzyme)
                         
-                        # Add enzyme label
-                        label = self.scene.addText(str(enzyme), QFont("Arial", 7))
+                        # Add enzyme label with cut position indicator
+                        try:
+                            recognition_site = str(enzyme.site)
+                            # Use fst5 for 5' cut position (1-based, convert to 0-based)
+                            cut_pos = getattr(enzyme, 'fst5', None)
+                            if cut_pos is not None and cut_pos > 0:
+                                cut_pos_0based = cut_pos - 1
+                                if 0 <= cut_pos_0based < len(recognition_site):
+                                    # Show cut position within recognition site
+                                    cut_site_display = recognition_site[:cut_pos_0based] + "↓" + recognition_site[cut_pos_0based:]
+                                    label_text = f"{str(enzyme)} ({cut_site_display})"
+                                else:
+                                    label_text = str(enzyme)
+                            else:
+                                label_text = str(enzyme)
+                        except:
+                            label_text = str(enzyme)
+                        
+                        label = self.scene.addText(label_text, QFont("Arial", 6))
                         label.setDefaultTextColor(Qt.darkRed)
-                        label.setPos(scaled_site - 10, 35)
+                        label.setPos(scaled_site - 20, 35)
             except Exception as e:
                 print(f"Error drawing restriction sites: {e}")
 
@@ -829,7 +924,7 @@ class SequenceViewer(QWidget):
         return colors.get(feature_type, QColor("#bdc3c7"))  # Light gray for others
     
     def add_circular_arrow(self, feature, center_x, center_y, radius, start_angle, span_angle, color):
-        """Add subtle directional indicator to circular feature"""
+        """Add directional indicator pointing around the plasmid circle"""
         try:
             # Get feature strand information
             strand = getattr(feature.location, 'strand', 1)
@@ -841,47 +936,55 @@ class SequenceViewer(QWidget):
                 return
             
             # Calculate arrow position (towards the end of the feature)
-            if strand >= 0:  # Forward strand
+            if strand >= 0:  # Forward strand (clockwise)
                 arrow_angle = start_angle + (span_angle * 0.8)  # Near the end
-            else:  # Reverse strand
+            else:  # Reverse strand (counterclockwise)
                 arrow_angle = start_angle + (span_angle * 0.2)  # Near the beginning
                 
             rad_angle = math.radians(arrow_angle)
             
-            # Small, elegant arrow
-            arrow_size = 4
+            # Arrow positioned on the feature arc
             arrow_radius = radius
+            arrow_size = 6  # Slightly larger for better visibility
             
-            # Arrow tip position
+            # Arrow tip position (on the circle)
             tip_x = center_x + arrow_radius * math.cos(rad_angle)
             tip_y = center_y + arrow_radius * math.sin(rad_angle)
             
-            # Create small triangular arrow
-            if strand >= 0:  # Forward strand (clockwise)
-                # Arrow pointing clockwise
-                angle1 = rad_angle + math.radians(8)
-                angle2 = rad_angle - math.radians(8)
+            # Create arrow pointing tangentially around the circle
+            if strand >= 0:  # Forward strand (clockwise direction)
+                # Arrow pointing in clockwise direction (tangent to circle)
+                # Tangent direction is perpendicular to radius
+                tangent_angle = rad_angle + math.radians(90)  # 90 degrees ahead of radius
                 
-                base1_x = center_x + (arrow_radius - arrow_size) * math.cos(angle1)
-                base1_y = center_y + (arrow_radius - arrow_size) * math.sin(angle1)
+                # Arrow base points (behind the tip in tangent direction)
+                base_angle1 = tangent_angle + math.radians(150)  # 150 degrees back
+                base_angle2 = tangent_angle + math.radians(210)  # 210 degrees back
                 
-                base2_x = center_x + (arrow_radius - arrow_size) * math.cos(angle2)
-                base2_y = center_y + (arrow_radius - arrow_size) * math.sin(angle2)
-            else:  # Reverse strand (counterclockwise)
-                # Arrow pointing counterclockwise
-                angle1 = rad_angle - math.radians(8)
-                angle2 = rad_angle + math.radians(8)
+                base1_x = tip_x + arrow_size * math.cos(base_angle1)
+                base1_y = tip_y + arrow_size * math.sin(base_angle1)
                 
-                base1_x = center_x + (arrow_radius - arrow_size) * math.cos(angle1)
-                base1_y = center_y + (arrow_radius - arrow_size) * math.sin(angle1)
+                base2_x = tip_x + arrow_size * math.cos(base_angle2)
+                base2_y = tip_y + arrow_size * math.sin(base_angle2)
                 
-                base2_x = center_x + (arrow_radius - arrow_size) * math.cos(angle2)
-                base2_y = center_y + (arrow_radius - arrow_size) * math.sin(angle2)
+            else:  # Reverse strand (counterclockwise direction)
+                # Arrow pointing in counterclockwise direction
+                tangent_angle = rad_angle - math.radians(90)  # 90 degrees behind radius
+                
+                # Arrow base points (behind the tip in tangent direction)
+                base_angle1 = tangent_angle - math.radians(150)  # 150 degrees back
+                base_angle2 = tangent_angle - math.radians(210)  # 210 degrees back
+                
+                base1_x = tip_x + arrow_size * math.cos(base_angle1)
+                base1_y = tip_y + arrow_size * math.sin(base_angle1)
+                
+                base2_x = tip_x + arrow_size * math.cos(base_angle2)
+                base2_y = tip_y + arrow_size * math.sin(base_angle2)
             
             arrow_points = [QPointF(tip_x, tip_y), QPointF(base1_x, base1_y), QPointF(base2_x, base2_y)]
             
-            # Create a subtle arrow with slightly darker color
-            arrow_color = color.darker(120)
+            # Create arrow with contrasting color for visibility
+            arrow_color = color.darker(150)  # Darker for better contrast
             arrow_polygon = QPolygonF(arrow_points)
             arrow_item = self.scene.addPolygon(arrow_polygon, QPen(arrow_color, 1), QBrush(arrow_color))
                 
@@ -972,7 +1075,7 @@ class SequenceViewer(QWidget):
             print(f"Error adding restriction arrows: {e}")
     
     def add_circular_restriction_arrow(self, site, enzyme):
-        """Add subtle restriction cut indicator in circular view"""
+        """Add restriction cut indicator in circular view"""
         try:
             plasmid_len = len(self.record.seq)
             radius = 150
@@ -981,17 +1084,17 @@ class SequenceViewer(QWidget):
             angle = (site / plasmid_len) * 360
             rad_angle = math.radians(angle)
             
-            # Simple cut indicator - small triangle pointing inward
-            arrow_size = 3
-            cut_radius = radius + 6
+            # Smaller cut indicator - tiny triangle pointing radially inward
+            arrow_size = 1.5  # Reduced from 3
+            cut_radius = radius + 4  # Reduced from 6
             
-            # Triangle pointing toward center
-            tip_x = center_x + (radius - 2) * math.cos(rad_angle)
-            tip_y = center_y + (radius - 2) * math.sin(rad_angle)
+            # Triangle pointing toward center (correct for restriction cuts)
+            tip_x = center_x + (radius - 1) * math.cos(rad_angle)  # Reduced from -2
+            tip_y = center_y + (radius - 1) * math.sin(rad_angle)
             
-            # Base points
-            base_angle1 = rad_angle + math.radians(8)
-            base_angle2 = rad_angle - math.radians(8)
+            # Base points with smaller angle spread
+            base_angle1 = rad_angle + math.radians(5)  # Reduced from 8
+            base_angle2 = rad_angle - math.radians(5)  # Reduced from 8
             
             base1_x = center_x + cut_radius * math.cos(base_angle1)
             base1_y = center_y + cut_radius * math.sin(base_angle1)
@@ -1009,7 +1112,7 @@ class SequenceViewer(QWidget):
             arrow_polygon = QPolygonF(arrow_points)
             arrow_item = self.scene.addPolygon(arrow_polygon, 
                                              QPen(Qt.darkRed, 1), 
-                                             QBrush(QColor(200, 50, 50, 150)))  # Semi-transparent
+                                             QBrush(QColor(200, 50, 50, 120)))  # More transparent
             
         except Exception as e:
             print(f"Error adding circular restriction arrow: {e}")
@@ -1021,10 +1124,10 @@ class SequenceViewer(QWidget):
             scale_factor = min(1.0, 1000.0 / plasmid_len) if plasmid_len > 1000 else 1.0
             scaled_site = site * scale_factor
             
-            # Simple cut indicator - small downward triangle
-            arrow_size = 2.5
-            arrow_y_top = -32
-            arrow_y_bottom = -27
+            # Smaller cut indicator - tiny downward triangle
+            arrow_size = 1.5  # Reduced from 2.5
+            arrow_y_top = -30  # Moved closer to sequence line
+            arrow_y_bottom = -27  # Moved closer to sequence line
             
             # Small triangle pointing down
             arrow_points = [
@@ -1036,7 +1139,7 @@ class SequenceViewer(QWidget):
             arrow_polygon = QPolygonF(arrow_points)
             arrow_item = self.scene.addPolygon(arrow_polygon, 
                                              QPen(Qt.darkRed, 1), 
-                                             QBrush(QColor(200, 50, 50, 150)))  # Semi-transparent
+                                             QBrush(QColor(200, 50, 50, 120)))  # More transparent
             
         except Exception as e:
             print(f"Error adding linear restriction arrow: {e}")
@@ -1079,3 +1182,60 @@ class SequenceViewer(QWidget):
             
         except Exception as e:
             print(f"Error adding direction indicator: {e}")
+    
+    # Enhanced feature methods
+    def open_export_dialog(self):
+        """Open the enhanced export dialog"""
+        if not ENHANCED_FEATURES_AVAILABLE:
+            QMessageBox.warning(self, "Feature Unavailable", "Enhanced export features are not available.")
+            return
+        
+        if not self.record:
+            QMessageBox.warning(self, "No Sequence", "Please load a sequence first.")
+            return
+        
+        try:
+            dialog = ExportDialog(self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error opening export dialog: {str(e)}")
+    
+    def open_sequence_editor(self):
+        """Open the sequence editor"""
+        if not ENHANCED_FEATURES_AVAILABLE:
+            QMessageBox.warning(self, "Feature Unavailable", "Sequence editing features are not available.")
+            return
+        
+        if not self.record:
+            QMessageBox.warning(self, "No Sequence", "Please load a sequence first.")
+            return
+        
+        try:
+            dialog = SequenceEditor(self.record, self)
+            dialog.sequenceModified.connect(self.on_sequence_modified)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error opening sequence editor: {str(e)}")
+    
+    def open_advanced_analysis(self):
+        """Open advanced analysis dialog"""
+        if not ENHANCED_FEATURES_AVAILABLE:
+            QMessageBox.warning(self, "Feature Unavailable", "Advanced analysis features are not available.")
+            return
+        
+        if not self.record:
+            QMessageBox.warning(self, "No Sequence", "Please load a sequence first.")
+            return
+        
+        try:
+            dialog = AdvancedAnalysisDialog(self)
+            dialog.exec_()
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Error opening advanced analysis: {str(e)}")
+    
+    def on_sequence_modified(self, modified_record):
+        """Handle sequence modifications from the editor"""
+        if modified_record:
+            self.display_sequence(modified_record)
+            if hasattr(self, 'parent_app') and self.parent_app:
+                self.parent_app.statusBar().showMessage("Sequence modified and updated", 3000)
