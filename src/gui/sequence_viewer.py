@@ -17,6 +17,7 @@ from src.gui.restriction_cloning_dialog import RestrictionCloningDialog
 from src.gui.gibson_assembly_dialog import GibsonAssemblyDialog
 from src.gui.virtual_gel_dialog import VirtualGelDialog
 from src.gui.golden_gate_dialog import GoldenGateDialog
+from itertools import combinations
 # Import new enhanced features
 try:
     from src.gui.export_dialog import ExportDialog
@@ -382,7 +383,7 @@ class SequenceViewer(QWidget):
             QMessageBox.critical(self, "Error", f"Error opening Gibson assembly dialog: {str(e)}")
 
     def virtual_digest(self):
-        """Perform virtual restriction digest"""
+        """Perform virtual restriction digest with enzyme combinations"""
         if not self.record:
             QMessageBox.warning(self, "No Sequence", "Please load a sequence first.")
             return
@@ -396,11 +397,81 @@ class SequenceViewer(QWidget):
             all_fragments = []
             enzyme_fragments = {}
             
-            for enzyme, sites in analysis.items():
-                if sites:  # Only process enzymes that cut
-                    fragments = self.get_fragments(self.record.seq, sites)
+            # Get enzymes that actually cut the sequence
+            cutting_enzymes = [(enzyme, sites) for enzyme, sites in analysis.items() if sites]
+            
+            if not cutting_enzymes:
+                QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
+                return
+            
+            # Add uncut sequence
+            enzyme_fragments["Uncut"] = [self.record.seq]
+            all_fragments.extend([self.record.seq])
+            
+            # Single enzyme digests
+            for enzyme, sites in cutting_enzymes:
+                fragments = self.get_fragments(self.record.seq, sites)
+                all_fragments.extend(fragments)
+                enzyme_fragments[str(enzyme)] = fragments
+            
+            # Double digests (combinations of 2 enzymes)
+            if len(cutting_enzymes) >= 2:
+                from itertools import combinations
+                for enzyme_pair in combinations(cutting_enzymes, 2):
+                    enzyme1, sites1 = enzyme_pair[0]
+                    enzyme2, sites2 = enzyme_pair[1]
+                    
+                    # Combine cut sites from both enzymes
+                    combined_sites = sorted(set(sites1 + sites2))
+                    if combined_sites:
+                        fragments = self.get_fragments(self.record.seq, combined_sites)
+                        combo_name = f"{enzyme1} + {enzyme2}"
+                        enzyme_fragments[combo_name] = fragments
+                        all_fragments.extend(fragments)
+            
+            # Triple digests (combinations of 3 enzymes)
+            if len(cutting_enzymes) >= 3:
+                for enzyme_triple in combinations(cutting_enzymes, 3):
+                    enzyme1, sites1 = enzyme_triple[0]
+                    enzyme2, sites2 = enzyme_triple[1]
+                    enzyme3, sites3 = enzyme_triple[2]
+                    
+                    # Combine cut sites from all three enzymes
+                    combined_sites = sorted(set(sites1 + sites2 + sites3))
+                    if combined_sites:
+                        fragments = self.get_fragments(self.record.seq, combined_sites)
+                        combo_name = f"{enzyme1} + {enzyme2} + {enzyme3}"
+                        enzyme_fragments[combo_name] = fragments
+                        all_fragments.extend(fragments)
+            
+            # Quadruple digests (combinations of 4 enzymes) - only if we have 4+ enzymes
+            if len(cutting_enzymes) >= 4:
+                for enzyme_quad in combinations(cutting_enzymes, 4):
+                    enzymes = [e[0] for e in enzyme_quad]
+                    all_sites = []
+                    for _, sites in enzyme_quad:
+                        all_sites.extend(sites)
+                    
+                    combined_sites = sorted(set(all_sites))
+                    if combined_sites:
+                        fragments = self.get_fragments(self.record.seq, combined_sites)
+                        combo_name = f"{enzymes[0]} + {enzymes[1]} + {enzymes[2]} + {enzymes[3]}"
+                        enzyme_fragments[combo_name] = fragments
+                        all_fragments.extend(fragments)
+            
+            # Complete digest (all enzymes together)
+            if len(cutting_enzymes) > 1:
+                all_sites = []
+                for _, sites in cutting_enzymes:
+                    all_sites.extend(sites)
+                
+                combined_sites = sorted(set(all_sites))
+                if combined_sites:
+                    fragments = self.get_fragments(self.record.seq, combined_sites)
+                    enzyme_names = [str(e[0]) for e in cutting_enzymes]
+                    combo_name = "Complete digest (" + " + ".join(enzyme_names) + ")"
+                    enzyme_fragments[combo_name] = fragments
                     all_fragments.extend(fragments)
-                    enzyme_fragments[str(enzyme)] = fragments
             
             if all_fragments:
                 dialog = VirtualGelDialog(all_fragments, self, enzyme_fragments=enzyme_fragments)

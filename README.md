@@ -17,9 +17,16 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 
 > 🎆 **Version 0.1.0 represents our first production-ready release**, featuring stable core functionality, comprehensive testing, and robust error handling. This milestone marks PicoMol's readiness for research and educational use.
 
-## 🆕 Latest Release (v0.1.0 - July 2025)
+## 🆕 Latest Updates (September 2025)
 
-**Major Milestone Release - Production Ready:**
+**Advanced Sequence Analysis Suite:**
+- **ORF Analysis:** Comprehensive open reading frame detection with customizable parameters
+- **Primer Design:** Professional PCR primer design with advanced scoring and validation
+- **Sequence Comparison:** Multi-sequence analysis with identity detection and visualization
+- **Enhanced Export:** Professional-quality export system for sequences and maps (PNG, SVG, PDF)
+- **SnapGene-style Visualization:** Improved sequence viewer with enzyme highlighting and feature rendering
+
+**Previous Release (v0.1.0 - January 2025) - Production Ready:**
 - **Stable Core Features:** Comprehensive molecular visualization, BLAST integration, and bioinformatics tools
 - **Enhanced Data Export:** Complete analysis results in HTML, JSON, CSV, Excel, and Text formats
 - **Professional HTML Reports:** High-resolution graphs with improved layouts and styling
@@ -42,6 +49,19 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
   - Nucleic acid analysis (GC content, translation in all 6 frames, complements)
   - Secondary structure prediction (helix, turn, sheet content)
   - Amino acid and nucleotide composition analysis
+- **Advanced Sequence Analysis Suite** (NEW):
+  - **ORF Analysis:** Open reading frame detection with customizable parameters
+    - Configurable minimum length, start/stop codons
+    - Analysis of all 6 reading frames (forward and reverse)
+    - Detailed statistics and sequence preview
+  - **Primer Design:** Professional PCR primer design tool
+    - Target region selection with amplicon length calculation
+    - Advanced scoring algorithm (Tm, GC content, secondary structures)
+    - Primer pair analysis and validation
+    - Export capabilities (clipboard, CSV)
+  - **Sequence Comparison:** Multi-sequence analysis tools
+    - Identity analysis with longest common substring detection
+    - Support for file loading and current sequence comparison
 - **Motif & Domain Analysis**:
   - InterPro integration for comprehensive domain annotation
   - PROSITE pattern matching with official API
@@ -67,6 +87,15 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 - **Drag & Drop**: Easy file loading with drag-and-drop support
 - **Comprehensive Reporting**: Professional HTML reports with embedded visualizations
 - **Multi-Format Export**: Choose from HTML, JSON, CSV, Excel, or Text export formats
+- **Enhanced Export System** (NEW): Professional export capabilities
+  - **Map Export:** PNG, SVG, PDF formats with customizable size and DPI
+  - **Sequence Export:** FASTA, GenBank, HTML, and annotated text formats
+  - **Live Preview:** Preview exports before saving
+  - **Custom Formatting:** Adjustable titles, metadata, fonts, and colors
+- **Improved Sequence Visualization** (NEW): SnapGene-style features
+  - **Enzyme Highlighting:** Visual enzyme boxes with colored backgrounds
+  - **Enhanced Annotations:** Professional feature rendering and labeling
+  - **Optimized Performance:** Better handling of large sequences
 
 ## 🚀 Installation
 

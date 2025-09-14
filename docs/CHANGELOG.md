@@ -5,6 +5,48 @@ All notable changes to PicoMol will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2025-09-14
+### Added
+- **Advanced Sequence Analysis Suite:** Comprehensive new analysis tools accessible via the sequence viewer
+  - **ORF (Open Reading Frame) Analysis:** Find and analyze open reading frames with customizable parameters
+    - Configurable minimum length, start/stop codons
+    - Analysis of all 6 reading frames (forward and reverse)
+    - Detailed statistics and results table with sequence preview
+  - **Primer Design Tool:** Professional-grade PCR primer design with enhanced features
+    - Target region selection with amplicon length calculation
+    - Advanced primer scoring algorithm considering Tm, GC content, secondary structures
+    - SnapGene-style primer validation with detailed analysis
+    - Export capabilities (clipboard, CSV) and primer pair analysis
+    - Comprehensive primer validation including self-complementarity analysis
+  - **Sequence Comparison:** Tools for comparing multiple sequences
+    - Identity analysis with longest common substring detection
+    - Support for loading sequences from files or current viewer
+    - Dot plot visualization (planned)
+
+- **Enhanced Export System:** Professional export capabilities for sequences and maps
+  - **Multi-format Export:** PNG, SVG, PDF for maps; FASTA, GenBank, HTML for sequences
+  - **Customizable Export Options:** Size, DPI, elements to include, color schemes
+  - **Preview Functionality:** Live preview of exports before saving
+  - **Advanced Formatting:** Custom titles, metadata, font options
+  - **Professional Quality:** High-resolution outputs suitable for publications
+
+- **Improved Sequence Visualization:** Enhanced sequence viewer with SnapGene-style features
+  - **Restriction Site Highlighting:** Visual enzyme boxes with colored backgrounds
+  - **Enhanced Enzyme Display:** Professional enzyme labeling with connection lines
+  - **Better Feature Rendering:** Improved feature background highlighting
+  - **Optimized Performance:** Better handling of large sequences and complex annotations
+
+### Enhanced
+- **User Interface:** Advanced analysis tools integrated seamlessly into the sequence viewer
+- **Code Architecture:** Modular design with separate analysis widgets for maintainability
+- **Documentation:** Updated to reflect new advanced analysis capabilities
+
+### Technical Improvements
+- **Threading:** Background analysis workers prevent UI freezing during complex calculations
+- **Error Handling:** Comprehensive validation and user feedback for all analysis tools
+- **Performance:** Optimized algorithms for large sequence analysis
+- **Extensibility:** Plugin-ready architecture for future analysis tools
+
 ## [0.1.0] - 2025-01-20
 ### Major Milestone Release - Production Ready
 
