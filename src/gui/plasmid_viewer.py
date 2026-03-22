@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QTextEdit, QGraphicsView, QGraphicsScene
-from PyQt5.QtGui import QPainter, QPen, QBrush, QColor, QFont
-from PyQt5.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QPushButton, QFileDialog, QTextEdit, QGraphicsView, QGraphicsScene
+from PyQt6.QtGui import QPainter, QPen, QBrush, QColor, QFont
+from PyQt6.QtCore import Qt
 from Bio import SeqIO
 import math
 
@@ -14,7 +14,7 @@ class PlasmidViewer(QWidget):
         self.layout.addWidget(self.load_button)
         
         self.plasmid_view = QGraphicsView()
-        self.plasmid_view.setRenderHint(QPainter.Antialiasing)
+        self.plasmid_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.layout.addWidget(self.plasmid_view)
 
         self.plasmid_details = QTextEdit()
@@ -52,8 +52,12 @@ class PlasmidViewer(QWidget):
         center_x, center_y = 0, 0
 
         # Draw plasmid backbone
-        pen = QPen(Qt.black, 2)
+        pen = QPen(Qt.GlobalColor.black, 2)
         scene.addEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2, pen)
+
+        # Ensure the full plasmid is visible and centered
+        scene.setSceneRect(scene.itemsBoundingRect().adjusted(-20, -20, 20, 20))
+        self.plasmid_view.fitInView(scene.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
         # Draw features
         for feature in record.features:
@@ -64,14 +68,17 @@ class PlasmidViewer(QWidget):
                 start_angle = (start / plasmid_len) * 360
                 span_angle = ((end - start) / plasmid_len) * 360
 
-                pen_color = QColor(Qt.blue)
+                # Use QColor constants
+                pen_color = QColor(0, 0, 255)  # blue
                 if feature.type == "promoter":
-                    pen_color = QColor(Qt.red)
+                    pen_color = QColor(255, 0, 0)  # red
                 elif feature.type == "CDS":
-                    pen_color = QColor(Qt.green)
+                    pen_color = QColor(0, 128, 0)  # green
 
                 pen = QPen(pen_color, 10)
-                scene.addArc(center_x - radius, center_y - radius, radius * 2, radius * 2, int(start_angle * 16), int(span_angle * 16))
+                # QGraphicsScene doesn't have addArc; draw using addEllipse with a QPainterPath or use addPath
+                # For now add a simple arc placeholder using addEllipse with pen width to represent feature
+                scene.addEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2, pen)
 
 def create_plasmid_viewer_tab(parent):
     """Creates the Plasmid Viewer tab."""

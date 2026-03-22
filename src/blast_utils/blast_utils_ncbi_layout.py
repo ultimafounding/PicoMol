@@ -15,15 +15,15 @@ from urllib.parse import quote, urlencode
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton,
     QComboBox, QLineEdit, QCheckBox, QRadioButton, QButtonGroup,
     QGroupBox, QFormLayout, QFileDialog, QMessageBox, QApplication,
     QScrollArea, QSplitter, QTabWidget, QProgressBar, QDialogButtonBox, QDialog,
     QFrame, QGridLayout, QSpacerItem, QSizePolicy
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QPalette
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QPalette
 
 # Import the worker class from the original blast_utils
 from .blast_utils import OnlineBlastWorker, validate_sequence, clean_fasta_sequence, format_blast_output
@@ -108,8 +108,8 @@ def create_ncbi_style_blast_tab(parent, program_type, title, sequence_type):
     # Create scroll area for the form
     scroll_area = QScrollArea()
     scroll_area.setWidgetResizable(True)
-    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     # Form widget
     form_widget = QWidget()
@@ -157,7 +157,7 @@ def create_query_section(parent, program_type, sequence_type="protein"):
     """Create the 'Enter Query Sequence' section exactly like NCBI."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -398,7 +398,7 @@ def create_subject_sequence_section(parent, program_type, sequence_type="protein
     """Create the 'Enter Subject Sequence' section for BL2SEQ mode."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -556,7 +556,7 @@ def create_search_set_section(parent, program_type, sequence_type="protein"):
     """Create the 'Choose Search Set' section exactly like NCBI."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -1006,7 +1006,7 @@ def create_program_selection_section(parent, program_type):
     """Create the 'Program Selection' section exactly like NCBI."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -1249,7 +1249,7 @@ def create_algorithm_parameters_section(parent, program_type):
     """Create the collapsible 'Algorithm parameters' section exactly like NCBI."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -1341,7 +1341,7 @@ def create_general_parameters_group(parent, program_type):
     """Create General Parameters group."""
     
     group = QFrame()
-    group.setFrameStyle(QFrame.StyledPanel)
+    group.setFrameStyle(QFrame.Shape.StyledPanel)
     group.setStyleSheet("""
         QFrame {
             border: 1px solid #ddd;
@@ -1468,7 +1468,7 @@ def create_scoring_parameters_group(parent, program_type):
     """Create Scoring Parameters group."""
     
     group = QFrame()
-    group.setFrameStyle(QFrame.StyledPanel)
+    group.setFrameStyle(QFrame.Shape.StyledPanel)
     group.setStyleSheet("""
         QFrame {
             border: 1px solid #ddd;
@@ -1588,7 +1588,7 @@ def create_filters_masking_group(parent, program_type):
     """Create Filters and Masking group."""
     
     group = QFrame()
-    group.setFrameStyle(QFrame.StyledPanel)
+    group.setFrameStyle(QFrame.Shape.StyledPanel)
     group.setStyleSheet("""
         QFrame {
             border: 1px solid #ddd;
@@ -1628,7 +1628,7 @@ def create_results_section(parent, program_type):
     """Create the results display section."""
     
     section = QFrame()
-    section.setFrameStyle(QFrame.Box)
+    section.setFrameStyle(QFrame.Shape.Box)
     section.setStyleSheet("""
         QFrame {
             border: 1px solid #ccc;
@@ -2084,8 +2084,8 @@ def create_ncbi_style_blastn_tab_unified(parent):
     # Create scroll area for the form
     scroll_area = QScrollArea()
     scroll_area.setWidgetResizable(True)
-    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     # Form widget
     form_widget = QWidget()

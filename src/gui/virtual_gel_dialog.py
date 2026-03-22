@@ -1,8 +1,8 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QGraphicsView, QGraphicsScene, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QGraphicsView, QGraphicsScene, 
                              QHBoxLayout, QLabel, QComboBox, QPushButton, QGroupBox,
                              QSpinBox, QFormLayout, QTextEdit, QSplitter)
-from PyQt5.QtGui import QPen, QBrush, QColor, QFont, QLinearGradient
-from PyQt5.QtCore import Qt
+from PyQt6.QtGui import QPen, QBrush, QColor, QFont, QLinearGradient
+from PyQt6.QtCore import Qt
 import math
 from collections import defaultdict
 
@@ -63,7 +63,7 @@ class VirtualGelDialog(QDialog):
         controls_layout.addRow("Image size:", self.image_scale)
         
         # Text labels control
-        from PyQt5.QtWidgets import QCheckBox
+        from PyQt6.QtWidgets import QCheckBox
         self.show_labels = QCheckBox("Show fragment labels")
         self.show_labels.setChecked(True)
         self.show_labels.setToolTip("Show/hide fragment size labels on bands")
@@ -110,7 +110,7 @@ class VirtualGelDialog(QDialog):
         main_layout.addWidget(controls_panel)
         
         # Right panel with gel view and fragment info
-        right_panel = QSplitter(Qt.Vertical)
+        right_panel = QSplitter(Qt.Orientation.Vertical)
         
         # Gel view
         self.view = QGraphicsView()
@@ -302,17 +302,17 @@ class VirtualGelDialog(QDialog):
         
         # Draw gel background with gradient
         gel_rect = self.scene.addRect(margin, margin, gel_width, gel_height, 
-                                     QPen(Qt.black, pen_width), QBrush(QColor(240, 245, 255)))
+                                     QPen(Qt.GlobalColor.black, pen_width), QBrush(QColor(240, 245, 255)))
         
         # Draw buffer chambers
         # Top buffer (negative electrode)
         top_buffer_y = margin - buffer_height - int(10 * image_scale_factor)
         top_buffer = self.scene.addRect(margin, top_buffer_y, gel_width, buffer_height,
-                                       QPen(Qt.darkGray), QBrush(QColor(200, 200, 255)))
+                                       QPen(Qt.GlobalColor.darkGray), QBrush(QColor(200, 200, 255)))
         # Bottom buffer (positive electrode)
         bottom_buffer_y = margin + gel_height + int(10 * image_scale_factor)
         bottom_buffer = self.scene.addRect(margin, bottom_buffer_y, gel_width, buffer_height,
-                                          QPen(Qt.darkGray), QBrush(QColor(255, 200, 200)))
+                                          QPen(Qt.GlobalColor.darkGray), QBrush(QColor(255, 200, 200)))
         
         if num_lanes == 0:
             return
@@ -324,7 +324,7 @@ class VirtualGelDialog(QDialog):
         for i in range(num_lanes):
             well_x = margin + (i + 0.5) * lane_spacing - well_width/2
             well = self.scene.addRect(well_x, well_y, well_width, well_height,
-                                    QPen(Qt.black), QBrush(Qt.black))
+                                    QPen(Qt.GlobalColor.black), QBrush(Qt.GlobalColor.black))
         
         # Get gel parameters
         gel_conc = self.gel_concentration.currentText()
@@ -360,7 +360,7 @@ class VirtualGelDialog(QDialog):
             
             # Lane label
             font_size = max(7, int(9 * image_scale_factor))
-            lane_label = self.scene.addText("Marker", QFont("Arial", font_size, QFont.Bold))
+            lane_label = self.scene.addText("Marker", QFont("Arial", font_size, QFont.Weight.Bold))
             lane_label.setPos(lane_x - int(20 * image_scale_factor), int(15 * image_scale_factor))
             lane_index += 1
         
@@ -528,8 +528,8 @@ class VirtualGelDialog(QDialog):
     def add_migration_arrows(self, gel_width, gel_height, image_scale_factor=1.0, margin=50):
         """Add subtle migration direction indicators"""
         try:
-            from PyQt5.QtGui import QPolygonF
-            from PyQt5.QtCore import QPointF
+            from PyQt6.QtGui import QPolygonF
+            from PyQt6.QtCore import QPointF
             
             # Add subtle side indicators
             arrow_color = QColor(120, 120, 120, 80)  # Very subtle gray
@@ -574,7 +574,7 @@ class VirtualGelDialog(QDialog):
             padding = 20
             scene_rect.adjust(-padding, -padding, padding, padding)
             self.scene.setSceneRect(scene_rect)
-            self.view.fitInView(scene_rect, Qt.KeepAspectRatio)
+            self.view.fitInView(scene_rect, Qt.AspectRatioMode.KeepAspectRatio)
     
     def update_fragment_info(self):
         """Update fragment information display"""

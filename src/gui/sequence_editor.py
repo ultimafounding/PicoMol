@@ -1,10 +1,15 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, 
                              QPushButton, QComboBox, QSpinBox, QCheckBox, QGroupBox, 
                              QFormLayout, QTabWidget, QWidget, QTableWidget, QTableWidgetItem,
                              QHeaderView, QMessageBox, QLineEdit, QColorDialog, QListWidget,
-                             QListWidgetItem, QSplitter, QToolBar, QAction, QMenu, QInputDialog)
-from PyQt5.QtGui import QFont, QColor, QTextCharFormat, QTextCursor, QIcon
-from PyQt5.QtCore import Qt, pyqtSignal
+                             QListWidgetItem, QSplitter, QToolBar, QMenu, QInputDialog)
+# QAction may be located in QtWidgets or QtGui
+try:
+    from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QFont, QColor, QTextCharFormat, QTextCursor, QIcon
+from PyQt6.QtCore import Qt, pyqtSignal
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
 from Bio.SeqFeature import SeqFeature, FeatureLocation
@@ -252,7 +257,7 @@ class SequenceEditor(QDialog):
         toolbar.addAction(delete_feature_action)
         
         # Main content
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         layout.addWidget(splitter)
         
         # Left panel - sequence editing
@@ -474,7 +479,7 @@ class SequenceEditor(QDialog):
         replace_btn.clicked.connect(replace_all)
         cancel_btn.clicked.connect(dialog.reject)
         
-        dialog.exec_()
+        dialog.exec()
     
     def highlight_sequence(self, search_text):
         """Highlight found sequence"""
@@ -507,7 +512,7 @@ class SequenceEditor(QDialog):
         seq_length = len(str(self.record.seq))
         dialog = FeatureEditor(sequence_length=seq_length, parent=self)
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             new_feature = dialog.get_feature()
             if not hasattr(self.record, 'features'):
                 self.record.features = []
@@ -529,7 +534,7 @@ class SequenceEditor(QDialog):
         
         dialog = FeatureEditor(feature, seq_length, parent=self)
         
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             updated_feature = dialog.get_feature()
             self.record.features[feature_index] = updated_feature
             self.load_features()
@@ -547,10 +552,11 @@ class SequenceEditor(QDialog):
         reply = QMessageBox.question(
             self, "Delete Feature", 
             "Are you sure you want to delete this feature?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             del self.record.features[feature_index]
             self.load_features()
     
@@ -597,10 +603,11 @@ class SequenceEditor(QDialog):
         reply = QMessageBox.question(
             self, "Revert Changes", 
             "Are you sure you want to revert all changes?",
-            QMessageBox.Yes | QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             self.record = copy.deepcopy(self.original_record)
             self.load_sequence()
     

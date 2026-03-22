@@ -7,12 +7,12 @@ quick start guide, and modern design.
 """
 
 import webbrowser
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QPushButton,
     QScrollArea, QWidget, QGroupBox
 )
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QFont
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 
 
 class WelcomeDialog(QDialog):
@@ -36,7 +36,7 @@ class WelcomeDialog(QDialog):
         # Header section with logo and title
         header_widget = QWidget()
         header_layout = QVBoxLayout(header_widget)
-        header_layout.setAlignment(Qt.AlignCenter)
+        header_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         # Add logo
         try:
@@ -44,21 +44,21 @@ class WelcomeDialog(QDialog):
             project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
             logo_path = os.path.join(project_root, "PicoMol.png")
             if os.path.exists(logo_path):
-                from PyQt5.QtGui import QPixmap
+                from PyQt6.QtGui import QPixmap
                 logo_label = QLabel()
                 pixmap = QPixmap(logo_path)
                 if not pixmap.isNull():
                     # Scale the logo to a reasonable size for the welcome dialog
-                    scaled_pixmap = pixmap.scaled(100, 100, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    scaled_pixmap = pixmap.scaled(100, 100, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     logo_label.setPixmap(scaled_pixmap)
-                    logo_label.setAlignment(Qt.AlignCenter)
+                    logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     header_layout.addWidget(logo_label)
         except Exception as e:
             print(f"Error adding logo to Welcome dialog: {e}")
         
         # Title
         title_label = QLabel("🧬 PicoMol")
-        title_label.setAlignment(Qt.AlignCenter)
+        title_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         title_label.setStyleSheet("""
             QLabel {
                 font-size: 32px;
@@ -71,7 +71,7 @@ class WelcomeDialog(QDialog):
         
         # Subtitle
         subtitle_label = QLabel("Molecular Visualization & Bioinformatics Suite")
-        subtitle_label.setAlignment(Qt.AlignCenter)
+        subtitle_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         subtitle_label.setStyleSheet("""
             QLabel {
                 font-size: 16px;
@@ -93,7 +93,7 @@ class WelcomeDialog(QDialog):
             "</p>"
         )
         desc_label.setWordWrap(True)
-        desc_label.setAlignment(Qt.AlignCenter)
+        desc_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         content_layout.addWidget(desc_label)
         
         # Features section
@@ -289,7 +289,7 @@ class WelcomeDialog(QDialog):
         icon_label = QLabel(icon)
         icon_label.setStyleSheet("font-size: 24px;")
         icon_label.setFixedSize(32, 32)
-        icon_label.setAlignment(Qt.AlignCenter)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         header_layout.addWidget(icon_label)
         
         title_label = QLabel(title)

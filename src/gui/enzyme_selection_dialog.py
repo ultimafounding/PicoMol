@@ -1,7 +1,7 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QDialogButtonBox, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QDialogButtonBox, 
                              QAbstractItemView, QLabel, QLineEdit, QHBoxLayout,
                              QPushButton, QMessageBox, QCheckBox, QGroupBox)
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 from Bio.Restriction import Restriction
 
 class EnzymeSelectionDialog(QDialog):
@@ -48,7 +48,7 @@ class EnzymeSelectionDialog(QDialog):
 
         # Enzyme list
         self.enzyme_list = QListWidget()
-        self.enzyme_list.setSelectionMode(QAbstractItemView.MultiSelection)
+        self.enzyme_list.setSelectionMode(QAbstractItemView.SelectionMode.MultiSelection)
         layout.addWidget(self.enzyme_list)
         
         # Store all enzymes for filtering
@@ -70,13 +70,13 @@ class EnzymeSelectionDialog(QDialog):
         
         # Selection info
         self.selection_label = QLabel("0 enzymes selected")
-        self.selection_label.setAlignment(Qt.AlignCenter)
+        self.selection_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.selection_label)
         
         # Update selection count when selection changes
         self.enzyme_list.itemSelectionChanged.connect(self.update_selection_count)
 
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)

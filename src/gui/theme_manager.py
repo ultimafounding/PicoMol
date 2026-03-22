@@ -6,9 +6,9 @@ This module provides theme management functionality for the PicoMol application,
 including predefined themes and the ability to apply them to the application.
 """
 
-from PyQt5.QtWidgets import QApplication
-from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QPalette, QColor
+from PyQt6.QtWidgets import QApplication
+from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QPalette, QColor
 
 
 class ThemeManager:
@@ -55,29 +55,29 @@ class ThemeManager:
         palette = QPalette()
         
         # Window colors
-        palette.setColor(QPalette.Window, QColor(240, 240, 240))
-        palette.setColor(QPalette.WindowText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Window, QColor(240, 240, 240))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
         
         # Base colors (for input fields)
-        palette.setColor(QPalette.Base, QColor(255, 255, 255))
-        palette.setColor(QPalette.AlternateBase, QColor(245, 245, 245))
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(245, 245, 245))
         
         # Text colors
-        palette.setColor(QPalette.Text, QColor(0, 0, 0))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
         
         # Button colors
-        palette.setColor(QPalette.Button, QColor(225, 225, 225))
-        palette.setColor(QPalette.ButtonText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Button, QColor(225, 225, 225))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
         
         # Highlight colors
-        palette.setColor(QPalette.Highlight, QColor(76, 163, 224))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(76, 163, 224))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
         
         # Disabled colors
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(120, 120, 120))
         
         return palette
     
@@ -86,36 +86,36 @@ class ThemeManager:
         palette = QPalette()
         
         # Window colors
-        palette.setColor(QPalette.Window, QColor(45, 45, 48))  # Slightly lighter than before
-        palette.setColor(QPalette.WindowText, QColor(240, 240, 240))  # Off-white for better readability
+        palette.setColor(QPalette.ColorRole.Window, QColor(45, 45, 48))  # Slightly lighter than before
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(240, 240, 240))  # Off-white for better readability
         
         # Base colors (for input fields)
-        palette.setColor(QPalette.Base, QColor(30, 30, 30))  # Slightly lighter than before
-        palette.setColor(QPalette.AlternateBase, QColor(45, 45, 48))
+        palette.setColor(QPalette.ColorRole.Base, QColor(30, 30, 30))  # Slightly lighter than before
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(45, 45, 48))
         
         # Text colors
-        palette.setColor(QPalette.Text, QColor(240, 240, 240))  # Brighter text for better contrast
-        palette.setColor(QPalette.BrightText, QColor(255, 180, 180))  # Softer red for bright text
+        palette.setColor(QPalette.ColorRole.Text, QColor(240, 240, 240))  # Brighter text for better contrast
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 180, 180))  # Softer red for bright text
         
         # Button colors
-        palette.setColor(QPalette.Button, QColor(63, 63, 70))  # Lighter button background
-        palette.setColor(QPalette.ButtonText, QColor(240, 240, 240))  # Brighter button text
+        palette.setColor(QPalette.ColorRole.Button, QColor(63, 63, 70))  # Lighter button background
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(240, 240, 240))  # Brighter button text
         
         # Highlight colors
-        palette.setColor(QPalette.Highlight, QColor(0, 122, 204))  # Brighter blue for better visibility
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))  # White text on highlight
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 122, 204))  # Brighter blue for better visibility
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))  # White text on highlight
         
         # Disabled colors
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor(160, 160, 160))  # Lighter gray for disabled
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor(160, 160, 160))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(140, 140, 140))  # Slightly darker for buttons
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(160, 160, 160))  # Lighter gray for disabled
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(160, 160, 160))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(140, 140, 140))  # Slightly darker for buttons
         
         # Additional UI elements
-        palette.setColor(QPalette.Link, QColor(86, 156, 214))  # Brighter link color
-        palette.setColor(QPalette.LinkVisited, QColor(156, 86, 214))  # Purple for visited links
-        palette.setColor(QPalette.ToolTipBase, QColor(45, 45, 48))  # Match window color
-        palette.setColor(QPalette.ToolTipText, QColor(240, 240, 240))  # Match window text
-        palette.setColor(QPalette.PlaceholderText, QColor(120, 120, 120))  # Placeholder text color
+        palette.setColor(QPalette.ColorRole.Link, QColor(86, 156, 214))  # Brighter link color
+        palette.setColor(QPalette.ColorRole.LinkVisited, QColor(156, 86, 214))  # Purple for visited links
+        palette.setColor(QPalette.ColorRole.ToolTipBase, QColor(45, 45, 48))  # Match window color
+        palette.setColor(QPalette.ColorRole.ToolTipText, QColor(240, 240, 240))  # Match window text
+        palette.setColor(QPalette.ColorRole.PlaceholderText, QColor(120, 120, 120))  # Placeholder text color
         
         return palette
     
@@ -124,29 +124,29 @@ class ThemeManager:
         palette = QPalette()
         
         # Window colors
-        palette.setColor(QPalette.Window, QColor(230, 240, 250))
-        palette.setColor(QPalette.WindowText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Window, QColor(230, 240, 250))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
         
         # Base colors (for input fields)
-        palette.setColor(QPalette.Base, QColor(255, 255, 255))
-        palette.setColor(QPalette.AlternateBase, QColor(240, 248, 255))
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(240, 248, 255))
         
         # Text colors
-        palette.setColor(QPalette.Text, QColor(0, 0, 0))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
         
         # Button colors
-        palette.setColor(QPalette.Button, QColor(200, 220, 240))
-        palette.setColor(QPalette.ButtonText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Button, QColor(200, 220, 240))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
         
         # Highlight colors
-        palette.setColor(QPalette.Highlight, QColor(0, 120, 215))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(0, 120, 215))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
         
         # Disabled colors
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(120, 120, 120))
         
         return palette
     
@@ -155,29 +155,29 @@ class ThemeManager:
         palette = QPalette()
         
         # Window colors
-        palette.setColor(QPalette.Window, QColor(240, 250, 240))
-        palette.setColor(QPalette.WindowText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Window, QColor(240, 250, 240))
+        palette.setColor(QPalette.ColorRole.WindowText, QColor(0, 0, 0))
         
         # Base colors (for input fields)
-        palette.setColor(QPalette.Base, QColor(255, 255, 255))
-        palette.setColor(QPalette.AlternateBase, QColor(248, 255, 248))
+        palette.setColor(QPalette.ColorRole.Base, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.AlternateBase, QColor(248, 255, 248))
         
         # Text colors
-        palette.setColor(QPalette.Text, QColor(0, 0, 0))
-        palette.setColor(QPalette.BrightText, QColor(255, 0, 0))
+        palette.setColor(QPalette.ColorRole.Text, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.BrightText, QColor(255, 0, 0))
         
         # Button colors
-        palette.setColor(QPalette.Button, QColor(220, 240, 220))
-        palette.setColor(QPalette.ButtonText, QColor(0, 0, 0))
+        palette.setColor(QPalette.ColorRole.Button, QColor(220, 240, 220))
+        palette.setColor(QPalette.ColorRole.ButtonText, QColor(0, 0, 0))
         
         # Highlight colors
-        palette.setColor(QPalette.Highlight, QColor(34, 139, 34))
-        palette.setColor(QPalette.HighlightedText, QColor(255, 255, 255))
+        palette.setColor(QPalette.ColorRole.Highlight, QColor(34, 139, 34))
+        palette.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
         
         # Disabled colors
-        palette.setColor(QPalette.Disabled, QPalette.WindowText, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.Text, QColor(120, 120, 120))
-        palette.setColor(QPalette.Disabled, QPalette.ButtonText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.WindowText, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.Text, QColor(120, 120, 120))
+        palette.setColor(QPalette.ColorGroup.Disabled, QPalette.ColorRole.ButtonText, QColor(120, 120, 120))
         
         return palette
     
@@ -188,7 +188,6 @@ class ThemeManager:
                 /* Base styles */
                 QWidget {
                     color: #f0f0f0;
-                    font-size: 9pt;
                 }
                 
                 /* Tooltip */
@@ -472,7 +471,7 @@ def get_available_themes():
 if __name__ == "__main__":
     # Test the theme manager
     import sys
-    from PyQt5.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel
+    from PyQt6.QtWidgets import QMainWindow, QVBoxLayout, QWidget, QPushButton, QLabel
     
     app = QApplication(sys.argv)
     
@@ -496,4 +495,4 @@ if __name__ == "__main__":
     window = TestWindow()
     window.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

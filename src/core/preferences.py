@@ -8,15 +8,15 @@ for customizing various aspects of the PicoMol application.
 
 import os
 import json
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QTabWidget, QWidget, QLabel,
     QLineEdit, QPushButton, QCheckBox, QComboBox, QSpinBox, QDoubleSpinBox,
     QGroupBox, QFormLayout, QColorDialog, QFileDialog, QMessageBox,
     QDialogButtonBox, QSlider, QTextEdit, QScrollArea, QFrame, QButtonGroup,
     QRadioButton, QGridLayout, QSizePolicy, QApplication, QFontDialog
 )
-from PyQt5.QtCore import QSettings, Qt, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QPalette
+from PyQt6.QtCore import QSettings, Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QColor, QPalette
 
 
 class PreferencesDialog(QDialog):
@@ -57,13 +57,13 @@ class PreferencesDialog(QDialog):
         
         # Button box
         button_box = QDialogButtonBox(
-            QDialogButtonBox.Ok | QDialogButtonBox.Cancel | 
-            QDialogButtonBox.Apply | QDialogButtonBox.RestoreDefaults
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel | 
+            QDialogButtonBox.StandardButton.Apply | QDialogButtonBox.StandardButton.RestoreDefaults
         )
         button_box.accepted.connect(self.accept_preferences)
         button_box.rejected.connect(self.reject)
-        button_box.button(QDialogButtonBox.Apply).clicked.connect(self.apply_preferences)
-        button_box.button(QDialogButtonBox.RestoreDefaults).clicked.connect(self.restore_defaults)
+        button_box.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.apply_preferences)
+        button_box.button(QDialogButtonBox.StandardButton.RestoreDefaults).clicked.connect(self.restore_defaults)
         layout.addWidget(button_box)
     
     def create_general_tab(self):
@@ -286,11 +286,11 @@ class PreferencesDialog(QDialog):
         reply = QMessageBox.question(
             self, "Restore Defaults",
             "Are you sure you want to restore all preferences to their default values?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
         )
         
-        if reply == QMessageBox.Yes:
+        if reply == QMessageBox.StandardButton.Yes:
             # Clear all settings
             self.settings.clear()
             # Reload default values
@@ -341,7 +341,7 @@ class PreferencesManager:
 def show_preferences_dialog(parent=None):
     """Show the preferences dialog."""
     dialog = PreferencesDialog(parent)
-    return dialog.exec_()
+    return dialog.exec()
 
 
 if __name__ == "__main__":
@@ -352,4 +352,4 @@ if __name__ == "__main__":
     dialog = PreferencesDialog()
     dialog.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

@@ -12,7 +12,7 @@ import os
 import math
 import numpy as np
 from collections import defaultdict, Counter
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QGroupBox, QFormLayout,
     QTextEdit, QLineEdit, QPushButton, QLabel, QComboBox, QSpinBox,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
@@ -20,8 +20,8 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget, QFrame,
     QGridLayout, QTextBrowser, QApplication, QDoubleSpinBox
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QPainterPath
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QPainterPath
 
 try:
     import matplotlib.pyplot as plt
@@ -812,7 +812,7 @@ class StructuralAnalysisTab(QWidget):
             + matplotlib_note +
             "<p><i>Features include interactive charts, plots, and comprehensive data tables.</i></p>"
         )
-        placeholder.setAlignment(Qt.AlignTop)
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
         placeholder.setWordWrap(True)
         placeholder.setStyleSheet("color: #666; padding: 20px;")
         
@@ -2881,7 +2881,7 @@ class StructuralAnalysisTab(QWidget):
             return
 
         dialog = ExportDialog(self, self.current_results)
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             export_format, file_path, options = dialog.get_export_settings()
 
             self.progress_bar.setVisible(True)
@@ -4513,7 +4513,7 @@ def create_structural_analysis_tab(parent=None):
 if __name__ == "__main__":
     # Test the structural analysis tools
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication
     
     app = QApplication(sys.argv)
     
@@ -4522,4 +4522,4 @@ if __name__ == "__main__":
     widget.resize(800, 600)
     widget.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

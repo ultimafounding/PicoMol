@@ -1,7 +1,7 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QPushButton, QFileDialog,
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QPushButton, QFileDialog,
                              QHBoxLayout, QLabel, QTextEdit, QGroupBox, QMessageBox,
                              QSplitter, QSpinBox, QFormLayout, QCheckBox, QWidget)
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Seq import Seq
@@ -30,7 +30,7 @@ class GibsonAssemblyDialog(QDialog):
         main_layout.addWidget(instructions)
         
         # Create splitter for main content
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
         
         # Left panel - Fragment management
@@ -334,11 +334,15 @@ class GibsonAssemblyDialog(QDialog):
             # Validate overlap length
             min_fragment_length = min(len(f.seq) for f in self.fragments)
             if overlap >= min_fragment_length / 2:
-                reply = QMessageBox.question(self, "Large Overlap Warning", 
+                reply = QMessageBox.question(
+                    self,
+                    "Large Overlap Warning",
                     f"Overlap length ({overlap} bp) is large compared to smallest fragment ({min_fragment_length} bp).\n"
                     "This may result in significant sequence loss. Continue?",
-                    QMessageBox.Yes | QMessageBox.No)
-                if reply == QMessageBox.No:
+                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    QMessageBox.StandardButton.No
+                )
+                if reply == QMessageBox.StandardButton.No:
                     return
             
             # More realistic Gibson Assembly simulation

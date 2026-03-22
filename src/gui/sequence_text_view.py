@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QTextEdit, QWidget, QPlainTextEdit, QGraphicsView, QGraphicsScene
-from PyQt5.QtGui import QColor, QTextCharFormat, QFont, QPainter, QTextCursor
-from PyQt5.QtCore import Qt, QRect, QSize
+from PyQt6.QtWidgets import QTextEdit, QWidget, QPlainTextEdit, QGraphicsView, QGraphicsScene
+from PyQt6.QtGui import QColor, QTextCharFormat, QFont, QPainter, QTextCursor
+from PyQt6.QtCore import Qt, QRect, QSize
 
 class LineNumberArea(QWidget):
     def __init__(self, editor):
@@ -32,7 +32,7 @@ class SequenceTextView(QPlainTextEdit):
         while count >= 10:
             count /= 10
             digits += 1
-        space = 3 + self.fontMetrics().width('9') * digits
+        space = 3 + self.fontMetrics().horizontalAdvance('9') * digits
         return space
 
     def updateLineNumberAreaWidth(self, _):
@@ -54,7 +54,7 @@ class SequenceTextView(QPlainTextEdit):
 
     def lineNumberAreaPaintEvent(self, event):
         painter = QPainter(self.lineNumberArea)
-        painter.fillRect(event.rect(), Qt.lightGray)
+        painter.fillRect(event.rect(), Qt.GlobalColor.lightGray)
 
         block = self.firstVisibleBlock()
         blockNumber = block.blockNumber()
@@ -64,9 +64,9 @@ class SequenceTextView(QPlainTextEdit):
         while block.isValid() and top <= event.rect().bottom():
             if block.isVisible() and bottom >= event.rect().top():
                 number = str(blockNumber + 1)
-                painter.setPen(Qt.black)
+                painter.setPen(Qt.GlobalColor.black)
                 painter.drawText(0, int(top), self.lineNumberArea.width(), self.fontMetrics().height(),
-                                 Qt.AlignRight, number)
+                                 Qt.AlignmentFlag.AlignRight, number)
 
             block = block.next()
             top = bottom
@@ -77,7 +77,7 @@ class SequenceTextView(QPlainTextEdit):
         extraSelections = []
         if not self.isReadOnly():
             selection = QTextEdit.ExtraSelection()
-            lineColor = QColor(Qt.yellow).lighter(160)
+            lineColor = QColor(Qt.GlobalColor.yellow).lighter(160)
             selection.format.setBackground(lineColor)
             selection.format.setProperty(QTextCharFormat.FullWidthSelection, True)
             selection.cursor = self.textCursor()
@@ -299,7 +299,7 @@ class SequenceTextView(QPlainTextEdit):
                         enzyme_format = QTextCharFormat()
                         enzyme_format.setBackground(enzyme_color)
                         enzyme_format.setForeground(QColor(255, 255, 255))  # White text
-                        enzyme_format.setFontWeight(QFont.Bold)
+                        enzyme_format.setFontWeight(QFont.Weight.Bold)
                         enzyme_format.setFontPointSize(9)
                         
                         # Apply formatting to the enzyme name
@@ -326,7 +326,7 @@ class SequenceTextView(QPlainTextEdit):
                             
                             base_format = QTextCharFormat()
                             base_format.setForeground(base_colors.get(char, QColor(0, 0, 0)))
-                            base_format.setFontWeight(QFont.Bold)
+                            base_format.setFontWeight(QFont.Weight.Bold)
                             
                             cursor.setPosition(char_pos)
                             cursor.setPosition(char_pos + 1, QTextCursor.KeepAnchor)

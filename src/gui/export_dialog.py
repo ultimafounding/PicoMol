@@ -1,10 +1,10 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QComboBox, QSpinBox, QCheckBox, QGroupBox, QFormLayout,
                              QFileDialog, QMessageBox, QProgressDialog, QColorDialog,
                              QSlider, QTabWidget, QWidget, QTextEdit)
-from PyQt5.QtGui import QPixmap, QPainter, QColor, QPen, QBrush, QFont
-from PyQt5.QtCore import Qt, QSize, QThread, pyqtSignal
-from PyQt5.QtSvg import QSvgGenerator
+from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QBrush, QFont
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
+from PyQt6.QtSvg import QSvgGenerator
 import os
 
 class ExportWorker(QThread):
@@ -279,10 +279,10 @@ class ExportDialog(QDialog):
             preview_label = QLabel()
             # Scale preview to fit dialog
             scaled_pixmap = preview_pixmap.scaled(
-                550, 350, Qt.KeepAspectRatio, Qt.SmoothTransformation
+                550, 350, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation
             )
             preview_label.setPixmap(scaled_pixmap)
-            preview_label.setAlignment(Qt.AlignCenter)
+            preview_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             layout.addWidget(preview_label)
         else:
             layout.addWidget(QLabel("Preview not available"))
@@ -292,7 +292,7 @@ class ExportDialog(QDialog):
         close_button.clicked.connect(preview_dialog.accept)
         layout.addWidget(close_button)
         
-        preview_dialog.exec_()
+        preview_dialog.exec()
     
     def generate_preview(self):
         """Generate a preview of the export"""
@@ -315,7 +315,7 @@ class ExportDialog(QDialog):
         pixmap.fill(self.background_color)
         
         painter = QPainter(pixmap)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Draw a simplified version of the map
         if self.view_combo.currentText() == "Circular Map":
@@ -337,7 +337,7 @@ class ExportDialog(QDialog):
         radius = min(size.width(), size.height()) // 3
         
         # Draw backbone
-        painter.setPen(QPen(Qt.black, 2))
+        painter.setPen(QPen(Qt.GlobalColor.black, 2))
         painter.drawEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2)
         
         # Draw features if enabled
@@ -346,7 +346,7 @@ class ExportDialog(QDialog):
         
         # Add title if enabled
         if self.include_title.isChecked():
-            painter.setPen(QPen(Qt.black))
+            painter.setPen(QPen(Qt.GlobalColor.black))
             painter.setFont(QFont("Arial", 8))
             title = self.custom_title.toPlainText() or f"{self.sequence_viewer.record.id}"
             painter.drawText(10, 20, title)
@@ -366,7 +366,7 @@ class ExportDialog(QDialog):
         
         # Add title if enabled
         if self.include_title.isChecked():
-            painter.setPen(QPen(Qt.black))
+            painter.setPen(QPen(Qt.GlobalColor.black))
             painter.setFont(QFont("Arial", 8))
             title = self.custom_title.toPlainText() or f"{self.sequence_viewer.record.id}"
             painter.drawText(10, 20, title)
@@ -415,7 +415,7 @@ class ExportDialog(QDialog):
         
         # Create text preview
         pixmap = QPixmap(400, 300)
-        pixmap.fill(Qt.white)
+        pixmap.fill(Qt.GlobalColor.white)
         
         painter = QPainter(pixmap)
         painter.setFont(QFont("Consolas", 8))
@@ -524,7 +524,7 @@ class ExportDialog(QDialog):
             pixmap = QPixmap(width, height)
             pixmap.fill(self.background_color)
             painter = QPainter(pixmap)
-            painter.setRenderHint(QPainter.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         progress.setValue(40)
         

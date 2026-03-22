@@ -1,6 +1,6 @@
-from PyQt5.QtWidgets import QWidget, QScrollArea, QVBoxLayout
-from PyQt5.QtGui import QPainter, QPen, QBrush, QFont, QColor, QFontMetrics
-from PyQt5.QtCore import Qt, QRect, QPoint, QSize, pyqtSignal
+from PyQt6.QtWidgets import QWidget, QScrollArea, QVBoxLayout
+from PyQt6.QtGui import QPainter, QPen, QBrush, QFont, QColor, QFontMetrics
+from PyQt6.QtCore import Qt, QRect, QPoint, QSize, pyqtSignal
 from Bio.Seq import Seq
 import math
 
@@ -29,7 +29,7 @@ class CustomSequenceWidget(QWidget):
             'base': self.base_font,
             'ruler': self.ruler_font,
             'number': self.number_font,
-            'header': QFont("Consolas", 12, QFont.Bold)
+            'header': QFont("Consolas", 12, QFont.Weight.Bold)
         }
         
         # Performance optimization - batch updates
@@ -140,7 +140,7 @@ class CustomSequenceWidget(QWidget):
         
         # Draw header
         painter.setFont(self.cached_fonts['header'])
-        painter.setPen(QPen(Qt.black))
+        painter.setPen(QPen(Qt.GlobalColor.black))
         painter.drawText(self.margin, y_pos, f"Sequence: {self.record.id} ({len(sequence)} bp)")
         y_pos += self.line_height * 2
         
@@ -245,7 +245,7 @@ class CustomSequenceWidget(QWidget):
                         feature_chars[pos] = char
         
         # Draw feature characters
-        painter.setPen(QPen(Qt.darkGray))
+        painter.setPen(QPen(Qt.GlobalColor.darkGray))
         for i, char in enumerate(feature_chars):
             x = self.get_x_position(i)
             painter.drawText(x, y_pos, char)
@@ -481,7 +481,7 @@ class CustomSequenceWidget(QWidget):
                         
                         # Draw enzyme name in white text
                         painter.setPen(QPen(QColor(255, 255, 255)))
-                        painter.setFont(QFont("Arial", 8, QFont.Bold))
+                        painter.setFont(QFont("Arial", 8, QFont.Weight.Bold))
                         
                         # Center text in box
                         text_x = box_x + (box_width - len(enzyme_name) * 6) // 2

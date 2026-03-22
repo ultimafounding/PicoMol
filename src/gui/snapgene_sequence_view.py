@@ -1,11 +1,16 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, 
-                             QScrollArea, QFrame, QSplitter, QToolBar, QAction,
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, QLabel, 
+                             QScrollArea, QFrame, QSplitter, QToolBar,
                              QComboBox, QSpinBox, QCheckBox, QPushButton, QMenu,
                              QTableWidget, QTableWidgetItem, QHeaderView, QTabWidget,
                              QGroupBox, QFormLayout)
-from PyQt5.QtGui import (QFont, QColor, QTextCharFormat, QTextCursor, QPainter, 
+# QAction may be located in QtWidgets or QtGui in PyQt6
+try:
+    from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtGui import QAction
+from PyQt6.QtGui import (QFont, QColor, QTextCharFormat, QTextCursor, QPainter, 
                          QPen, QBrush, QFontMetrics, QTextDocument, QTextBlock)
-from PyQt5.QtCore import Qt, pyqtSignal, QRect, QPoint
+from PyQt6.QtCore import Qt, pyqtSignal, QRect, QPoint
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction
 import math

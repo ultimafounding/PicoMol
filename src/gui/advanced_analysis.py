@@ -1,10 +1,10 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QComboBox, QSpinBox, QCheckBox, QGroupBox, QFormLayout,
                              QTabWidget, QWidget, QTextEdit, QTableWidget, QTableWidgetItem,
                              QHeaderView, QProgressDialog, QMessageBox, QSlider,
                              QSplitter, QListWidget, QListWidgetItem, QLineEdit)
-from PyQt5.QtGui import QFont, QColor, QPainter, QPen, QBrush
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from Bio.Seq import Seq
 from Bio.SeqUtils import gc_fraction, molecular_weight
 from Bio.SeqUtils.ProtParam import ProteinAnalysis
@@ -601,7 +601,7 @@ class PrimerDesignWidget(QWidget):
     def copy_primers_to_clipboard(self):
         """Copy primer sequences to clipboard"""
         try:
-            from PyQt5.QtWidgets import QApplication
+            from PyQt6.QtWidgets import QApplication
             
             clipboard_text = "Primer Design Results\n" + "="*50 + "\n\n"
             
@@ -634,7 +634,7 @@ class PrimerDesignWidget(QWidget):
     def export_primers_csv(self):
         """Export primer data to CSV file"""
         try:
-            from PyQt5.QtWidgets import QFileDialog
+            from PyQt6.QtWidgets import QFileDialog
             import csv
             
             file_path, _ = QFileDialog.getSaveFileName(
@@ -697,7 +697,7 @@ class PrimerDesignWidget(QWidget):
             close_btn.clicked.connect(dialog.accept)
             layout.addWidget(close_btn)
             
-            dialog.exec_()
+            dialog.exec()
             
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Could not validate primer: {str(e)}")
@@ -1043,7 +1043,7 @@ class SequenceComparisonWidget(QWidget):
         
         else:
             # Load from file
-            from PyQt5.QtWidgets import QFileDialog
+            from PyQt6.QtWidgets import QFileDialog
             from Bio import SeqIO
             
             file_path, _ = QFileDialog.getOpenFileName(

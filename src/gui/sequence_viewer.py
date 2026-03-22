@@ -1,12 +1,17 @@
-from PyQt5.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QToolBar, QAction, 
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QToolBar, 
                              QGraphicsView, QTextEdit, QListWidget, QSplitter, 
-                             QFileDialog, QActionGroup, QGraphicsScene, 
+                             QFileDialog, QGraphicsScene, 
                              QGraphicsRectItem, QGraphicsPathItem, QGraphicsTextItem,
                              QDialog, QMessageBox, QLabel, QPushButton, QComboBox,
                              QFormLayout, QGroupBox, QCheckBox, QSpinBox, QTabWidget,
                              QGraphicsPolygonItem)
-from PyQt5.QtGui import QPen, QColor, QFont, QBrush, QPainterPath, QPainter, QPolygonF
-from PyQt5.QtCore import Qt, QPointF
+# QAction may be located in QtWidgets or QtGui depending on PyQt6 build
+try:
+    from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QPen, QColor, QFont, QBrush, QPainterPath, QPainter, QPolygonF, QActionGroup
+from PyQt6.QtCore import Qt, QPointF
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.Restriction import RestrictionBatch, Restriction
@@ -128,7 +133,7 @@ class SequenceViewer(QWidget):
         self.view_action_group.setExclusive(True)
 
         # Main content area
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         layout.addWidget(splitter)
 
         # Left panel: Feature list and info
@@ -154,13 +159,13 @@ class SequenceViewer(QWidget):
         splitter.addWidget(left_panel)
 
         # Center panel: Map and sequence views
-        center_panel = QSplitter(Qt.Vertical)
+        center_panel = QSplitter(Qt.Orientation.Vertical)
         splitter.addWidget(center_panel)
 
         self.map_view = QGraphicsView()
         self.scene = QGraphicsScene()
         self.map_view.setScene(self.scene)
-        self.map_view.setRenderHint(QPainter.Antialiasing)
+        self.map_view.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.sequence_view = SequenceTextView()
         
         center_panel.addWidget(self.map_view)
@@ -370,7 +375,7 @@ class SequenceViewer(QWidget):
         """Open Golden Gate assembly dialog"""
         try:
             dialog = GoldenGateDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening Golden Gate dialog: {str(e)}")
 
@@ -378,7 +383,7 @@ class SequenceViewer(QWidget):
         """Open Gibson assembly dialog"""
         try:
             dialog = GibsonAssemblyDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening Gibson assembly dialog: {str(e)}")
 
@@ -475,7 +480,7 @@ class SequenceViewer(QWidget):
             
             if all_fragments:
                 dialog = VirtualGelDialog(all_fragments, self, enzyme_fragments=enzyme_fragments)
-                dialog.exec_()
+                dialog.exec()
             else:
                 QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
                 
@@ -514,7 +519,7 @@ class SequenceViewer(QWidget):
         """Open restriction cloning dialog"""
         try:
             dialog = RestrictionCloningDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening cloning dialog: {str(e)}")
 
@@ -522,7 +527,7 @@ class SequenceViewer(QWidget):
         """Open enzyme selection dialog"""
         try:
             dialog = EnzymeSelectionDialog(self)
-            if dialog.exec_() == QDialog.Accepted:
+            if dialog.exec() == QDialog.DialogCode.Accepted:
                 selected_enzymes = dialog.get_selected_enzymes()
                 if selected_enzymes:
                     self.restriction_batch = RestrictionBatch(selected_enzymes)
@@ -655,7 +660,7 @@ class SequenceViewer(QWidget):
         
         # Fit the view to show all content
         if hasattr(self, 'scene') and hasattr(self, 'map_view'):
-            self.map_view.fitInView(self.scene.itemsBoundingRect(), Qt.KeepAspectRatio)
+            self.map_view.fitInView(self.scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def show_circular_view(self):
         """Display sequence in circular plasmid view"""
@@ -663,7 +668,7 @@ class SequenceViewer(QWidget):
         
         if not self.record:
             radius = 150
-            self.scene.addEllipse(-radius, -radius, radius * 2, radius * 2, QPen(Qt.gray, 2))
+            self.scene.addEllipse(-radius, -radius, radius * 2, radius * 2, QPen(Qt.GlobalColor.gray, 2))
             # Add placeholder text
             text = self.scene.addText("Load a sequence\nto view plasmid map", QFont("Arial", 12))
             text.setPos(-60, -10)
@@ -674,7 +679,7 @@ class SequenceViewer(QWidget):
         center_x, center_y = 0, 0
 
         # Draw plasmid backbone
-        pen = QPen(Qt.black, 4)
+        pen = QPen(Qt.GlobalColor.black, 4)
         self.scene.addEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2, pen)
 
         # Draw features
@@ -783,7 +788,7 @@ class SequenceViewer(QWidget):
         self.scene.clear()
 
         if not self.record:
-            self.scene.addLine(0, 0, 800, 0, QPen(Qt.gray, 2))
+            self.scene.addLine(0, 0, 800, 0, QPen(Qt.GlobalColor.gray, 2))
             text = self.scene.addText("Load a sequence to view linear map", QFont("Arial", 12))
             text.setPos(200, -30)
             return
@@ -921,11 +926,11 @@ class SequenceViewer(QWidget):
                 if row in self.feature_items:
                     item = self.feature_items[row]
                     if isinstance(item, QGraphicsRectItem):
-                        item.setBrush(QBrush(Qt.yellow))
-                        item.setPen(QPen(Qt.black, 3))
+                        item.setBrush(QBrush(Qt.GlobalColor.yellow))
+                        item.setPen(QPen(Qt.GlobalColor.black, 3))
                     elif isinstance(item, QGraphicsPathItem):
                         pen = item.pen()
-                        pen.setColor(Qt.yellow)
+                        pen.setColor(Qt.GlobalColor.yellow)
                         pen.setWidth(15)
                         item.setPen(pen)
 
@@ -1219,11 +1224,11 @@ class SequenceViewer(QWidget):
         """Add elegant 5' to 3' direction indicator for linear view"""
         try:
             # Add 5' and 3' labels with better styling
-            label_5prime = self.scene.addText("5'", QFont("Arial", 10, QFont.Bold))
+            label_5prime = self.scene.addText("5'", QFont("Arial", 10, QFont.Weight.Bold))
             label_5prime.setDefaultTextColor(QColor(70, 130, 180))  # Steel blue
             label_5prime.setPos(-25, -8)
             
-            label_3prime = self.scene.addText("3'", QFont("Arial", 10, QFont.Bold))
+            label_3prime = self.scene.addText("3'", QFont("Arial", 10, QFont.Weight.Bold))
             label_3prime.setDefaultTextColor(QColor(70, 130, 180))
             label_3prime.setPos(sequence_length + 8, -8)
             
@@ -1267,7 +1272,7 @@ class SequenceViewer(QWidget):
         
         try:
             dialog = ExportDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening export dialog: {str(e)}")
     
@@ -1284,7 +1289,7 @@ class SequenceViewer(QWidget):
         try:
             dialog = SequenceEditor(self.record, self)
             dialog.sequenceModified.connect(self.on_sequence_modified)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening sequence editor: {str(e)}")
     
@@ -1300,7 +1305,7 @@ class SequenceViewer(QWidget):
         
         try:
             dialog = AdvancedAnalysisDialog(self)
-            dialog.exec_()
+            dialog.exec()
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error opening advanced analysis: {str(e)}")
     

@@ -14,15 +14,15 @@ This module provides various bioinformatics analysis tools including:
 import os
 import re
 from io import StringIO
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QGroupBox, QFormLayout,
     QTextEdit, QLineEdit, QPushButton, QLabel, QComboBox, QSpinBox,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QMessageBox, QFileDialog, QProgressBar, QSplitter, QDialog, QDialogButtonBox,
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont
 
 # Import motif analysis module
 from .motif_analysis import create_motif_analysis_tab
@@ -657,7 +657,7 @@ class SequenceAnalysisTab(QWidget):
             "</ul>"
             "<p><i>Tip: You can load sequences from the current structure or from FASTA files.</i></p>"
         )
-        placeholder.setAlignment(Qt.AlignTop)
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
         placeholder.setWordWrap(True)
         placeholder.setStyleSheet("color: #666; padding: 20px;")
         
@@ -718,7 +718,7 @@ class SequenceAnalysisTab(QWidget):
                 else:
                     # Multiple sequences - show selection dialog
                     dialog = SequenceSelectionDialog(sequences, self)
-                    if dialog.exec_() != QDialog.Accepted:
+                    if dialog.exec() != QDialog.DialogCode.Accepted:
                         return
                     
                     selected_sequence = dialog.get_selected_sequence()
@@ -813,7 +813,7 @@ class SequenceAnalysisTab(QWidget):
                     else:
                         # Multiple sequences - show selection dialog
                         dialog = SequenceSelectionDialog(sequences, self)
-                        if dialog.exec_() == QDialog.Accepted:
+                        if dialog.exec() == QDialog.DialogCode.Accepted:
                             selected_seq = dialog.get_selected_sequence()
                             if selected_seq:
                                 return selected_seq.sequence, selected_seq.sequence_type
@@ -1167,7 +1167,7 @@ def create_bioinformatics_tab(parent=None):
 if __name__ == "__main__":
     # Test the bioinformatics tools
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication
     
     app = QApplication(sys.argv)
     
@@ -1176,4 +1176,4 @@ if __name__ == "__main__":
     widget.resize(800, 600)
     widget.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

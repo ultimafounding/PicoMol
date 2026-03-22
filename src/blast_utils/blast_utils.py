@@ -32,14 +32,14 @@ from urllib.parse import quote, urlencode
 from urllib.request import urlopen, Request
 from urllib.error import URLError, HTTPError
 
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton,
     QComboBox, QLineEdit, QCheckBox, QRadioButton, QButtonGroup,
     QGroupBox, QFormLayout, QFileDialog, QMessageBox, QApplication,
     QScrollArea, QSplitter, QTabWidget, QProgressBar, QDialogButtonBox, QDialog
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
-from PyQt5.QtGui import QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt6.QtGui import QFont
 
 
 class OnlineBlastWorker(QThread):
@@ -1149,7 +1149,7 @@ def show_blast_help(parent):
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     
-    help_dialog.exec_()
+    help_dialog.exec()
 
 
 # Placeholder functions for other BLAST types
@@ -1826,7 +1826,7 @@ def show_blast_help_generic(parent, program_type):
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     
-    help_dialog.exec_()
+    help_dialog.exec()
 
 
 def create_placeholder_tab(name, description):
@@ -2062,6 +2062,6 @@ def show_blast_help(parent):
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     
-    help_dialog.exec_()
+    help_dialog.exec()
 
 

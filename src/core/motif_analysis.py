@@ -17,7 +17,7 @@ import time
 import requests
 from io import StringIO
 from urllib.parse import urlencode, quote
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QGroupBox, QFormLayout,
     QTextEdit, QLineEdit, QPushButton, QLabel, QComboBox, QSpinBox,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
@@ -25,8 +25,8 @@ from PyQt5.QtWidgets import (
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget, QFrame,
     QGridLayout, QTextBrowser, QApplication
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
-from PyQt5.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QDesktopServices
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
+from PyQt6.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QDesktopServices
 
 try:
     from Bio.Seq import Seq
@@ -2010,7 +2010,7 @@ class MotifAnalysisTab(QWidget):
             
             # Add placeholder
             placeholder = QLabel(placeholder_text)
-            placeholder.setAlignment(Qt.AlignTop)
+            placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
             placeholder.setWordWrap(True)
             placeholder.setStyleSheet("color: #666; padding: 20px;")
             tab_layout.addWidget(placeholder)
@@ -2241,7 +2241,7 @@ class MotifAnalysisTab(QWidget):
         layout.addWidget(button_box)
         
         # Show dialog and get result
-        if dialog.exec_() == QDialog.Accepted:
+        if dialog.exec() == QDialog.DialogCode.Accepted:
             current_item = sequence_list.currentItem()
             if current_item:
                 return current_item.data(Qt.UserRole)
@@ -3987,7 +3987,7 @@ def create_motif_analysis_tab(parent=None):
 if __name__ == "__main__":
     # Test the motif analysis tools
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication
     
     app = QApplication(sys.argv)
     
@@ -3996,4 +3996,4 @@ if __name__ == "__main__":
     widget.resize(1000, 700)
     widget.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

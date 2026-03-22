@@ -6,7 +6,7 @@ This module provides a QThread-based worker for fetching PDB data
 without blocking the main UI thread.
 """
 
-from PyQt5.QtCore import QThread, pyqtSignal
+from PyQt6.QtCore import QThread, pyqtSignal
 from typing import Dict, Any, Optional
 import traceback
 

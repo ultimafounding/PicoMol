@@ -1,8 +1,8 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QComboBox, QPushButton, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QFormLayout, QComboBox, QPushButton, 
                              QLineEdit, QLabel, QFileDialog, QListWidget, QMessageBox,
                              QGroupBox, QHBoxLayout, QTextEdit, QSplitter, QTabWidget,
                              QWidget, QCheckBox)
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 from Bio import SeqIO
 from Bio.Restriction import RestrictionBatch, Restriction
 from Bio.SeqRecord import SeqRecord
@@ -33,7 +33,7 @@ class RestrictionCloningDialog(QDialog):
         main_layout.addWidget(instructions)
         
         # Create splitter for main content
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
         
         # Left panel - File selection and enzyme choice
@@ -444,13 +444,17 @@ class RestrictionCloningDialog(QDialog):
                 insert_overhang = self.get_enzyme_overhang(insert_enzyme)
                 
                 if vector_overhang != insert_overhang:
-                    reply = QMessageBox.question(self, "Compatibility Warning", 
+                    reply = QMessageBox.question(
+                        self,
+                        "Compatibility Warning",
                         f"Vector enzyme ({vector_enzyme_name}) and insert enzyme ({insert_enzyme_name}) create different overhangs.\n"
                         f"Vector overhang: {vector_overhang}\n"
                         f"Insert overhang: {insert_overhang}\n\n"
                         "This may result in incompatible ends. Continue anyway?",
-                        QMessageBox.Yes | QMessageBox.No)
-                    if reply == QMessageBox.No:
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.No:
                         return
 
             # Perform proper restriction cloning ligation

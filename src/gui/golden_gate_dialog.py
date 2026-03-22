@@ -1,7 +1,7 @@
-from PyQt5.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QPushButton, QFileDialog, 
+from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QListWidget, QPushButton, QFileDialog, 
                              QLabel, QHBoxLayout, QTextEdit, QGroupBox, QMessageBox,
                              QSplitter, QComboBox, QFormLayout, QCheckBox, QWidget)
-from PyQt5.QtCore import Qt
+from PyQt6.QtCore import Qt
 from Bio import SeqIO
 from Bio.SeqRecord import SeqRecord
 from Bio.Restriction import RestrictionBatch, Restriction
@@ -32,7 +32,7 @@ class GoldenGateDialog(QDialog):
         main_layout.addWidget(instructions)
         
         # Create splitter for main content
-        splitter = QSplitter(Qt.Horizontal)
+        splitter = QSplitter(Qt.Orientation.Horizontal)
         main_layout.addWidget(splitter)
         
         # Left panel - Vector and fragment selection
@@ -396,12 +396,16 @@ class GoldenGateDialog(QDialog):
             vector_sites = vector_analysis.get(enzyme, [])
             
             if len(vector_sites) < 2:
-                reply = QMessageBox.question(self, "Insufficient Sites", 
-                    f"Vector has only {len(vector_sites)} {enzyme_name} site(s).\n"
-                    "Golden Gate assembly typically requires 2 sites. Continue anyway?",
-                    QMessageBox.Yes | QMessageBox.No)
-                if reply == QMessageBox.No:
-                    return
+                    reply = QMessageBox.question(
+                        self,
+                        "Insufficient Sites",
+                        f"Vector has only {len(vector_sites)} {enzyme_name} site(s).\n"
+                        "Golden Gate assembly typically requires 2 sites. Continue anyway?",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        QMessageBox.StandardButton.No
+                    )
+                    if reply == QMessageBox.StandardButton.No:
+                        return
             
             # Simplified Golden Gate Assembly simulation
             # In reality, this requires careful design of compatible overhangs

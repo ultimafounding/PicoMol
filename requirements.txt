@@ -7,8 +7,8 @@
 # These packages are essential for PicoMol to function
 
 # GUI Framework and Web Engine
-PyQt5>=5.15.0
-PyQtWebEngine>=5.15.0
+PyQt6>=6.5.0
+PyQt6-WebEngine>=6.5.0
 
 # Bioinformatics and molecular data handling
 biopython>=1.79
@@ -45,7 +45,7 @@ weasyprint>=54.0                 # For PDF export functionality
 # =============================================================================
 #
 # Core Installation (minimum functionality):
-#   pip install PyQt5 PyQtWebEngine biopython requests
+#   pip install PyQt6 PyQt6-WebEngine biopython requests
 #
 # Full Installation (all features):
 #   pip install -r requirements.txt

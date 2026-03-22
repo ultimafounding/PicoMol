@@ -22,12 +22,17 @@ from src.gui.theme_manager import apply_theme
 from src.core.bioinformatics_tools import create_bioinformatics_tab
 from src.gui.welcome_dialog import WelcomeDialog
 
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
+    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox,
     QTabWidget, QSizePolicy, QColorDialog, QFormLayout, QScrollArea
 )
+# QAction may be provided from QtWidgets or QtGui depending on PyQt6 build
+try:
+    from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtGui import QAction
 
 
 class AboutDialog(QDialog):
@@ -54,9 +59,9 @@ class AboutDialog(QDialog):
                 pixmap = QPixmap(logo_path)
                 if not pixmap.isNull():
                     # Scale the logo to a reasonable size for the dialog
-                    scaled_pixmap = pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    scaled_pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     logo_label.setPixmap(scaled_pixmap)
-                    logo_label.setAlignment(Qt.AlignCenter)
+                    logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     layout.addWidget(logo_label)
         except Exception as e:
             print(f"Error adding logo to About dialog: {e}")
@@ -204,10 +209,10 @@ class AboutDialog(QDialog):
         button_box.accepted.connect(self.accept)
         main_layout.addWidget(button_box)
 
-from PyQt5.QtCore import QSettings
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PyQt5.QtCore import QUrl, Qt
-from PyQt5.QtGui import QFont, QPixmap, QIcon
+from PyQt6.QtCore import QSettings
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCore import QUrl, Qt
+from PyQt6.QtGui import QFont, QPixmap, QIcon
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
@@ -337,13 +342,16 @@ class ProteinViewerApp(QMainWindow):
     
     def setup_responsive_window(self):
         """Set up responsive window sizing based on screen dimensions."""
-        from PyQt5.QtWidgets import QDesktopWidget
-        
-        # Get screen geometry
-        desktop = QDesktopWidget()
-        screen_rect = desktop.screenGeometry()
-        screen_width = screen_rect.width()
-        screen_height = screen_rect.height()
+        from PyQt6.QtWidgets import QApplication
+        # Get screen geometry via primary screen
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            screen_rect = screen.availableGeometry()
+            screen_width = screen_rect.width()
+            screen_height = screen_rect.height()
+        else:
+            # Fallback defaults
+            screen_width, screen_height = (1366, 768)
         
         # Calculate responsive window size (80% of screen, with reasonable limits)
         min_width = 900
@@ -436,7 +444,7 @@ class ProteinViewerApp(QMainWindow):
         btn_box = QDialogButtonBox(QDialogButtonBox.Ok)
         btn_box.accepted.connect(dlg.accept)
         layout.addWidget(btn_box)
-        dlg.exec_()
+        dlg.exec()
 
 
 
@@ -528,7 +536,7 @@ class ProteinViewerApp(QMainWindow):
     def init_ui(self):
         # Create the web view first
         self.web_view = QWebEngineView()
-        self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         # Menu bar with File, Edit, Recent Files
         menubar = self.menuBar()
@@ -605,7 +613,7 @@ class ProteinViewerApp(QMainWindow):
 
         # Drag-and-drop overlay label (hidden by default)
         self.drag_overlay = QLabel("\n\nDrop PDB or ENT files here to open", self)
-        self.drag_overlay.setAlignment(Qt.AlignCenter)
+        self.drag_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_overlay.setStyleSheet("""
             background: rgba(30, 144, 255, 0.7); 
             color: white; 
@@ -616,7 +624,7 @@ class ProteinViewerApp(QMainWindow):
             padding: 20px;
         """)
         self.drag_overlay.setVisible(False)
-        self.drag_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.drag_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.drag_overlay.setGeometry(0, 0, self.width(), self.height())
 
         # Ensure overlay resizes with window
@@ -878,7 +886,7 @@ class ProteinViewerApp(QMainWindow):
     def show_feedback_dialog(self):
         import urllib.parse
         dlg = self.FeedbackDialog(self)
-        if dlg.exec_() == QDialog.Accepted:
+        if dlg.exec() == QDialog.DialogCode.Accepted:
             feedback = dlg.get_feedback()
             if feedback:
                 # Prepare GitHub new issue URL
@@ -893,18 +901,18 @@ class ProteinViewerApp(QMainWindow):
 
     def show_about_dialog(self):
         dlg = AboutDialog(self)
-        dlg.exec_()
+        dlg.exec()
     
     def show_welcome_dialog(self):
         """Show the welcome dialog."""
         dlg = WelcomeDialog(self)
-        dlg.exec_()
+        dlg.exec()
     
     def show_preferences_dialog(self):
         """Show the preferences dialog."""
         dlg = PreferencesDialog(self)
         dlg.preferences_applied.connect(self.apply_preferences)
-        dlg.exec_()
+        dlg.exec()
     
     def notify_structure_loaded(self, structure_id, structure_path):
         """Notify components that a new structure has been loaded.
@@ -1364,7 +1372,7 @@ class ProteinViewerApp(QMainWindow):
         msg.setText(f"Successfully fetched comprehensive PDB data for {pdb_id}")
         msg.setDetailedText(summary_text)
         msg.setIcon(QMessageBox.Information)
-        msg.exec_()
+        msg.exec()
     
     def show_pdb_information(self):
         """Show comprehensive PDB information dialog."""
@@ -1440,7 +1448,7 @@ class ProteinViewerApp(QMainWindow):
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
-        dialog.exec_()
+        dialog.exec()
     
     def format_pdb_summary(self, comprehensive_data):
         """Format PDB summary for display with comprehensive metadata."""
@@ -1731,7 +1739,7 @@ class ProteinViewerApp(QMainWindow):
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
-        dialog.exec_()
+        dialog.exec()
     
     def open_local_pdb(self, file_path=None):
         if not file_path:
@@ -2215,14 +2223,22 @@ class ProteinViewerApp(QMainWindow):
 
 
 def main():
-    os.environ["QTWEBENGINE_REMOTE_DEBUGGING"] = "9222"
+    # Use dynamic DevTools port by default to avoid conflicts; override by setting QTWEBENGINE_REMOTE_DEBUGGING.
+    os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "0")
 
     # Suppress BiopythonParserWarning about missing HEADER line
     warnings.filterwarnings("ignore", message="'HEADER' line not found; can't determine PDB ID.", category=BiopythonParserWarning)
 
     app = QApplication(sys.argv)
 
-    settings = QWebEngineSettings.defaultSettings()
+    # Obtain web engine settings via a temporary web view's profile (PyQt6 exposes settings via page().settings())
+    try:
+        tmp_view = QWebEngineView()
+        settings = tmp_view.page().settings()
+        # no need to keep tmp_view
+        del tmp_view
+    except Exception:
+        settings = None
 
     # Use the project root directory for serving files
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -2237,7 +2253,7 @@ def main():
     viewer._server_thread = server_thread
     viewer.show()
 
-    exit_code = app.exec_()
+    exit_code = app.exec()
     server_thread.shutdown()
     sys.exit(exit_code)
 
