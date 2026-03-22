@@ -2,9 +2,9 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QToolBar,
                              QGraphicsView, QTextEdit, QListWidget, QSplitter, 
                              QFileDialog, QGraphicsScene, 
                              QGraphicsRectItem, QGraphicsPathItem, QGraphicsTextItem,
+                             QGraphicsItem, QGraphicsPolygonItem, QListWidgetItem,
                              QDialog, QMessageBox, QLabel, QPushButton, QComboBox,
-                             QFormLayout, QGroupBox, QCheckBox, QSpinBox, QTabWidget,
-                             QGraphicsPolygonItem)
+                             QFormLayout, QGroupBox, QCheckBox, QSpinBox, QTabWidget)
 # QAction may be located in QtWidgets or QtGui depending on PyQt6 build
 try:
     from PyQt6.QtWidgets import QAction
@@ -90,6 +90,49 @@ class SequenceViewer(QWidget):
         self.load_action.setToolTip("Load a sequence file (GenBank, FASTA, etc.)")
         self.load_action.triggered.connect(self.load_sequence_file)
         toolbar.addAction(self.load_action)
+
+        toolbar.addSeparator()
+        
+        # Zoom controls
+        self.zoom_in_action = QAction("🔍+", self)
+        self.zoom_in_action.setToolTip("Zoom in (Ctrl++)")
+        self.zoom_in_action.triggered.connect(self.zoom_in)
+        toolbar.addAction(self.zoom_in_action)
+        
+        self.zoom_out_action = QAction("🔍-", self)
+        self.zoom_out_action.setToolTip("Zoom out (Ctrl+-)")
+        self.zoom_out_action.triggered.connect(self.zoom_out)
+        toolbar.addAction(self.zoom_out_action)
+        
+        self.reset_zoom_action = QAction("🔄 Reset Zoom", self)
+        self.reset_zoom_action.setToolTip("Reset zoom to fit view (Ctrl+0)")
+        self.reset_zoom_action.triggered.connect(self.reset_zoom)
+        toolbar.addAction(self.reset_zoom_action)
+        
+        toolbar.addSeparator()
+
+        # View controls
+        self.circular_action = QAction("⭕ Circular View", self)
+        self.circular_action.setToolTip("Show circular plasmid map")
+        self.circular_action.setCheckable(True)
+        self.circular_action.setChecked(True)
+        self.circular_action.triggered.connect(self.toggle_circular_view)
+        toolbar.addAction(self.circular_action)
+        
+        self.linear_action = QAction("📏 Linear View", self)
+        self.linear_action.setToolTip("Show linear sequence map")
+        self.linear_action.setCheckable(True)
+        self.linear_action.setChecked(False)
+        self.linear_action.triggered.connect(self.toggle_linear_view)
+        toolbar.addAction(self.linear_action)
+        
+        # Create button group for mutual exclusion
+        self.view_group = QActionGroup(self)
+        self.view_group.addAction(self.circular_action)
+        self.view_group.addAction(self.linear_action)
+        self.view_group.setExclusive(True)
+        
+        toolbar.addSeparator()
 
         self.enzyme_action = QAction("🧬 Select Enzymes", self)
         self.enzyme_action.setToolTip("Choose restriction enzymes to display")
@@ -187,7 +230,7 @@ class SequenceViewer(QWidget):
         feature_layout.setContentsMargins(10, 15, 10, 10)
         feature_layout.setSpacing(8)
         self.feature_list = QListWidget()
-        self.feature_list.itemSelectionChanged.connect(self.highlight_feature)
+        self.feature_list.itemSelectionChanged.connect(self.on_feature_selection_changed)
         feature_layout.addWidget(self.feature_list)
         left_layout.addWidget(feature_group)
         
@@ -201,6 +244,32 @@ class SequenceViewer(QWidget):
         self.scene = QGraphicsScene()
         self.map_view.setScene(self.scene)
         self.map_view.setRenderHint(QPainter.RenderHint.Antialiasing)
+        self.map_view.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        
+        # Enhanced map view features
+        self.map_view.setDragMode(QGraphicsView.DragMode.RubberBandDrag)
+        self.map_view.setRubberBandSelectionMode(Qt.ItemSelectionMode.ContainsItemShape)
+        self.map_view.setOptimizationFlag(QGraphicsView.OptimizationFlag.DontAdjustForAntialiasing, False)
+        self.map_view.setOptimizationFlag(QGraphicsView.OptimizationFlag.DontSavePainterState, False)
+        self.map_view.setViewportUpdateMode(QGraphicsView.ViewportUpdateMode.FullViewportUpdate)
+        
+        # Enable mouse tracking for better interaction
+        self.map_view.setMouseTracking(True)
+        self.map_view.viewport().setMouseTracking(True)
+        
+        # Custom zoom controls
+        self.map_view.wheelEvent = self.map_view_wheel_event
+        self.map_view.mousePressEvent = self.map_view_mouse_press
+        self.map_view.mouseMoveEvent = self.map_view_mouse_move
+        self.map_view.mouseReleaseEvent = self.map_view_mouse_release
+        
+        # Zoom state
+        self.zoom_factor = 1.0
+        self.min_zoom = 0.1
+        self.max_zoom = 10.0
+        self.last_mouse_pos = None
+        self.is_panning = False
+        
         self.sequence_view = SequenceTextView()
         
         center_panel.addWidget(self.map_view)
@@ -563,6 +632,148 @@ class SequenceViewer(QWidget):
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"Error during virtual digest: {str(e)}")
     
+    def map_view_wheel_event(self, event):
+        """Handle mouse wheel for zooming"""
+        try:
+            # Get zoom delta
+            zoom_in_factor = 1.25
+            zoom_out_factor = 1 / zoom_in_factor
+            
+            # Save the scene pos
+            old_pos = self.map_view.mapToScene(event.position().toPoint())
+            
+            # Zoom
+            if event.angleDelta().y() > 0:
+                zoom_factor = zoom_in_factor
+            else:
+                zoom_factor = zoom_out_factor
+            
+            # Calculate new zoom factor
+            new_zoom = self.zoom_factor * zoom_factor
+            if self.min_zoom <= new_zoom <= self.max_zoom:
+                self.zoom_factor = new_zoom
+                self.map_view.scale(zoom_factor, zoom_factor)
+                
+                # Get the new position
+                new_pos = self.map_view.mapToScene(event.position().toPoint())
+                
+                # Move scene to old position
+                delta = new_pos - old_pos
+                self.map_view.translate(delta.x(), delta.y())
+        except Exception as e:
+            # Fallback to default behavior
+            QGraphicsView.wheelEvent(self.map_view, event)
+    
+    def map_view_mouse_press(self, event):
+        """Handle mouse press for panning and selection"""
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.is_panning = True
+            self.last_mouse_pos = event.position().toPoint()
+            self.map_view.setCursor(Qt.CursorShape.ClosedHandCursor)
+        elif event.button() == Qt.MouseButton.LeftButton:
+            # Check if clicking on a feature
+            scene_pos = self.map_view.mapToScene(event.position().toPoint())
+            item = self.scene.itemAt(scene_pos, self.map_view.transform())
+            if item and item in self.feature_items.values():
+                # Find the feature index
+                for idx, feature_item in self.feature_items.items():
+                    if feature_item == item:
+                        self.highlight_feature(idx)
+                        break
+        else:
+            QGraphicsView.mousePressEvent(self.map_view, event)
+    
+    def map_view_mouse_move(self, event):
+        """Handle mouse move for panning"""
+        if self.is_panning and self.last_mouse_pos:
+            current_pos = event.position().toPoint()
+            delta = current_pos - self.last_mouse_pos
+            self.last_mouse_pos = current_pos
+            
+            # Pan the view
+            self.map_view.translate(delta.x() / self.zoom_factor, delta.y() / self.zoom_factor)
+        else:
+            QGraphicsView.mouseMoveEvent(self.map_view, event)
+    
+    def map_view_mouse_release(self, event):
+        """Handle mouse release"""
+        if event.button() == Qt.MouseButton.MiddleButton:
+            self.is_panning = False
+            self.last_mouse_pos = None
+            self.map_view.setCursor(Qt.CursorShape.ArrowCursor)
+        else:
+            QGraphicsView.mouseReleaseEvent(self.map_view, event)
+    
+    def on_feature_selection_changed(self):
+        """Handle feature selection change from the feature list"""
+        selected_items = self.feature_list.selectedItems()
+        if selected_items:
+            selected_item = selected_items[0]
+            feature_index = selected_item.data(Qt.ItemDataRole.UserRole)
+            
+            # Check if this is a restriction site ( UserRole is None )
+            if feature_index is None:
+                # This is a restriction site - don't highlight anything on the map
+                # but we could potentially highlight the restriction site marker
+                pass
+            else:
+                # This is a regular feature - highlight it
+                self.highlight_feature(feature_index)
+
+    def highlight_feature(self, feature_index):
+        """Highlight a specific feature"""
+        if not self.record or not hasattr(self.record, 'features'):
+            return
+            
+        # Reset all features to normal appearance
+        for idx, item in self.feature_items.items():
+            if isinstance(item, QGraphicsPathItem):  # Circular view
+                pen = item.pen()
+                color = self.get_feature_color(self.record.features[idx].type)
+                pen.setColor(color)
+                pen.setWidth(12)
+                item.setPen(pen)
+            elif isinstance(item, QGraphicsRectItem):  # Linear view
+                color = self.get_feature_color(self.record.features[idx].type)
+                item.setBrush(QBrush(color))
+                item.setPen(QPen(color))
+        
+        # Highlight selected feature
+        if feature_index < len(self.record.features):
+            selected_item = self.feature_items.get(feature_index)
+            if selected_item:
+                if isinstance(selected_item, QGraphicsPathItem):
+                    pen = selected_item.pen()
+                    pen.setColor(QColor(255, 255, 0))  # Yellow highlight
+                    pen.setWidth(16)
+                    selected_item.setPen(pen)
+                elif isinstance(selected_item, QGraphicsRectItem):
+                    selected_item.setBrush(QBrush(QColor(255, 255, 0, 180)))  # Yellow highlight
+                    selected_item.setPen(QPen(QColor(255, 200, 0), 3))
+                
+                # Update feature list selection
+                if hasattr(self, 'feature_list') and feature_index < self.feature_list.count():
+                    self.feature_list.setCurrentRow(feature_index)
+    
+    def zoom_in(self):
+        """Zoom in the map view"""
+        if self.zoom_factor < self.max_zoom:
+            self.map_view.scale(1.25, 1.25)
+            self.zoom_factor *= 1.25
+    
+    def zoom_out(self):
+        """Zoom out the map view"""
+        if self.zoom_factor > self.min_zoom:
+            self.map_view.scale(0.8, 0.8)
+            self.zoom_factor *= 0.8
+    
+    def reset_zoom(self):
+        """Reset zoom to fit view"""
+        self.zoom_factor = 1.0
+        self.map_view.resetTransform()
+        if hasattr(self, 'scene') and self.scene.items():
+            self.map_view.fitInView(self.scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
+    
     def get_fragments(self, sequence, cuts):
         """Get DNA fragments from restriction cuts"""
         if not cuts:
@@ -701,6 +912,9 @@ class SequenceViewer(QWidget):
         if hasattr(self, 'feature_list'):
             self.feature_list.clear()
             self.feature_items.clear()
+            feature_index = 0
+            
+            # Add regular features
             if hasattr(self.record, 'features'):
                 for i, feature in enumerate(self.record.features):
                     if feature.type != 'source':  # Skip source features
@@ -716,9 +930,39 @@ class SequenceViewer(QWidget):
                             display_name += f" ({product})"
                         
                         item_text = f"{feature.type}: {display_name} [{feature.location.start}:{feature.location.end}]"
-                        self.feature_list.addItem(item_text)
+                        item = QListWidgetItem(item_text)
+                        item.setData(Qt.ItemDataRole.UserRole, feature_index)
+                        self.feature_list.addItem(item)
+                        feature_index += 1
+            
+            # Add restriction sites
+            if self.restriction_batch:
+                try:
+                    analysis = self.restriction_batch.search(self.record.seq)
+                    for enzyme, sites in analysis.items():
+                        if sites:  # Only add enzymes that actually cut
+                            enzyme_name = str(enzyme)
+                            for site in sites:
+                                item_text = f"Restriction Site: {enzyme_name} [{site}]"
+                                item = QListWidgetItem(item_text)
+                                item.setData(Qt.ItemDataRole.UserRole, None)  # Restriction sites don't correspond to feature items
+                                self.feature_list.addItem(item)
+                except Exception as e:
+                    print(f"Error adding restriction sites to list: {e}")
 
         self.update_view()
+
+    def toggle_circular_view(self):
+        """Switch to circular view"""
+        self.circular_action.setChecked(True)
+        self.linear_action.setChecked(False)
+        self.show_circular_view()
+    
+    def toggle_linear_view(self):
+        """Switch to linear view"""
+        self.linear_action.setChecked(True)
+        self.circular_action.setChecked(False)
+        self.show_linear_view()
 
     def update_view(self):
         """Update the sequence view based on current settings"""
@@ -732,33 +976,46 @@ class SequenceViewer(QWidget):
             self.map_view.fitInView(self.scene.itemsBoundingRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
     def show_circular_view(self):
-        """Display sequence in circular plasmid view"""
+        """Display sequence in circular plasmid view - SnapGene/Benchling style"""
         self.scene.clear()
         
         if not self.record:
             radius = 150
             self.scene.addEllipse(-radius, -radius, radius * 2, radius * 2, QPen(Qt.GlobalColor.gray, 2))
-            # Add placeholder text
             text = self.scene.addText("Load a sequence\nto view plasmid map", QFont("Arial", 12))
             text.setPos(-60, -10)
             return
 
         plasmid_len = len(self.record.seq)
-        radius = 150
+        
+        # Define radii for different elements
+        main_radius = 150
+        outer_radius = main_radius + 40  # For restriction sites
+        label_radius = main_radius + 60  # For restriction site labels
         center_x, center_y = 0, 0
 
-        # Draw plasmid backbone
-        pen = QPen(Qt.GlobalColor.black, 4)
-        self.scene.addEllipse(center_x - radius, center_y - radius, radius * 2, radius * 2, pen)
+        # Draw main plasmid backbone
+        pen = QPen(Qt.GlobalColor.black, 3)
+        self.scene.addEllipse(center_x - main_radius, center_y - main_radius, main_radius * 2, main_radius * 2, pen)
 
-        # Draw features
+        # Draw outer circle for restriction sites
+        outer_pen = QPen(Qt.GlobalColor.gray, 1, Qt.PenStyle.DashLine)
+        self.scene.addEllipse(center_x - outer_radius, center_y - outer_radius, outer_radius * 2, outer_radius * 2, outer_pen)
+
+        # Draw features with SnapGene-style layering system
         self.feature_items.clear()
+        all_labels = []  # Collect all labels for smart positioning
+        
         if hasattr(self.record, 'features'):
             feature_index = 0
+            
+            # Collect and sort features by position
+            feature_data = []
             for i, feature in enumerate(self.record.features):
                 if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
                            "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
                            "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
+                    
                     start = int(feature.location.start)
                     end = int(feature.location.end)
                     
@@ -768,94 +1025,265 @@ class SequenceViewer(QWidget):
                     
                     start_angle = (start / plasmid_len) * 360
                     span_angle = ((end - start) / plasmid_len) * 360
-
+                    
+                    # Only include features large enough to be visible
+                    if span_angle < 2:
+                        continue
+                    
+                    feature_data.append({
+                        'start_angle': start_angle,
+                        'span_angle': span_angle,
+                        'feature': feature,
+                        'feature_type': feature.type,
+                        'start': start,
+                        'end': end,
+                        'index': i
+                    })
+            
+            # Sort features by start angle
+            feature_data.sort(key=lambda x: x['start_angle'])
+            
+            # Assign features to layers (tracks) to avoid overlaps
+            layers = []  # Each layer will have features that don't overlap
+            layer_spacing = 12  # Pixels between layers
+            
+            for data in feature_data:
+                assigned_layer = None
+                
+                # Try to fit in existing layers
+                for layer_idx, layer in enumerate(layers):
+                    can_fit = True
+                    
+                    for existing_feature in layer:
+                        # Check angular overlap
+                        angle_diff = abs(data['start_angle'] - existing_feature['start_angle'])
+                        if angle_diff > 180:
+                            angle_diff = 360 - angle_diff
+                        
+                        # Features overlap if they're too close
+                        min_separation = (data['span_angle'] + existing_feature['span_angle']) / 2 + 5
+                        if angle_diff < min_separation:
+                            can_fit = False
+                            break
+                    
+                    if can_fit:
+                        assigned_layer = layer_idx
+                        layer.append(data)
+                        break
+                
+                # If no existing layer fits, create new layer
+                if assigned_layer is None:
+                    layers.append([data])
+                    assigned_layer = len(layers) - 1
+            
+            # Draw features in their assigned layers
+            for layer_idx, layer in enumerate(layers):
+                # Calculate radius for this layer
+                layer_radius = main_radius - 10 - (layer_idx * layer_spacing)
+                
+                # Only draw if radius is reasonable
+                if layer_radius < 30:
+                    break
+                
+                for data in layer:
+                    start_angle = data['start_angle']
+                    span_angle = data['span_angle']
+                    feature = data['feature']
                     pen_color = self.get_feature_color(feature.type)
                     
-                    pen = QPen(pen_color, 12)
+                    # Draw feature as arc on this layer
+                    feature_width = max(6, min(15, span_angle / 4))
+                    pen = QPen(pen_color, feature_width)
+                    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                    
                     path = QPainterPath()
-                    path.arcMoveTo(center_x - radius, center_y - radius, radius * 2, radius * 2, -start_angle)
-                    path.arcTo(center_x - radius, center_y - radius, radius * 2, radius * 2, -start_angle, -span_angle)
+                    path.arcMoveTo(center_x - layer_radius, center_y - layer_radius, layer_radius * 2, layer_radius * 2, -start_angle)
+                    path.arcTo(center_x - layer_radius, center_y - layer_radius, layer_radius * 2, layer_radius * 2, -start_angle, -span_angle)
                     arc = self.scene.addPath(path, pen)
+                    
+                    # Make feature clickable
+                    arc.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                     self.feature_items[feature_index] = arc
                     
-                    # Add directional arrow for the feature
-                    self.add_circular_arrow(feature, center_x, center_y, radius, start_angle, span_angle, pen_color)
+                    # Add arrow for direction
+                    self.add_circular_arrow(feature, center_x, center_y, layer_radius, start_angle, span_angle, pen_color)
                     
-                    feature_index += 1
-
-                    # Add feature label
-                    if span_angle > 10:  # Only label features that are large enough
+                    # Collect labels for smart positioning
+                    if span_angle > 15:  # Only label larger features
                         label_angle = start_angle + (span_angle / 2)
-                        rad_angle = math.radians(label_angle)
-                        label_radius = radius + 25
-                        label_x = center_x + label_radius * math.cos(rad_angle)
-                        label_y = center_y + label_radius * math.sin(rad_angle)
                         
                         # Get feature name
                         feature_name = feature.qualifiers.get('label', [feature.type])[0]
                         if 'gene' in feature.qualifiers:
                             feature_name = feature.qualifiers['gene'][0]
                         
-                        label = self.scene.addText(feature_name, QFont("Arial", 8))
-                        label.setPos(label_x - 20, label_y - 5)
-                        if abs(label_angle) > 90 and abs(label_angle) < 270:
-                            label.setRotation(label_angle + 180)
-                        else:
-                            label.setRotation(label_angle)
+                        # Truncate long names
+                        if len(feature_name) > 12:
+                            feature_name = feature_name[:10] + "..."
+                        
+                        # Create label item
+                        label = self.scene.addText(feature_name, QFont("Arial", 7, QFont.Weight.Bold))
+                        label.setDefaultTextColor(Qt.GlobalColor.black)
+                        
+                        # Store label data for smart positioning
+                        all_labels.append({
+                            'label': label,
+                            'angle': label_angle,
+                            'feature_name': feature_name,
+                            'layer_idx': layer_idx,
+                            'feature_angle': start_angle,
+                            'feature_span': span_angle
+                        })
+                    
+                    feature_index += 1
+        
+        # Smart label positioning system
+        if all_labels:
+            # Sort labels by angle
+            all_labels.sort(key=lambda x: x['angle'])
+            
+            # Define label radii for different layers
+            label_radii = [main_radius + 35, main_radius + 55, main_radius + 75, main_radius + 95]
+            
+            # Assign labels to concentric label layers to avoid overlaps
+            label_layers = [[] for _ in label_radii]
+            
+            for label_data in all_labels:
+                angle = label_data['angle']
+                assigned_label_layer = 0
+                
+                # Try to fit in existing label layers
+                for layer_idx, layer in enumerate(label_layers):
+                    can_fit = True
+                    
+                    for existing_label in layer:
+                        angle_diff = abs(angle - existing_label['angle'])
+                        if angle_diff > 180:
+                            angle_diff = 360 - angle_diff
+                        
+                        # Labels overlap if they're too close (consider label width)
+                        if angle_diff < 20:  # Minimum 20 degrees separation
+                            can_fit = False
+                            break
+                    
+                    if can_fit:
+                        assigned_label_layer = layer_idx
+                        layer.append(label_data)
+                        break
+                
+                # If no existing layer fits, try next available layer
+                if assigned_label_layer >= len(label_layers):
+                    continue  # Skip this label if no space available
+                
+                # Position the label
+                radius = label_radii[assigned_label_layer]
+                rad_angle = math.radians(angle)
+                label_x = center_x + radius * math.cos(rad_angle)
+                label_y = center_y + radius * math.sin(rad_angle)
+                
+                label = label_data['label']
+                
+                # Adjust position for readability
+                if 90 <= angle <= 270:
+                    # Left side - align right
+                    label.setPos(label_x - 25, label_y - 5)
+                else:
+                    # Right side - align left
+                    label.setPos(label_x + 5, label_y - 5)
+                
+                # Rotate label to be readable
+                if 90 <= angle <= 270:
+                    label.setRotation(angle + 180)
+                else:
+                    label.setRotation(angle)
 
-        # Draw restriction sites with arrows
+        # Draw restriction sites on outer circle with labels
         if self.restriction_batch:
             try:
                 analysis = self.restriction_batch.search(self.record.seq)
+                site_positions = []
+                
+                # Collect all restriction sites
                 for enzyme, sites in analysis.items():
                     for site in sites:
-                        angle = (site / plasmid_len) * 360
-                        rad_angle = math.radians(angle)
+                        site_positions.append((site, str(enzyme)))  # Convert to string
+                
+                # Sort by position
+                site_positions.sort(key=lambda x: x[0])
+                
+                # Draw restriction sites with labels
+                for site, enzyme_name in site_positions:  # Use enzyme_name
+                    angle = (site / plasmid_len) * 360
+                    rad_angle = math.radians(angle)
+                    
+                    # Draw tick mark on outer circle
+                    tick_x = center_x + outer_radius * math.cos(rad_angle)
+                    tick_y = center_y + outer_radius * math.sin(rad_angle)  # Fixed: was cos instead of sin
+                    
+                    inner_x = center_x + (main_radius + 5) * math.cos(rad_angle)
+                    inner_y = center_y + (main_radius + 5) * math.sin(rad_angle)
+                    
+                    self.scene.addLine(inner_x, inner_y, tick_x, tick_y, QPen(Qt.GlobalColor.darkRed, 2))
+                    
+                    # Add enzyme label
+                    label_x = center_x + label_radius * math.cos(rad_angle)
+                    label_y = center_y + label_radius * math.sin(rad_angle)
+                    
+                    # Position label to be readable
+                    label = self.scene.addText(enzyme_name, QFont("Arial", 7, QFont.Weight.Bold))  # Use enzyme_name
+                    label.setDefaultTextColor(Qt.GlobalColor.darkRed)
+                    
+                    # Adjust label position for readability
+                    if 90 <= angle <= 270:
+                        # Left side - align right
+                        label.setPos(label_x - 25, label_y - 5)
+                    else:
+                        # Right side - align left
+                        label.setPos(label_x + 5, label_y - 5)
                         
-                        x1 = center_x + (radius - 8) * math.cos(rad_angle)
-                        y1 = center_y + (radius - 8) * math.sin(rad_angle)
-                        x2 = center_x + (radius + 8) * math.cos(rad_angle)
-                        y2 = center_y + (radius + 8) * math.sin(rad_angle)
-                        
-                        self.scene.addLine(x1, y1, x2, y2, QPen(Qt.GlobalColor.darkRed, 2))
-                        
-                        # Add restriction cut arrow
-                        self.add_circular_restriction_arrow(site, enzyme)
-                        
-                        # Add enzyme label with cut position indicator
-                        if len(sites) <= 5:  # Show labels for enzymes with few cut sites
-                            # Get cut position information
-                            cut_info = ""
-                            try:
-                                recognition_site = str(enzyme.site)
-                                # Use fst5 for 5' cut position (1-based, convert to 0-based)
-                                cut_pos = getattr(enzyme, 'fst5', None)
-                                if cut_pos is not None and cut_pos > 0:
-                                    cut_pos_0based = cut_pos - 1
-                                    if 0 <= cut_pos_0based < len(recognition_site):
-                                        # Show cut position within recognition site
-                                        cut_site_display = recognition_site[:cut_pos_0based] + "↓" + recognition_site[cut_pos_0based:]
-                                        cut_info = f" ({cut_site_display})"
-                            except:
-                                pass
-                            
-                            label_text = f"{str(enzyme)}{cut_info}"
-                            label = self.scene.addText(label_text, QFont("Arial", 6))
-                            label.setDefaultTextColor(Qt.GlobalColor.darkRed)
-                            label_x = center_x + (radius + 20) * math.cos(rad_angle)
-                            label_y = center_y + (radius + 20) * math.sin(rad_angle)
-                            label.setPos(label_x - 15, label_y - 8)
             except Exception as e:
                 print(f"Error drawing restriction sites: {e}")
-        
-        # Add sequence info in center
-        info_text = f"{self.record.id}\n{len(self.record.seq)} bp"
-        center_label = self.scene.addText(info_text, QFont("Arial", 10))
-        center_label.setPos(-30, -10)
 
+        # Add center info
+        info_text = f"{self.record.id}\n{plasmid_len:,} bp"
+        center_label = self.scene.addText(info_text, QFont("Arial", 10, QFont.Weight.Bold))
+        center_label.setDefaultTextColor(Qt.GlobalColor.black)
+        center_label.setPos(-30, -15)
+
+    def add_scale_bar(self, sequence_length, radius):
+        """Add a scale bar to the plasmid map"""
+        # Calculate appropriate scale
+        if sequence_length < 1000:
+            scale_size = 100
+            scale_text = f"{scale_size} bp"
+        elif sequence_length < 10000:
+            scale_size = 1000
+            scale_text = f"{scale_size/1000:.0f} kb"
+        else:
+            scale_size = 10000
+            scale_text = f"{scale_size/1000:.0f} kb"
+        
+        # Draw scale bar at bottom
+        scale_length = (scale_size / sequence_length) * 2 * math.pi * radius
+        scale_y = radius + 50
+        
+        # Scale bar line
+        scale_start_x = -scale_length / 2
+        scale_end_x = scale_length / 2
+        
+        self.scene.addLine(scale_start_x, scale_y, scale_end_x, scale_y, QPen(Qt.GlobalColor.black, 2))
+        
+        # Scale bar ticks
+        self.scene.addLine(scale_start_x, scale_y - 5, scale_start_x, scale_y + 5, QPen(Qt.GlobalColor.black, 2))
+        self.scene.addLine(scale_end_x, scale_y - 5, scale_end_x, scale_y + 5, QPen(Qt.GlobalColor.black, 2))
+        
+        # Scale label
+        scale_label = self.scene.addText(scale_text, QFont("Arial", 8))
+        scale_label.setDefaultTextColor(Qt.GlobalColor.black)
+        scale_label.setPos(-20, scale_y + 8)
 
     def show_linear_view(self):
-        """Display sequence in linear view"""
+        """Display sequence in linear view - professional style with reduced overlaps"""
         self.scene.clear()
 
         if not self.record:
@@ -865,169 +1293,197 @@ class SequenceViewer(QWidget):
             return
 
         plasmid_len = len(self.record.seq)
-        scale_factor = min(1.0, 1000.0 / plasmid_len) if plasmid_len > 1000 else 1.0
+        
+        # Calculate scale for display
+        max_width = 1400
+        scale_factor = max(0.05, min(1.0, max_width / plasmid_len))
         scaled_len = plasmid_len * scale_factor
         
-        # Draw main sequence line
-        self.scene.addLine(0, 0, scaled_len, 0, QPen(Qt.GlobalColor.black, 4))
+        # Center the map
+        start_x = -scaled_len / 2
+        center_y = 0
+        
+        # Define track positions to avoid overlaps
+        tracks = {
+            'gene': center_y - 40,
+            'CDS': center_y - 40, 
+            'promoter': center_y - 60,
+            'enhancer': center_y - 60,
+            'regulatory': center_y - 60,
+            'terminator': center_y + 25,
+            'rep_origin': center_y + 25,
+            'misc_feature': center_y + 45,
+            'primer_bind': center_y + 65,
+            'protein_bind': center_y + 65,
+            'RBS': center_y + 45,
+            '5\'UTR': center_y + 45,
+            '3\'UTR': center_y + 45,
+            'signal_peptide': center_y + 65,
+            'stem_loop': center_y + 65,
+            'polyA_signal': center_y + 65
+        }
+        
+        # Draw main sequence line - thick black line
+        self.scene.addLine(start_x, center_y, start_x + scaled_len, center_y, QPen(Qt.GlobalColor.black, 4))
 
-        # Draw features
+        # Draw features with professional layout
         self.feature_items.clear()
         if hasattr(self.record, 'features'):
             feature_index = 0
-            y_offset = 0
+            
             for i, feature in enumerate(self.record.features):
-                if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
-                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
-                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
-                    start = int(feature.location.start) * scale_factor
-                    end = int(feature.location.end) * scale_factor
-                    width = end - start
+                if feature.type in tracks:
                     
-                    if width < 2:  # Minimum width for visibility
-                        width = 2
-                        end = start + width
-
-                    color = self.get_feature_color(feature.type)
+                    start = int(feature.location.start) * scale_factor + start_x
+                    end = int(feature.location.end) * scale_factor + start_x
                     
-                    # Alternate feature positions to avoid overlap
-                    y_pos = -20 - (feature_index % 3) * 25
+                    # Ensure minimum width for visibility
+                    if end - start < 3:
+                        end = start + 3
                     
-                    rect = self.scene.addRect(start, y_pos, width, 15, QPen(color, 1), QBrush(color))
+                    pen_color = self.get_feature_color(feature.type)
+                    y_pos = tracks[feature.type]
+                    
+                    # Draw feature as rectangle
+                    feature_height = 6
+                    rect = self.scene.addRect(start, y_pos - feature_height/2, end - start, feature_height, 
+                                           QPen(pen_color, 1), QBrush(pen_color))
+                    
+                    # Make feature clickable
+                    rect.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsSelectable, True)
                     self.feature_items[feature_index] = rect
                     
-                    # Add directional arrow for the feature
-                    self.add_linear_arrow(feature, start, end, y_pos, color)
+                    # Add thin connecting line to main sequence
+                    line_start_x = start + (end - start) / 2
+                    self.scene.addLine(line_start_x, center_y, line_start_x, y_pos, 
+                                     QPen(pen_color, 1, Qt.PenStyle.DotLine))
                     
-                    feature_index += 1
-
-                    # Add feature label
-                    if width > 20:  # Only label if feature is wide enough
+                    # Add feature label only for larger features
+                    feature_width = end - start
+                    if feature_width > 25:
+                        # Get feature name
                         feature_name = feature.qualifiers.get('label', [feature.type])[0]
                         if 'gene' in feature.qualifiers:
                             feature_name = feature.qualifiers['gene'][0]
                         
-                        label = self.scene.addText(feature_name, QFont("Arial", 8))
-                        label.setPos(start, y_pos - 20)
+                        # Truncate long names
+                        if len(feature_name) > 12:
+                            feature_name = feature_name[:10] + "..."
+                        
+                        # Add label
+                        label = self.scene.addText(feature_name, QFont("Arial", 6, QFont.Weight.Bold))
+                        label.setDefaultTextColor(Qt.GlobalColor.black)
+                        
+                        # Position label above or below based on track position
+                        label_width = label.boundingRect().width()
+                        label_x = start + (feature_width - label_width) / 2
+                        
+                        if y_pos < center_y:
+                            label_y = y_pos - 15  # Above for upper tracks
+                        else:
+                            label_y = y_pos + 10  # Below for lower tracks
+                        
+                        # Only show label if it fits
+                        if label_width <= feature_width * 2:
+                            label.setPos(label_x, label_y)
+                    
+                    feature_index += 1
 
-        # Draw restriction sites with arrows
+        # Draw scale markers with better spacing
+        scale_intervals = [100, 500, 1000, 5000, 10000]
+        scale_interval = 100
+        for interval in scale_intervals:
+            if plasmid_len / interval <= 20:  # Not too many markers
+                scale_interval = interval
+                break
+        
+        # Draw scale ticks and labels
+        for pos in range(0, plasmid_len + 1, scale_interval):
+            scaled_pos = pos * scale_factor + start_x
+            
+            # Draw tick mark
+            self.scene.addLine(scaled_pos, center_y - 10, scaled_pos, center_y + 10, QPen(Qt.GlobalColor.black, 2))
+            
+            # Add label
+            if plasmid_len <= 1000:
+                label_text = f"{pos}"
+            elif plasmid_len <= 10000:
+                label_text = f"{pos//1000}.{(pos%1000)//100}kb"
+            else:
+                label_text = f"{pos//1000}kb"
+            
+            label = self.scene.addText(label_text, QFont("Arial", 7, QFont.Weight.Bold))
+            label.setDefaultTextColor(Qt.GlobalColor.black)
+            label.setPos(scaled_pos - 15, center_y + 20)
+
+        # Draw restriction sites on separate track below
         if self.restriction_batch:
             try:
                 analysis = self.restriction_batch.search(self.record.seq)
+                restriction_y = center_y + 85
+                site_count = 0
+                
+                # Draw restriction site line
+                self.scene.addLine(start_x, restriction_y, start_x + scaled_len, restriction_y, 
+                                 QPen(Qt.GlobalColor.darkRed, 1, Qt.PenStyle.DashLine))
+                
                 for enzyme, sites in analysis.items():
                     for site in sites:
-                        scaled_site = site * scale_factor
-                        self.scene.addLine(scaled_site, -30, scaled_site, 30, QPen(Qt.GlobalColor.darkRed, 2))
+                        if site_count >= 50:  # Limit to prevent overcrowding
+                            break
                         
-                        # Add restriction cut arrow
-                        self.add_linear_restriction_arrow(site, enzyme)
+                        scaled_site = site * scale_factor + start_x
                         
-                        # Add enzyme label with cut position indicator
-                        try:
-                            recognition_site = str(enzyme.site)
-                            # Use fst5 for 5' cut position (1-based, convert to 0-based)
-                            cut_pos = getattr(enzyme, 'fst5', None)
-                            if cut_pos is not None and cut_pos > 0:
-                                cut_pos_0based = cut_pos - 1
-                                if 0 <= cut_pos_0based < len(recognition_site):
-                                    # Show cut position within recognition site
-                                    cut_site_display = recognition_site[:cut_pos_0based] + "↓" + recognition_site[cut_pos_0based:]
-                                    label_text = f"{str(enzyme)} ({cut_site_display})"
-                                else:
-                                    label_text = str(enzyme)
-                            else:
-                                label_text = str(enzyme)
-                        except:
-                            label_text = str(enzyme)
+                        # Draw restriction site as tick mark
+                        self.scene.addLine(scaled_site, restriction_y - 5, scaled_site, restriction_y + 5, 
+                                         QPen(Qt.GlobalColor.darkRed, 2))
                         
-                        label = self.scene.addText(label_text, QFont("Arial", 6))
-                        label.setDefaultTextColor(Qt.GlobalColor.darkRed)
-                        label.setPos(scaled_site - 20, 35)
+                        # Add enzyme label for major sites
+                        if len(sites) <= 10:
+                            label = self.scene.addText(str(enzyme), QFont("Arial", 6))  # Convert to string
+                            label.setDefaultTextColor(Qt.GlobalColor.darkRed)
+                            label.setPos(scaled_site - 10, restriction_y + 8)
+                        
+                        site_count += 1
             except Exception as e:
                 print(f"Error drawing restriction sites: {e}")
 
-        # Add scale information
-        scale_info = f"Scale: 1 pixel = {1/scale_factor:.0f} bp" if scale_factor < 1 else "Scale: 1:1"
-        scale_label = self.scene.addText(scale_info, QFont("Arial", 8))
-        scale_label.setPos(0, 60)
-        
-        # Add sequence info
-        info_text = f"{self.record.id} - {len(self.record.seq)} bp"
-        info_label = self.scene.addText(info_text, QFont("Arial", 10))
-        info_label.setPos(0, -60)
-        
-        # Add directional indicator for linear sequence
-        self.add_linear_direction_indicator(scaled_len)
+        # Add sequence info at bottom
+        info_text = f"{self.record.id} - {plasmid_len:,} bp"
+        info_label = self.scene.addText(info_text, QFont("Arial", 11, QFont.Weight.Bold))
+        info_label.setDefaultTextColor(Qt.GlobalColor.black)
+        info_label.setPos(start_x, center_y + 110)
 
-
-    def highlight_feature(self):
-        """Highlight selected features and show translation"""
-        if not self.record or not hasattr(self.record, 'features'):
-            return
-            
-        # Reset all feature colors first
-        for i, item in self.feature_items.items():
-            if isinstance(item, QGraphicsRectItem):
-                # Find the corresponding feature
-                feature_index = 0
-                for j, feature in enumerate(self.record.features):
-                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
-                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
-                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
-                        if feature_index == i:
-                            color = self.get_feature_color(feature.type)
-                            item.setBrush(QBrush(color))
-                            item.setPen(QPen(color))
-                            break
-                        feature_index += 1
-            elif isinstance(item, QGraphicsPathItem):
-                # Find the corresponding feature for arcs
-                feature_index = 0
-                for j, feature in enumerate(self.record.features):
-                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
-                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
-                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
-                        if feature_index == i:
-                            pen = item.pen()
-                            pen.setColor(self.get_feature_color(feature.type))
-                            pen.setWidth(12)
-                            item.setPen(pen)
-                            break
-                        feature_index += 1
+    def get_fragments(self, sequence, cuts):
+        """Get DNA fragments from restriction cuts"""
+        if not cuts:
+            return [sequence]
         
-        # Highlight selected features
-        selected_items = self.feature_list.selectedItems()
-        if selected_items:
-            for selected_item in selected_items:
-                row = self.feature_list.row(selected_item)
-                if row in self.feature_items:
-                    item = self.feature_items[row]
-                    if isinstance(item, QGraphicsRectItem):
-                        item.setBrush(QBrush(Qt.GlobalColor.yellow))
-                        item.setPen(QPen(Qt.GlobalColor.black, 3))
-                    elif isinstance(item, QGraphicsPathItem):
-                        pen = item.pen()
-                        pen.setColor(Qt.GlobalColor.yellow)
-                        pen.setWidth(15)
-                        item.setPen(pen)
-
-        # Display translation for the first selected CDS feature
-        self.translation_view.clear()
-        if not selected_items:
-            return
-            
-        # Find the first CDS feature in selection
-        for selected_item in selected_items:
-            row = self.feature_list.row(selected_item)
-            # Map row to actual feature
-            feature_index = 0
-            for feature in self.record.features:
-                if feature.type != 'source':
-                    if feature_index == row:
-                        if feature.type == "CDS":
-                            self.display_translation(feature)
-                            return
-                    feature_index += 1
+        fragments = []
+        sorted_cuts = sorted(cuts)
+        
+        # For circular sequences (plasmids), create fragments between consecutive cuts
+        if len(sorted_cuts) == 1:
+            # Single cut - linearize the plasmid
+            cut_pos = sorted_cuts[0]
+            fragments.append(sequence[cut_pos:] + sequence[:cut_pos])
+        else:
+            # Multiple cuts - create fragments between cuts
+            for i in range(len(sorted_cuts)):
+                start = sorted_cuts[i]
+                end = sorted_cuts[(i + 1) % len(sorted_cuts)]
+                
+                if i < len(sorted_cuts) - 1:
+                    # Normal fragment
+                    fragment = sequence[start:end]
+                else:
+                    # Wraparound fragment
+                    fragment = sequence[start:] + sequence[:end]
+                
+                if fragment:  # Only add non-empty fragments
+                    fragments.append(fragment)
+        
+        return fragments
 
     def display_translation(self, feature):
         """Display protein translation for a CDS feature"""
