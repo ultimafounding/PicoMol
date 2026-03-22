@@ -5,7 +5,9 @@ All notable changes to PicoMol will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased] - 2025-09-14
+## [0.2.0-beta] - 2026-03-22
+### Major Release - Advanced Sequence Analysis Suite
+
 ### Added
 - **Advanced Sequence Analysis Suite:** Comprehensive new analysis tools accessible via the sequence viewer
   - **ORF (Open Reading Frame) Analysis:** Find and analyze open reading frames with customizable parameters
@@ -21,7 +23,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Sequence Comparison:** Tools for comparing multiple sequences
     - Identity analysis with longest common substring detection
     - Support for loading sequences from files or current viewer
-    - Dot plot visualization (planned)
 
 - **Enhanced Export System:** Professional export capabilities for sequences and maps
   - **Multi-format Export:** PNG, SVG, PDF for maps; FASTA, GenBank, HTML for sequences
@@ -35,6 +36,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Enhanced Enzyme Display:** Professional enzyme labeling with connection lines
   - **Better Feature Rendering:** Improved feature background highlighting
   - **Optimized Performance:** Better handling of large sequences and complex annotations
+
+### Changed
+- **PyQt6 Migration:** Complete migration from PyQt5 to PyQt6 for modern system compatibility
+  - Updated all GUI components to use PyQt6 APIs
+  - Enhanced performance and stability on newer systems
+  - Future-proof codebase for continued development
 
 ### Enhanced
 - **User Interface:** Advanced analysis tools integrated seamlessly into the sequence viewer

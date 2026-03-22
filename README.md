@@ -8,24 +8,40 @@
   
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
-[![Version](https://img.shields.io/badge/version-0.1.0-green.svg)](https://github.com/ultimafounding/PicoMol/releases)
+[![Version](https://img.shields.io/badge/version-0.2.0--beta-orange.svg)](https://github.com/ultimafounding/PicoMol/releases)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
 </div>
 
-PicoMol is a comprehensive desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt5 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
+PicoMol is a comprehensive desktop application for molecular visualization, structural analysis, and bioinformatics. Built with PyQt6 and NGL.js, it provides a complete suite of tools for researchers, students, and developers working with protein structures and biomolecular data.
 
-> 🎆 **Version 0.1.0 represents our first production-ready release**, featuring stable core functionality, comprehensive testing, and robust error handling. This milestone marks PicoMol's readiness for research and educational use.
+> 🎆 **Version 0.2.0 introduces advanced sequence analysis capabilities**, building upon our production-ready v0.1.0 foundation with professional-grade ORF analysis, primer design, and enhanced export functionality.
 
-## 🆕 Latest Updates (September 2025)
+## 🆕 Latest Updates (March 2026)
 
-**Advanced Sequence Analysis Suite:**
+**Advanced Sequence Analysis Suite (BETA):**
 
 - **ORF Analysis:** Comprehensive open reading frame detection with customizable parameters
+  - Configurable minimum length, start/stop codons
+  - Analysis of all 6 reading frames (forward and reverse)
+  - Detailed statistics and sequence preview
 - **Primer Design:** Professional PCR primer design with advanced scoring and validation
+  - Target region selection with amplicon length calculation
+  - Advanced scoring algorithm (Tm, GC content, secondary structures)
+  - Primer pair analysis and validation
+  - Export capabilities (clipboard, CSV)
 - **Sequence Comparison:** Multi-sequence analysis with identity detection and visualization
+  - Identity analysis with longest common substring detection
+  - Support for file loading and current sequence comparison
 - **Enhanced Export:** Professional-quality export system for sequences and maps (PNG, SVG, PDF)
+  - Live preview functionality with customizable formatting
+  - High-resolution outputs suitable for publications
 - **SnapGene-style Visualization:** Improved sequence viewer with enzyme highlighting and feature rendering
+  - Restriction site highlighting with colored backgrounds
+  - Enhanced enzyme display with professional labeling
+  - Optimized performance for large sequences
+- **PyQt6 Compatibility:** Full compatibility with PyQt6 for modern systems
+- **High-Resolution Export:** True DPI-aware export with professional quality (600 DPI default)
 
 **Previous Release (v0.1.0 - January 2025) - Production Ready:**
 
@@ -142,7 +158,7 @@ If you prefer to install dependencies manually:
 
 **Core Dependencies (Required):**
 ```bash
-pip install PyQt5 PyQtWebEngine biopython requests ramachandraw
+pip install PyQt6 PyQt6-WebEngine biopython requests ramachandraw
 ```
 
 **Optional Dependencies (Enhanced Features):**
@@ -234,8 +250,22 @@ PicoMol/
 │   │   ├── pdb_fetch_worker.py      # Optimized PDB fetch worker
 │   │   └── preferences.py           # Settings and preferences management
 │   ├── gui/                      # User interface components
+│   │   ├── advanced_analysis.py     # Advanced sequence analysis widgets (ORF, primers)
+│   │   ├── custom_sequence_widget.py # Custom sequence input and display widgets
+│   │   ├── export_dialog.py         # Enhanced export dialog for sequences and maps
+│   │   ├── sequence_viewer.py       # Main sequence visualization and analysis interface
+│   │   ├── snapgene_sequence_view.py # SnapGene-style sequence rendering
 │   │   ├── theme_manager.py         # Theme system and UI customization
-│   │   └── welcome_dialog.py        # Welcome screen dialog
+│   │   ├── welcome_dialog.py        # Welcome screen dialog
+│   │   ├── enzyme_selection_dialog.py # Enzyme selection for cloning workflows
+│   │   ├── plasmid_viewer.py       # Plasmid map visualization
+│   │   ├── sequence_editor.py       # Sequence editing tools
+│   │   ├── restriction_cloning_dialog.py # Restriction cloning workflow
+│   │   ├── gibson_assembly_dialog.py # Gibson assembly workflow
+│   │   ├── golden_gate_dialog.py    # Golden Gate cloning workflow
+│   │   ├── virtual_gel_dialog.py   # Virtual gel electrophoresis simulation
+│   │   ├── digest_enzyme_selection_dialog.py # Enzyme selection for digestion
+│   │   └── sequence_text_view.py    # Text-based sequence display
 │   └── blast_utils/              # BLAST functionality package
 │       ├── __init__.py              # Package initialization
 │       ├── blast_utils.py           # Core BLAST functionality
@@ -261,7 +291,7 @@ PicoMol combines several powerful technologies:
 
 **Core Technologies:**
 
-- **PyQt5:** Cross-platform GUI framework providing the main interface
+- **PyQt6:** Cross-platform GUI framework providing the main interface (updated from PyQt5)
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
 - **Biopython:** Comprehensive bioinformatics tools for sequence and structure analysis
