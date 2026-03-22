@@ -56,3 +56,4 @@ test_plasmid.gb
 screenshot_02082025_142127.jpg
 test_plasmid_3_hindiii.gb
 primer_design_explanation.md
+src/gui/sequence_viewer.py

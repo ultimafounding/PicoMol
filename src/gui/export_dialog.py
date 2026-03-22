@@ -1,9 +1,9 @@
 from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, 
                              QComboBox, QSpinBox, QCheckBox, QGroupBox, QFormLayout,
                              QFileDialog, QMessageBox, QProgressDialog, QColorDialog,
-                             QSlider, QTabWidget, QWidget, QTextEdit)
+                             QSlider, QTabWidget, QWidget, QTextEdit, QGraphicsView)
 from PyQt6.QtGui import QPixmap, QPainter, QColor, QPen, QBrush, QFont
-from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, QThread, pyqtSignal, QRectF
 from PyQt6.QtSvg import QSvgGenerator
 import os
 
@@ -456,9 +456,17 @@ class ExportDialog(QDialog):
             return None
     
     def generate_map_preview(self):
-        """Generate map preview"""
+        """Generate map preview using actual scene rendering"""
         if not self.sequence_viewer.record:
             return None
+        
+        # Force the sequence viewer to update the current view first
+        if self.view_combo.currentText() == "Circular Map":
+            self.sequence_viewer.show_circular_view()
+        elif self.view_combo.currentText() == "Linear Map":
+            self.sequence_viewer.show_linear_view()
+        else:  # Both views
+            self.sequence_viewer.show_circular_view()  # Start with circular for preview
         
         # Create a small version for preview
         pixmap = QPixmap(400, 300)
@@ -466,17 +474,10 @@ class ExportDialog(QDialog):
         
         painter = QPainter(pixmap)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
         
-        # Draw a simplified version of the map
-        if self.view_combo.currentText() == "Circular Map":
-            self.draw_circular_preview(painter, pixmap.size())
-        elif self.view_combo.currentText() == "Linear Map":
-            self.draw_linear_preview(painter, pixmap.size())
-        else:  # Both views
-            # Draw both in split view
-            self.draw_circular_preview(painter, QSize(200, 300))
-            painter.translate(200, 0)
-            self.draw_linear_preview(painter, QSize(200, 300))
+        # Use the same rendering logic as the full export
+        self.draw_full_map(painter, pixmap.size())
         
         painter.end()
         return pixmap
@@ -690,18 +691,116 @@ class ExportDialog(QDialog):
             pixmap.save(file_path, "PNG" if file_path.endswith('.png') else "PDF")
     
     def draw_full_map(self, painter, size):
-        """Draw the full quality map"""
-        # This would contain the full implementation of map drawing
-        # For now, use the preview drawing as a placeholder
+        """Draw the full quality map using the actual sequence viewer rendering"""
+        # Get the current scene from the sequence viewer
+        scene = self.sequence_viewer.scene
+        if not scene:
+            # Fallback to preview if no scene
+            if self.view_combo.currentText() == "Circular Map":
+                self.draw_circular_preview(painter, size)
+            elif self.view_combo.currentText() == "Linear Map":
+                self.draw_linear_preview(painter, size)
+            else:  # Both views
+                half_width = size.width() // 2
+                self.draw_circular_preview(painter, QSize(half_width, size.height()))
+                painter.translate(half_width, 0)
+                self.draw_linear_preview(painter, QSize(half_width, size.height()))
+            return
+        
+        # Force view update and save current state
+        current_view = self.sequence_viewer.current_view if hasattr(self.sequence_viewer, 'current_view') else 'circular'
+        
         if self.view_combo.currentText() == "Circular Map":
-            self.draw_circular_preview(painter, size)
+            # Force circular view update
+            self.sequence_viewer.show_circular_view()
+            # Render circular view with dynamic sizing
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, size)
+            
         elif self.view_combo.currentText() == "Linear Map":
-            self.draw_linear_preview(painter, size)
+            # Force linear view update
+            self.sequence_viewer.show_linear_view()
+            # Render linear view with dynamic sizing
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, size)
+            
         else:  # Both views
+            # Render both views side by side with dynamic sizing
             half_width = size.width() // 2
-            self.draw_circular_preview(painter, QSize(half_width, size.height()))
+            
+            # Render circular view on left half
+            self.sequence_viewer.show_circular_view()
+            
+            # Save painter state
+            painter.save()
+            
+            # Render circular view in left half
+            left_size = QSize(half_width, size.height())
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, left_size)
+            
+            # Restore painter state and prepare for right view
+            painter.restore()
+            painter.save()
+            
+            # Move to right half for linear view
             painter.translate(half_width, 0)
-            self.draw_linear_preview(painter, QSize(half_width, size.height()))
+            
+            # Render linear view in right half
+            self.sequence_viewer.show_linear_view()
+            right_size = QSize(half_width, size.height())
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, right_size)
+            
+            # Restore painter state
+            painter.restore()
+        
+        # Restore original view
+        if current_view == 'circular':
+            self.sequence_viewer.show_circular_view()
+        else:
+            self.sequence_viewer.show_linear_view()
+    
+    def render_view_to_painter_dynamic(self, sequence_viewer, painter, target_size):
+        """Render a QGraphicsView to a painter with dynamic sizing"""
+        # Get the scene and calculate proper bounds
+        scene = sequence_viewer.scene
+        scene_rect = scene.itemsBoundingRect()
+        
+        if scene_rect.isEmpty():
+            return
+        
+        # Add padding to prevent cutting off edges
+        padding = 60  # Increased padding for better margins
+        scene_rect = scene_rect.adjusted(-padding, -padding, padding, padding)
+        
+        # Calculate scale to fit target size with proper margins
+        margin = 30  # Add margin around the content
+        available_width = target_size.width() - (2 * margin)
+        available_height = target_size.height() - (2 * margin)
+        
+        scale_x = available_width / scene_rect.width()
+        scale_y = available_height / scene_rect.height()
+        scale = min(scale_x, scale_y)
+        
+        # Calculate centered position
+        scaled_width = scene_rect.width() * scale
+        scaled_height = scene_rect.height() * scale
+        offset_x = (target_size.width() - scaled_width) / 2
+        offset_y = (target_size.height() - scaled_height) / 2
+        
+        # Reset painter transformations
+        painter.resetTransform()
+        
+        # Apply transformations in correct order
+        painter.translate(offset_x, offset_y)
+        painter.scale(scale, scale)
+        painter.translate(-scene_rect.left(), -scene_rect.top())
+        
+        # Set background if specified
+        if self.background_color != QColor(255, 255, 255):
+            painter.fillRect(scene_rect, self.background_color)
+        
+        # Render the scene with proper bounds
+        render_rect = QRectF(scene_rect.left(), scene_rect.top(), 
+                           scene_rect.width(), scene_rect.height())
+        scene.render(painter, render_rect, scene_rect)
     
     def export_sequence(self, file_path, progress):
         """Export sequence to file"""
