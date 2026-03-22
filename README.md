@@ -19,6 +19,8 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 
 ## 🆕 Latest Updates (March 2026)
 
+**It is reccomended to run PicoMol on GNU/Linux due to certain UI elements being bugged in Windows since the update to PyQt6**
+
 **Advanced Sequence Analysis Suite (BETA):**
 
 - **ORF Analysis:** Comprehensive open reading frame detection with customizable parameters
