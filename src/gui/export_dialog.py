@@ -164,47 +164,6 @@ class ExportDialog(QDialog):
         
         layout.addWidget(size_group)
         
-        # Elements to include
-        elements_group = QGroupBox("Elements to Include")
-        elements_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 13px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        elements_layout = QVBoxLayout(elements_group)
-        elements_layout.setContentsMargins(10, 15, 10, 10)
-        elements_layout.setSpacing(8)
-        
-        self.include_features = QCheckBox("Features")
-        self.include_features.setChecked(True)
-        elements_layout.addWidget(self.include_features)
-        
-        self.include_enzymes = QCheckBox("Restriction Sites")
-        self.include_enzymes.setChecked(True)
-        elements_layout.addWidget(self.include_enzymes)
-        
-        self.include_labels = QCheckBox("Feature Labels")
-        self.include_labels.setChecked(True)
-        elements_layout.addWidget(self.include_labels)
-        
-        self.include_ruler = QCheckBox("Scale/Ruler")
-        self.include_ruler.setChecked(True)
-        elements_layout.addWidget(self.include_ruler)
-        
-        self.include_title = QCheckBox("Title and Info")
-        self.include_title.setChecked(True)
-        elements_layout.addWidget(self.include_title)
-        
-        layout.addWidget(elements_group)
-        
         layout.addStretch()
         self.tab_widget.addTab(tab, "Map Export")
     
@@ -729,27 +688,16 @@ class ExportDialog(QDialog):
             # Render circular view on left half
             self.sequence_viewer.show_circular_view()
             
-            # Save painter state
-            painter.save()
-            
-            # Render circular view in left half
+            # Render circular view in left half with offset
             left_size = QSize(half_width, size.height())
-            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, left_size)
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, left_size, offset_x=0, offset_y=0)
             
-            # Restore painter state and prepare for right view
-            painter.restore()
-            painter.save()
-            
-            # Move to right half for linear view
-            painter.translate(half_width, 0)
-            
-            # Render linear view in right half
+            # Render linear view on right half
             self.sequence_viewer.show_linear_view()
-            right_size = QSize(half_width, size.height())
-            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, right_size)
             
-            # Restore painter state
-            painter.restore()
+            # Render linear view in right half with offset
+            right_size = QSize(half_width, size.height())
+            self.render_view_to_painter_dynamic(self.sequence_viewer, painter, right_size, offset_x=half_width, offset_y=0)
         
         # Restore original view
         if current_view == 'circular':
@@ -757,7 +705,7 @@ class ExportDialog(QDialog):
         else:
             self.sequence_viewer.show_linear_view()
     
-    def render_view_to_painter_dynamic(self, sequence_viewer, painter, target_size):
+    def render_view_to_painter_dynamic(self, sequence_viewer, painter, target_size, offset_x=0, offset_y=0):
         """Render a QGraphicsView to a painter with dynamic sizing"""
         # Get the scene and calculate proper bounds
         scene = sequence_viewer.scene
@@ -779,17 +727,17 @@ class ExportDialog(QDialog):
         scale_y = available_height / scene_rect.height()
         scale = min(scale_x, scale_y)
         
-        # Calculate centered position
+        # Calculate centered position within the target area
         scaled_width = scene_rect.width() * scale
         scaled_height = scene_rect.height() * scale
-        offset_x = (target_size.width() - scaled_width) / 2
-        offset_y = (target_size.height() - scaled_height) / 2
+        center_x = offset_x + (target_size.width() - scaled_width) / 2
+        center_y = offset_y + (target_size.height() - scaled_height) / 2
         
         # Reset painter transformations
         painter.resetTransform()
         
-        # Apply transformations in correct order
-        painter.translate(offset_x, offset_y)
+        # Apply transformations in correct order with offset
+        painter.translate(center_x, center_y)
         painter.scale(scale, scale)
         painter.translate(-scene_rect.left(), -scene_rect.top())
         
