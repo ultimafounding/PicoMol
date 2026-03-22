@@ -238,7 +238,16 @@ class SnapGeneSequenceView(QWidget):
         
         # Update info panel
         if record:
-            self.name_label.setText(record.id or "Unnamed")
+            # Clean up the name/title
+            name = record.id or "Unnamed"
+            if len(name) > 50:
+                name = name[:47] + "..."  # Truncate long names
+            # Clean up common formatting issues
+            name = name.replace("_", " ").replace("-", " - ")
+            # Capitalize properly
+            name = ' '.join(word.capitalize() for word in name.split())
+            
+            self.name_label.setText(name)
             self.length_label.setText(f"{len(record.seq)} bp")
             
             # Determine sequence type

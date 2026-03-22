@@ -46,9 +46,6 @@ class ExportDialog(QDialog):
         # Map export tab
         self.create_map_export_tab()
         
-        # Sequence export tab
-        self.create_sequence_export_tab()
-        
         # Advanced options tab
         self.create_advanced_tab()
         
@@ -158,8 +155,8 @@ class ExportDialog(QDialog):
         size_layout.addRow("Height:", self.height_spin)
         
         self.dpi_spin = QSpinBox()
-        self.dpi_spin.setRange(72, 600)
-        self.dpi_spin.setValue(300)
+        self.dpi_spin.setRange(72, 1200)
+        self.dpi_spin.setValue(600)
         size_layout.addRow("DPI:", self.dpi_spin)
         
         layout.addWidget(size_group)
@@ -167,108 +164,7 @@ class ExportDialog(QDialog):
         layout.addStretch()
         self.tab_widget.addTab(tab, "Map Export")
     
-    def create_sequence_export_tab(self):
-        """Create sequence export options tab"""
-        tab = QWidget()
-        layout = QVBoxLayout(tab)
-        
-        # Format selection
-        format_group = QGroupBox("Sequence Format")
-        format_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 13px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        format_layout = QFormLayout(format_group)
-        format_layout.setContentsMargins(10, 15, 10, 10)
-        format_layout.setSpacing(8)
-        
-        self.seq_format_combo = QComboBox()
-        self.seq_format_combo.addItems([
-            "FASTA", "GenBank", "EMBL", "Plain Text", 
-            "SnapGene-style (HTML)", "Annotated Text"
-        ])
-        format_layout.addRow("Format:", self.seq_format_combo)
-        
-        layout.addWidget(format_group)
-        
-        # Sequence options
-        seq_group = QGroupBox("Sequence Options")
-        seq_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 13px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        seq_layout = QVBoxLayout(seq_group)
-        seq_layout.setContentsMargins(10, 15, 10, 10)
-        seq_layout.setSpacing(8)
-        
-        self.include_complement_seq = QCheckBox("Include Complement Strand")
-        seq_layout.addWidget(self.include_complement_seq)
-        
-        self.include_translation_seq = QCheckBox("Include Translation")
-        seq_layout.addWidget(self.include_translation_seq)
-        
-        self.include_features_seq = QCheckBox("Include Feature Annotations")
-        self.include_features_seq.setChecked(True)
-        seq_layout.addWidget(self.include_features_seq)
-        
-        self.include_enzymes_seq = QCheckBox("Include Restriction Sites")
-        seq_layout.addWidget(self.include_enzymes_seq)
-        
-        layout.addWidget(seq_group)
-        
-        # Formatting options
-        format_group = QGroupBox("Text Formatting")
-        format_group.setStyleSheet("""
-            QGroupBox {
-                font-weight: bold;
-                font-size: 13px;
-                margin-top: 10px;
-                padding-top: 10px;
-            }
-            QGroupBox::title {
-                subcontrol-origin: margin;
-                left: 10px;
-                padding: 0 5px 0 5px;
-            }
-        """)
-        format_layout = QFormLayout(format_group)
-        format_layout.setContentsMargins(10, 15, 10, 10)
-        format_layout.setSpacing(8)
-        
-        self.bases_per_line_spin = QSpinBox()
-        self.bases_per_line_spin.setRange(20, 120)
-        self.bases_per_line_spin.setValue(60)
-        format_layout.addRow("Bases per line:", self.bases_per_line_spin)
-        
-        self.line_numbers = QCheckBox("Include line numbers")
-        self.line_numbers.setChecked(True)
-        format_layout.addRow("", self.line_numbers)
-        
-        layout.addWidget(format_group)
-        
-        layout.addStretch()
-        self.tab_widget.addTab(tab, "Sequence Export")
-    
     def create_advanced_tab(self):
-        """Create advanced options tab"""
         tab = QWidget()
         layout = QVBoxLayout(tab)
         
@@ -406,10 +302,8 @@ class ExportDialog(QDialog):
     def generate_preview(self):
         """Generate a preview of the export"""
         try:
-            if self.tab_widget.currentIndex() == 0:  # Map export
-                return self.generate_map_preview()
-            else:  # Sequence export
-                return self.generate_sequence_preview()
+            # Only map export is available now
+            return self.generate_map_preview()
         except Exception as e:
             QMessageBox.warning(self, "Preview Error", f"Could not generate preview: {str(e)}")
             return None
@@ -551,40 +445,25 @@ class ExportDialog(QDialog):
         return pixmap
     
     def export(self):
-        """Perform the export"""
+        """Perform the map export"""
         if not self.sequence_viewer.record:
             QMessageBox.warning(self, "No Sequence", "No sequence loaded to export.")
             return
         
-        # Get file path
-        if self.tab_widget.currentIndex() == 0:  # Map export
-            format_text = self.format_combo.currentText()
-            if "PNG" in format_text:
-                filter_str = "PNG Images (*.png)"
-                default_ext = ".png"
-            elif "SVG" in format_text:
-                filter_str = "SVG Images (*.svg)"
-                default_ext = ".svg"
-            else:  # PDF
-                filter_str = "PDF Documents (*.pdf)"
-                default_ext = ".pdf"
-        else:  # Sequence export
-            format_text = self.seq_format_combo.currentText()
-            if "FASTA" in format_text:
-                filter_str = "FASTA Files (*.fasta *.fa)"
-                default_ext = ".fasta"
-            elif "GenBank" in format_text:
-                filter_str = "GenBank Files (*.gb *.gbk)"
-                default_ext = ".gb"
-            elif "HTML" in format_text:
-                filter_str = "HTML Files (*.html)"
-                default_ext = ".html"
-            else:
-                filter_str = "Text Files (*.txt)"
-                default_ext = ".txt"
+        # Get file path for map export
+        format_text = self.format_combo.currentText()
+        if "PNG" in format_text:
+            filter_str = "PNG Images (*.png)"
+            default_ext = ".png"
+        elif "SVG" in format_text:
+            filter_str = "SVG Images (*.svg)"
+            default_ext = ".svg"
+        else:  # PDF
+            filter_str = "PDF Documents (*.pdf)"
+            default_ext = ".pdf"
         
         file_path, _ = QFileDialog.getSaveFileName(
-            self, "Export File", 
+            self, "Export Map", 
             f"{self.sequence_viewer.record.id}{default_ext}",
             filter_str
         )
@@ -593,18 +472,14 @@ class ExportDialog(QDialog):
             return
         
         # Show progress dialog
-        progress = QProgressDialog("Exporting...", "Cancel", 0, 100, self)
+        progress = QProgressDialog("Exporting map...", "Cancel", 0, 100, self)
         progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         
         try:
-            if self.tab_widget.currentIndex() == 0:  # Map export
-                self.export_map(file_path, progress)
-            else:  # Sequence export
-                self.export_sequence(file_path, progress)
-            
+            self.export_map(file_path, progress)
             progress.setValue(100)
-            QMessageBox.information(self, "Export Complete", f"Successfully exported to:\n{file_path}")
+            QMessageBox.information(self, "Export Complete", f"Successfully exported map to:\n{file_path}")
             self.accept()
             
         except Exception as e:
@@ -618,6 +493,7 @@ class ExportDialog(QDialog):
         
         width = self.width_spin.value()
         height = self.height_spin.value()
+        dpi = self.dpi_spin.value()
         
         if file_path.endswith('.svg'):
             # SVG export
@@ -629,25 +505,45 @@ class ExportDialog(QDialog):
             generator.setDescription("Plasmid map exported from PicoMol")
             
             painter = QPainter(generator)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            
+            # Draw the map at target size
+            self.draw_full_map(painter, QSize(width, height))
+            
+            painter.end()
         else:
-            # Raster export (PNG/PDF)
-            pixmap = QPixmap(width, height)
+            # Raster export (PNG/PDF) - scale pixel dimensions based on DPI
+            # Base DPI is 96, so scale factor = target_dpi / 96
+            scale_factor = dpi / 96.0
+            pixel_width = int(width * scale_factor)
+            pixel_height = int(height * scale_factor)
+            
+            # Create high-resolution pixmap
+            pixmap = QPixmap(pixel_width, pixel_height)
             pixmap.fill(self.background_color)
+            
             painter = QPainter(pixmap)
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+            
+            # Scale painter to work in logical units (width x height)
+            painter.scale(scale_factor, scale_factor)
+            
+            # Draw the map at logical size (width x height)
+            self.draw_full_map(painter, QSize(width, height))
+            
+            painter.end()
+            
+            # Save with maximum quality
+            if file_path.endswith('.png'):
+                pixmap.save(file_path, "PNG", quality=100)
+            elif file_path.endswith('.pdf'):
+                pixmap.save(file_path, "PDF", quality=100)
         
-        progress.setValue(40)
-        
-        # Draw the map
-        self.draw_full_map(painter, QSize(width, height))
-        
-        progress.setValue(80)
-        
-        painter.end()
-        
-        if not file_path.endswith('.svg'):
-            # Save raster image
-            pixmap.save(file_path, "PNG" if file_path.endswith('.png') else "PDF")
+        progress.setValue(100)
     
     def draw_full_map(self, painter, size):
         """Draw the full quality map using the actual sequence viewer rendering"""
@@ -706,7 +602,7 @@ class ExportDialog(QDialog):
             self.sequence_viewer.show_linear_view()
     
     def render_view_to_painter_dynamic(self, sequence_viewer, painter, target_size, offset_x=0, offset_y=0):
-        """Render a QGraphicsView to a painter with dynamic sizing"""
+        """Render a QGraphicsView to a painter with proper sizing"""
         # Get the scene and calculate proper bounds
         scene = sequence_viewer.scene
         scene_rect = scene.itemsBoundingRect()
@@ -715,11 +611,11 @@ class ExportDialog(QDialog):
             return
         
         # Add padding to prevent cutting off edges
-        padding = 60  # Increased padding for better margins
+        padding = 60
         scene_rect = scene_rect.adjusted(-padding, -padding, padding, padding)
         
-        # Calculate scale to fit target size with proper margins
-        margin = 30  # Add margin around the content
+        # Calculate scale to fit the content in the target area
+        margin = 30
         available_width = target_size.width() - (2 * margin)
         available_height = target_size.height() - (2 * margin)
         
@@ -727,114 +623,20 @@ class ExportDialog(QDialog):
         scale_y = available_height / scene_rect.height()
         scale = min(scale_x, scale_y)
         
-        # Calculate centered position within the target area
+        # Calculate the scaled content size
         scaled_width = scene_rect.width() * scale
         scaled_height = scene_rect.height() * scale
-        center_x = offset_x + (target_size.width() - scaled_width) / 2
-        center_y = offset_y + (target_size.height() - scaled_height) / 2
         
-        # Reset painter transformations
-        painter.resetTransform()
+        # Center the content in the target area
+        content_x = offset_x + (target_size.width() - scaled_width) / 2
+        content_y = offset_y + (target_size.height() - scaled_height) / 2
         
-        # Apply transformations in correct order with offset
-        painter.translate(center_x, center_y)
-        painter.scale(scale, scale)
-        painter.translate(-scene_rect.left(), -scene_rect.top())
+        # Create a target rectangle for rendering
+        target_rect = QRectF(content_x, content_y, scaled_width, scaled_height)
         
-        # Set background if specified
-        if self.background_color != QColor(255, 255, 255):
-            painter.fillRect(scene_rect, self.background_color)
+        # Render the scene directly to the target rectangle
+        scene.render(painter, target_rect, scene_rect)
         
-        # Render the scene with proper bounds
-        render_rect = QRectF(scene_rect.left(), scene_rect.top(), 
-                           scene_rect.width(), scene_rect.height())
-        scene.render(painter, render_rect, scene_rect)
-    
-    def export_sequence(self, file_path, progress):
-        """Export sequence to file"""
-        progress.setValue(20)
-        
-        format_text = self.seq_format_combo.currentText()
-        
-        if "FASTA" in format_text:
-            self.export_fasta(file_path)
-        elif "GenBank" in format_text:
-            self.export_genbank(file_path)
-        elif "HTML" in format_text:
-            self.export_html(file_path)
-        else:
-            self.export_text(file_path)
-        
-        progress.setValue(100)
-    
-    def export_fasta(self, file_path):
-        """Export as FASTA"""
-        from Bio import SeqIO
-        with open(file_path, 'w') as f:
-            SeqIO.write(self.sequence_viewer.record, f, "fasta")
-    
-    def export_genbank(self, file_path):
-        """Export as GenBank"""
-        from Bio import SeqIO
-        with open(file_path, 'w') as f:
-            SeqIO.write(self.sequence_viewer.record, f, "genbank")
-    
-    def export_html(self, file_path):
-        """Export as HTML with SnapGene-style formatting"""
-        sequence = str(self.sequence_viewer.record.seq)
-        bases_per_line = self.bases_per_line_spin.value()
-        
-        html = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>{self.sequence_viewer.record.id}</title>
-            <style>
-                body {{ font-family: {self.font_family_combo.currentText()}, monospace; }}
-                .sequence {{ font-size: {self.font_size_spin.value()}px; }}
-                .A {{ color: red; }}
-                .T {{ color: blue; }}
-                .C {{ color: green; }}
-                .G {{ color: orange; }}
-                .line-number {{ color: gray; margin-right: 10px; }}
-            </style>
-        </head>
-        <body>
-            <h1>{self.custom_title.toPlainText() or self.sequence_viewer.record.id}</h1>
-            <p>Length: {len(sequence)} bp</p>
-            <div class="sequence">
-        """
-        
-        for i in range(0, len(sequence), bases_per_line):
-            line = sequence[i:i + bases_per_line]
-            if self.line_numbers.isChecked():
-                html += f'<span class="line-number">{i+1:>6}</span>'
-            
-            for base in line:
-                html += f'<span class="{base}">{base}</span>'
-            html += '<br>\n'
-        
-        html += """
-            </div>
-        </body>
-        </html>
-        """
-        
-        with open(file_path, 'w') as f:
-            f.write(html)
-    
-    def export_text(self, file_path):
-        """Export as plain text"""
-        sequence = str(self.sequence_viewer.record.seq)
-        bases_per_line = self.bases_per_line_spin.value()
-        
-        with open(file_path, 'w') as f:
-            f.write(f"{self.custom_title.toPlainText() or self.sequence_viewer.record.id}\n")
-            f.write(f"Length: {len(sequence)} bp\n\n")
-            
-            for i in range(0, len(sequence), bases_per_line):
-                line = sequence[i:i + bases_per_line]
-                if self.line_numbers.isChecked():
-                    f.write(f"{i+1:>6} {line}\n")
-                else:
-                    f.write(f"{line}\n")
+        # Draw a border for debugging (remove this later)
+        painter.setPen(QPen(Qt.GlobalColor.red, 1))
+        painter.drawRect(target_rect)

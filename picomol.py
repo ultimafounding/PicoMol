@@ -183,8 +183,7 @@ class AboutDialog(QDialog):
             
             <p><b>ramachandraw:</b></p>
             <div class="citation">
-            Alexandre Cirilo. (2024). ramachandraw: A Ramachandran plotting tool (v1.0.1). Zenodo. 
-            <a href='https://doi.org/10.5281/zenodo.10585423'>doi:10.5281/zenodo.10585423</a>
+            Alexandre Cirilo. (2024). ramachandraw: A Ramachandran plotting tool (v1.0.1).
             </div>
             
             
@@ -832,7 +831,7 @@ class ProteinViewerApp(QMainWindow):
         # Create Picomol Plasmid Viewer tab
         from src.gui.sequence_viewer import SequenceViewer
         snapgene_tab = SequenceViewer(self)
-        self.main_tabs.addTab(snapgene_tab, "Picomol Plasmid Viewer")
+        self.main_tabs.addTab(snapgene_tab, "Picomol Plasmid Viewer (Beta)")
         
         # Create BLAST tab
         blast_tab = QWidget()

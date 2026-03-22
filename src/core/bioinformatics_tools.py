@@ -79,10 +79,23 @@ class FastaSequence:
         header_parts = self.header.split('|')
         if len(header_parts) > 1:
             # Handle common formats like >gi|123456|ref|NP_123456.1|
-            return header_parts[-2] if header_parts[-1] == '' else header_parts[-1]
+            name = header_parts[-2] if header_parts[-1] == '' else header_parts[-1]
         else:
             # Simple header
-            return self.header[:50] + '...' if len(self.header) > 50 else self.header
+            name = self.header[:50] + '...' if len(self.header) > 50 else self.header
+        
+        # Clean up the display name
+        if len(name) > 50:
+            name = name[:47] + "..."  # Truncate long names
+        # Clean up common formatting issues
+        name = name.replace("_", " ").replace("-", " - ")
+        # Remove common prefixes like NP_, XP_, etc.
+        if '.' in name and any(prefix in name for prefix in ['NP_', 'XP_', 'YP_', 'ZP_']):
+            name = name.split('.')[0]
+        # Capitalize properly
+        name = ' '.join(word.capitalize() for word in name.split())
+        
+        return name
     
     def __str__(self):
         return f"{self.get_display_name()} ({self.sequence_type}, {self.length} residues)"

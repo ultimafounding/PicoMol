@@ -1176,7 +1176,7 @@ class DomainVisualizationWidget(QWidget):
             return
         
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         
         # Get widget dimensions with better margins
         margin = 80
@@ -2328,9 +2328,9 @@ class MotifAnalysisTab(QWidget):
                 self, "Long Sequence", 
                 f"This sequence is {len(sequence)} amino acids long. "
                 "Analysis may take a long time. Continue?",
-                QMessageBox.Yes | QMessageBox.No
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
             )
-            if reply != QMessageBox.Yes:
+            if reply != QMessageBox.StandardButton.Yes:
                 return None
         
         if len(sequence) < 10:
@@ -2639,7 +2639,7 @@ class MotifAnalysisTab(QWidget):
         matches = group_data['matches']
         
         entry_frame = QFrame()
-        entry_frame.setFrameStyle(QFrame.Box)
+        entry_frame.setFrameStyle(QFrame.Shape.Box)
         entry_frame.setStyleSheet("QFrame { border: 1px solid #ddd; border-radius: 5px; margin: 2px; }")
         
         entry_layout = QVBoxLayout(entry_frame)
@@ -2728,7 +2728,7 @@ class MotifAnalysisTab(QWidget):
     def create_database_section_widget(self, db_name, domains):
         """Create widget for matches from a specific database."""
         db_frame = QFrame()
-        db_frame.setFrameStyle(QFrame.StyledPanel)
+        db_frame.setFrameStyle(QFrame.Shape.StyledPanel)
         db_frame.setStyleSheet("QFrame { border: 1px solid #ccc; border-radius: 3px; margin: 1px; }")
         
         db_layout = QVBoxLayout(db_frame)
