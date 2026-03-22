@@ -456,7 +456,7 @@ def create_blastp_tab(parent):
     parent.blast_worker = None
     
     # Create splitter for input and results
-    splitter = QSplitter(Qt.Vertical)
+    splitter = QSplitter(Qt.Orientation.Vertical)
     main_layout.addWidget(splitter)
     
     # Top section - Input controls
@@ -1211,7 +1211,7 @@ def create_blastn_tab(parent):
     parent.blastn_worker = None
     
     # Create splitter for input and results
-    splitter = QSplitter(Qt.Vertical)
+    splitter = QSplitter(Qt.Orientation.Vertical)
     main_layout.addWidget(splitter)
     
     # Top section - Input controls

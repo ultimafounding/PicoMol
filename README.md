@@ -20,6 +20,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 ## 🆕 Latest Updates (September 2025)
 
 **Advanced Sequence Analysis Suite:**
+
 - **ORF Analysis:** Comprehensive open reading frame detection with customizable parameters
 - **Primer Design:** Professional PCR primer design with advanced scoring and validation
 - **Sequence Comparison:** Multi-sequence analysis with identity detection and visualization
@@ -27,6 +28,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 - **SnapGene-style Visualization:** Improved sequence viewer with enzyme highlighting and feature rendering
 
 **Previous Release (v0.1.0 - January 2025) - Production Ready:**
+
 - **Stable Core Features:** Comprehensive molecular visualization, BLAST integration, and bioinformatics tools
 - **Enhanced Data Export:** Complete analysis results in HTML, JSON, CSV, Excel, and Text formats
 - **Professional HTML Reports:** High-resolution graphs with improved layouts and styling
@@ -37,6 +39,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 ## Features
 
 ### 🧬 Core Visualization
+
 - **3D Molecular Viewer**: Interactive visualization powered by NGL.js
 - **Multiple Representations**: Cartoon, ball+stick, surface, and more
 - **Flexible Coloring**: By chain, residue, secondary structure, etc.
@@ -44,6 +47,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 - **Screenshot Export**: Save high-quality images of your structures
 
 ### 🔬 Bioinformatics Tools
+
 - **Sequence Analysis**:
   - Protein properties (MW, pI, hydrophobicity, aromaticity, instability index)
   - Nucleic acid analysis (GC content, translation in all 6 frames, complements)
@@ -75,12 +79,14 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
   - **Enhanced Export System:** Complete data export in HTML, JSON, CSV, Excel, and Text formats with high-resolution graphs
 
 ### 🧪 BLAST Integration
+
 - **All BLAST Variants**: BLASTP, BLASTN, BLASTX, TBLASTN, TBLASTX
 - **NCBIBLAST-like Interface**: Familiar experience for users
 - **Multiple Database Support**: Access to major NCBI databases
 - **Comprehensive Results**: Detailed alignments and statistics
 
 ### 🎨 User Experience
+
 - **Modern Interface**: Clean, tabbed layout with dark/light themes
 - **Cross-Platform**: Works on Windows, macOS, and Linux
 - **Performance Optimized**: Handles large structures efficiently
@@ -100,6 +106,7 @@ PicoMol is a comprehensive desktop application for molecular visualization, stru
 ## 🚀 Installation
 
 ### Prerequisites
+
 - Python 3.7 or higher (Python 3.8+ recommended for best performance)
 - Internet connection (for downloading NGL.js, online BLAST functionality, and API integrations)
 - At least 100MB of free disk space
@@ -130,6 +137,7 @@ The application will automatically download NGL.js on first run if needed.
 **Note:** PicoMol features an organized project structure with source code in `src/`, assets in `assets/`, data files in `data/`, and documentation in `docs/`. The main application file (`picomol.py`) remains in the root directory for easy execution.
 
 ### Manual Dependency Installation
+
 If you prefer to install dependencies manually:
 
 **Core Dependencies (Required):**
@@ -145,6 +153,7 @@ pip install numpy matplotlib pandas openpyxl weasyprint
 ## Usage
 
 ### Getting Started
+
 1. **Launch PicoMol:** Run `python picomol.py`
 2. **Load a Structure:**
    - Enter a PDB ID (e.g., `1CRN`, `4HHB`) and click \"Fetch\"
@@ -152,12 +161,14 @@ pip install numpy matplotlib pandas openpyxl weasyprint
    - Drag and drop `.pdb` or `.ent` files directly onto the window
 
 ### 3D Visualization
+
 - **Change Representation:** Use the dropdown to switch between cartoon, ball+stick, surface, etc.
 - **Adjust Colors:** Select different coloring schemes or use uniform colors
 - **Control View:** Toggle auto-rotation, change background color
 - **Save Images:** Click \"Save Screenshot\" to export the current view
 
 ### BLAST Searches
+
 1. **Navigate to BLAST Tab:** Click on the \"BLAST\" tab in the main interface
 2. **Choose BLAST Type:** Select from BLASTP, BLASTN, BLASTX, TBLASTN, or TBLASTX
 3. **Enter Query:** Paste your sequence or upload a FASTA file
@@ -166,14 +177,18 @@ pip install numpy matplotlib pandas openpyxl weasyprint
 6. **View Results:** Comprehensive results with alignments and statistics
 
 ### Bioinformatics Analysis
+
 1. **Navigate to Bioinformatics Tab:** Click on the "Bioinformatics" tab
+
 2. **Choose Analysis Type:** Select from the available sub-tabs:
    - **Sequence Analysis:** Comprehensive sequence analysis tools
    - **Protein Motifs and Domains:** Motif and domain analysis tools
    - **Structure:** Structural analysis tools
 
 #### Sequence Analysis
+
 1. **Input Methods:**
+
    - **Direct Entry:** Paste sequences (plain text or FASTA format)
    - **Load from Structure:** Use sequence from currently loaded PDB structure
    - **Load from File:** Import from FASTA files with multi-sequence support
@@ -183,7 +198,9 @@ pip install numpy matplotlib pandas openpyxl weasyprint
    - **Comprehensive Results:** Detailed analysis with exportable data
 
 #### Motif and Domain Analysis
+
 1. **Sequence Input:**
+
    - **Load from Current Structure:** Extract sequence from loaded PDB structure
    - **Load from File:** Import FASTA sequences
    - **Direct Entry:** Paste protein sequences with example provided
@@ -239,9 +256,11 @@ PicoMol/
 ## Technical Details
 
 ### Architecture
+
 PicoMol combines several powerful technologies:
 
 **Core Technologies:**
+
 - **PyQt5:** Cross-platform GUI framework providing the main interface
 - **QWebEngineView:** Embedded web browser for 3D visualization
 - **NGL.js:** High-performance molecular graphics library (MIT licensed)
@@ -249,6 +268,7 @@ PicoMol combines several powerful technologies:
 - **NCBI BLAST:** Online BLAST searches and sequence analysis
 
 **Enhanced Features (Optional Dependencies):**
+
 - **NumPy:** Scientific computing for structural calculations
 - **Matplotlib:** Advanced plotting and high-resolution graph generation
 - **Pandas:** Data manipulation and multi-format export functionality
@@ -257,12 +277,14 @@ PicoMol combines several powerful technologies:
 - **ramachandraw:** Ramachandran plot generation and analysis
 
 **Design Principles:**
+
 - **Modular Architecture:** Clean separation of concerns with organized source structure
 - **Graceful Degradation:** Core functionality works without optional dependencies
 - **Theme System:** Customizable appearance with multiple built-in themes
 - **Asynchronous Processing:** Non-blocking operations for better user experience
 
 ### Bioinformatics Implementation
+
 - **Dual-Mode Analysis:** Full-featured analysis with Biopython, basic analysis without
 - **Smart FASTA Parsing:** Handles both Biopython and manual parsing methods
 - **Sequence Validation:** Real-time validation with detailed error reporting
@@ -275,12 +297,14 @@ PicoMol combines several powerful technologies:
 - **Extensible Design:** Easy to add new analysis tools and features
 
 ### BLAST Implementation
+
 - **Online Integration:** Direct connection to NCBI BLAST servers
 - **Asynchronous Processing:** Non-blocking searches with progress indicators
 - **Result Parsing:** Comprehensive parsing of XML and text BLAST outputs
 - **NCBI Compliance:** Interface design matches official NCBI BLAST pages
 
 ### Motif and Domain Analysis Implementation
+
 - **InterPro API:** Official EBI InterPro web service integration
 - **PROSITE API:** Direct connection to ExPASy PROSITE ScanProsite service
 - **Hybrid Approach:** API-first with local pattern fallback for reliability
@@ -295,7 +319,9 @@ PicoMol combines several powerful technologies:
 ## 🔄 Version History
 
 ### Version 0.1.0 (January 2025) - Production Ready 🎆
+
 **Major Milestone Release:**
+
 - **Production Quality:** Comprehensive testing, error handling, and stability improvements
 - **Performance Optimizations:** Enhanced handling of large structures and complex analyses
 - **Robust API Integration:** Stable InterPro and PROSITE integration with intelligent fallback systems
@@ -303,12 +329,14 @@ PicoMol combines several powerful technologies:
 - **Comprehensive Documentation:** Updated technical documentation and user guides
 
 ### Version 0.0.5 (July 2024) - Enhanced Export & Visualization
+
 - **Comprehensive Data Export:** All analysis results in multiple formats (HTML, JSON, CSV, Excel, Text)
 - **Enhanced HTML Reports:** Professional layouts with high-resolution graphs
 - **Fixed Graph Rendering:** Resolved overlapping elements in exported visualizations
 - **Data Consistency:** All calculated data consistently included across export formats
 
 ### Version 0.0.4 (July 2024) - Motif & Domain Analysis
+
 - **InterPro Integration:** Official EBI InterPro API for comprehensive domain annotation
 - **PROSITE Integration:** Official ExPASy PROSITE ScanProsite API for motif recognition
 - **Advanced Visualization:** Interactive domain and motif visualization
@@ -326,6 +354,7 @@ We welcome contributions! Please feel free to:
 Here are the citations for projects and tools included in PicoMol:
 
 ### NGL.js
+
 ```
 Rose AS, Bradley AR, Valasatava Y, Duarte JM, Prlić A, Rose PW.
 NGL viewer: web-based molecular graphics for large complexes.
@@ -339,6 +368,7 @@ doi:10.1093/nar/gkv402
 ```
 
 ### BLAST
+
 ```
 Altschul SF, Gish W, Miller W, Myers EW, Lipman DJ.
 Basic local alignment search tool.
@@ -352,6 +382,7 @@ doi:10.1093/nar/25.17.3389
 ```
 
 ### InterPro
+
 ```
 Apweiler R, Attwood TK, Bairoch A, Bateman A, Birney E, Biswas M, Bucher P, Cerutti L, Corpet F, Croning MD, et al.
 The InterPro database, an integrated documentation resource for protein families, domains and functional sites.
@@ -365,6 +396,7 @@ doi:10.1093/nar/gkac993
 ```
 
 ### Pfam
+
 ```
 Bateman A, Birney E, Durbin R, Eddy SR, Howe KL, Sonnhammer EL.
 The Pfam protein families database.
@@ -396,6 +428,7 @@ doi:10.1093/nar/gks1067
 ```
 
 ### PDB Format
+
 ```
 Berman HM, Westbrook J, Feng Z, Gilliland G, Bhat TN, Weissig H, 
 Shindyalov IN, Bourne PE.
@@ -405,6 +438,7 @@ doi:10.1093/nar/28.1.235
 ```
 
 ### ramachandraw
+
 ```
 @software{Cirilo_ramachandraw,
   author = {Cirilo, Alexandre},
@@ -420,6 +454,7 @@ doi:10.1093/nar/28.1.235
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
 
 ### Third-Party Licenses
+
 - **NGL.js:** MIT License (compatible with GPL v3.0)
 - **Biopython:** Biopython License (compatible with GPL v3.0)
 

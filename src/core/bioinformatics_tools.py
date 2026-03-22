@@ -108,7 +108,7 @@ class SequenceSelectionDialog(QDialog):
         layout.addWidget(info_label)
         
         # Create splitter for list and preview
-        splitter = QSplitterWidget(Qt.Horizontal)
+        splitter = QSplitterWidget(Qt.Orientation.Horizontal)
         
         # Sequence list
         self.sequence_list = QListWidget()

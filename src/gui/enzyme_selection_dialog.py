@@ -70,14 +70,45 @@ class EnzymeSelectionDialog(QDialog):
         self.all_enzymes = []
         
         try:
-            # Populate with all commercially available enzymes from Biopython
-            for enzyme in Restriction.CommOnly:
-                enzyme_name = str(enzyme)
+            # Try to load enzymes more comprehensively
+            all_enzyme_names = []
+            
+            # First try to get all commercially available enzymes
+            try:
+                if hasattr(Restriction, 'CommOnly'):
+                    for enzyme in Restriction.CommOnly:
+                        all_enzyme_names.append(str(enzyme))
+                else:
+                    # Fallback: try to get enzymes from Restriction.__dict__
+                    for name in dir(Restriction):
+                        obj = getattr(Restriction, name)
+                        if hasattr(obj, 'site') and hasattr(obj, 'fst5'):
+                            all_enzyme_names.append(name)
+            except:
+                pass
+            
+            # If we still don't have enough enzymes, add common ones manually
+            if len(all_enzyme_names) < 20:
+                common_enzymes = [
+                    'EcoRI', 'BamHI', 'HindIII', 'XhoI', 'SacI', 'KpnI', 'NotI', 
+                    'XbaI', 'SpeI', 'PstI', 'SalI', 'SmaI', 'BglII', 'NcoI', 
+                    'NdeI', 'ApaI', 'EcoRV', 'NruI', 'SphI', 'ClaI'
+                ]
+                for enzyme in common_enzymes:
+                    if enzyme not in all_enzyme_names:
+                        all_enzyme_names.append(enzyme)
+            
+            # Sort the enzymes alphabetically
+            all_enzyme_names.sort()
+            
+            # Add to list
+            for enzyme_name in all_enzyme_names:
                 self.all_enzymes.append(enzyme_name)
                 self.enzyme_list.addItem(enzyme_name)
+                
         except Exception as e:
-            QMessageBox.warning(self, "Warning", f"Could not load all restriction enzymes: {str(e)}")
-            # Fallback to a basic set
+            QMessageBox.warning(self, "Warning", f"Could not load restriction enzymes: {str(e)}")
+            # Final fallback to a basic set
             basic_enzymes = ['EcoRI', 'BamHI', 'HindIII', 'XhoI', 'SacI', 'KpnI', 'NotI', 'XbaI', 'SpeI', 'PstI']
             for enzyme in basic_enzymes:
                 self.all_enzymes.append(enzyme)

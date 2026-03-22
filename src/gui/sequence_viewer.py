@@ -22,7 +22,7 @@ from src.gui.restriction_cloning_dialog import RestrictionCloningDialog
 from src.gui.gibson_assembly_dialog import GibsonAssemblyDialog
 from src.gui.virtual_gel_dialog import VirtualGelDialog
 from src.gui.golden_gate_dialog import GoldenGateDialog
-from itertools import combinations
+from itertools import combinations, product
 # Import new enhanced features
 try:
     from src.gui.export_dialog import ExportDialog
@@ -45,10 +45,15 @@ class SequenceViewer(QWidget):
 
         # Define a default set of restriction enzymes
         try:
-            self.restriction_batch = RestrictionBatch(['EcoRI', 'BamHI', 'HindIII', 'XhoI', 'SacI', 'KpnI'])
+            default_enzymes = ['EcoRI', 'BamHI', 'HindIII', 'XhoI', 'SacI', 'KpnI', 'NotI', 
+                              'XbaI', 'SpeI', 'PstI', 'SalI', 'SmaI', 'BglII', 'NcoI', 
+                              'NdeI', 'ApaI', 'EcoRV', 'NruI', 'SphI', 'ClaI']
+            self.restriction_batch = RestrictionBatch(default_enzymes)
+            self.current_enzyme_names = default_enzymes  # Store the names for easy access
         except Exception as e:
             print(f"Warning: Could not initialize restriction enzymes: {e}")
             self.restriction_batch = None
+            self.current_enzyme_names = []
 
         # Main layout
         main_layout = QVBoxLayout(self)
@@ -366,8 +371,8 @@ class SequenceViewer(QWidget):
         cloning_layout.addWidget(self.golden_gate_button)
         
         # Virtual digest
-        self.digest_button = QPushButton("⚡ Virtual Digest")
-        self.digest_button.setToolTip("Simulate restriction enzyme digestion")
+        self.digest_button = QPushButton("⚡ Virtual Digest (Select Enzymes)")
+        self.digest_button.setToolTip("Select specific enzymes for virtual restriction digest")
         self.digest_button.clicked.connect(self.virtual_digest)
         cloning_layout.addWidget(self.digest_button)
         
@@ -493,105 +498,71 @@ class SequenceViewer(QWidget):
             QMessageBox.critical(self, "Error", f"Error opening Gibson assembly dialog: {str(e)}")
 
     def virtual_digest(self):
-        """Perform virtual restriction digest with enzyme combinations"""
+        """Perform virtual restriction digest with enzyme selection"""
         if not self.record:
             QMessageBox.warning(self, "No Sequence", "Please load a sequence first.")
             return
         
-        if not self.restriction_batch:
-            QMessageBox.warning(self, "No Enzymes", "Please select restriction enzymes first.")
-            return
-
-        try:
-            analysis = self.restriction_batch.search(self.record.seq)
-            all_fragments = []
-            enzyme_fragments = {}
+        # Get current restriction enzymes
+        current_enzymes = []
+        if self.restriction_batch:
+            try:
+                current_enzymes = [str(enzyme) for enzyme in self.restriction_batch]
+            except:
+                current_enzymes = getattr(self, 'current_enzyme_names', [])
+        
+        # Show enzyme selection dialog
+        from src.gui.digest_enzyme_selection_dialog import DigestEnzymeSelectionDialog
+        dialog = DigestEnzymeSelectionDialog(current_enzymes, self)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            selected_enzymes = dialog.get_selected_enzymes()
             
-            # Get enzymes that actually cut the sequence
-            cutting_enzymes = [(enzyme, sites) for enzyme, sites in analysis.items() if sites]
-            
-            if not cutting_enzymes:
-                QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
+            if not selected_enzymes:
+                QMessageBox.information(self, "No Enzymes", "No enzymes selected for digest.")
                 return
             
-            # Add uncut sequence
-            enzyme_fragments["Uncut"] = [self.record.seq]
-            all_fragments.extend([self.record.seq])
-            
-            # Single enzyme digests
-            for enzyme, sites in cutting_enzymes:
-                fragments = self.get_fragments(self.record.seq, sites)
-                all_fragments.extend(fragments)
-                enzyme_fragments[str(enzyme)] = fragments
-            
-            # Double digests (combinations of 2 enzymes)
-            if len(cutting_enzymes) >= 2:
-                from itertools import combinations
-                for enzyme_pair in combinations(cutting_enzymes, 2):
-                    enzyme1, sites1 = enzyme_pair[0]
-                    enzyme2, sites2 = enzyme_pair[1]
-                    
-                    # Combine cut sites from both enzymes
-                    combined_sites = sorted(set(sites1 + sites2))
-                    if combined_sites:
-                        fragments = self.get_fragments(self.record.seq, combined_sites)
-                        combo_name = f"{enzyme1} + {enzyme2}"
-                        enzyme_fragments[combo_name] = fragments
-                        all_fragments.extend(fragments)
-            
-            # Triple digests (combinations of 3 enzymes)
-            if len(cutting_enzymes) >= 3:
-                for enzyme_triple in combinations(cutting_enzymes, 3):
-                    enzyme1, sites1 = enzyme_triple[0]
-                    enzyme2, sites2 = enzyme_triple[1]
-                    enzyme3, sites3 = enzyme_triple[2]
-                    
-                    # Combine cut sites from all three enzymes
-                    combined_sites = sorted(set(sites1 + sites2 + sites3))
-                    if combined_sites:
-                        fragments = self.get_fragments(self.record.seq, combined_sites)
-                        combo_name = f"{enzyme1} + {enzyme2} + {enzyme3}"
-                        enzyme_fragments[combo_name] = fragments
-                        all_fragments.extend(fragments)
-            
-            # Quadruple digests (combinations of 4 enzymes) - only if we have 4+ enzymes
-            if len(cutting_enzymes) >= 4:
-                for enzyme_quad in combinations(cutting_enzymes, 4):
-                    enzymes = [e[0] for e in enzyme_quad]
-                    all_sites = []
-                    for _, sites in enzyme_quad:
-                        all_sites.extend(sites)
-                    
-                    combined_sites = sorted(set(all_sites))
-                    if combined_sites:
-                        fragments = self.get_fragments(self.record.seq, combined_sites)
-                        combo_name = f"{enzymes[0]} + {enzymes[1]} + {enzymes[2]} + {enzymes[3]}"
-                        enzyme_fragments[combo_name] = fragments
-                        all_fragments.extend(fragments)
-            
-            # Complete digest (all enzymes together)
-            if len(cutting_enzymes) > 1:
-                all_sites = []
-                for _, sites in cutting_enzymes:
-                    all_sites.extend(sites)
+            try:
+                # Create restriction batch with selected enzymes
+                digest_batch = RestrictionBatch(selected_enzymes)
+                analysis = digest_batch.search(self.record.seq)
+                all_fragments = []
+                enzyme_fragments = {}
                 
-                combined_sites = sorted(set(all_sites))
-                if combined_sites:
-                    fragments = self.get_fragments(self.record.seq, combined_sites)
-                    enzyme_names = [str(e[0]) for e in cutting_enzymes]
-                    combo_name = "Complete digest (" + " + ".join(enzyme_names) + ")"
-                    enzyme_fragments[combo_name] = fragments
+                # Get enzymes that actually cut the sequence
+                cutting_enzymes = [(enzyme, sites) for enzyme, sites in analysis.items() if sites]
+                
+                if not cutting_enzymes:
+                    QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
+                    return
+                
+                # Add uncut sequence
+                enzyme_fragments["Uncut"] = [self.record.seq]
+                all_fragments.extend([self.record.seq])
+                
+                # Single enzyme digests
+                for enzyme, sites in cutting_enzymes:
+                    fragments = self.get_fragments(self.record.seq, sites)
                     all_fragments.extend(fragments)
-            
-            if all_fragments:
-                dialog = VirtualGelDialog(all_fragments, self, enzyme_fragments=enzyme_fragments)
-                dialog.exec()
-            else:
-                QMessageBox.information(self, "No Cuts", "Selected enzymes do not cut this sequence.")
+                    enzyme_fragments[str(enzyme)] = fragments
                 
-        except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error during virtual digest: {str(e)}")
-
+                # Double enzyme digests (combinations of 2)
+                if len(cutting_enzymes) >= 2:
+                    for i, (enzyme1, sites1) in enumerate(cutting_enzymes):
+                        for enzyme2, sites2 in cutting_enzymes[i+1:]:
+                            combined_sites = sorted(set(sites1 + sites2))
+                            fragments = self.get_fragments(self.record.seq, combined_sites)
+                            all_fragments.extend(fragments)
+                            enzyme_fragments[f"{enzyme1} + {enzyme2}"] = fragments
+                
+                # Show virtual gel
+                from src.gui.virtual_gel_dialog import VirtualGelDialog
+                gel_dialog = VirtualGelDialog(all_fragments, self, enzyme_fragments)
+                gel_dialog.exec()
+                
+            except Exception as e:
+                QMessageBox.critical(self, "Error", f"Error during virtual digest: {str(e)}")
+    
     def get_fragments(self, sequence, cuts):
         """Get DNA fragments from restriction cuts"""
         if not cuts:
@@ -636,6 +607,7 @@ class SequenceViewer(QWidget):
                 selected_enzymes = dialog.get_selected_enzymes()
                 if selected_enzymes:
                     self.restriction_batch = RestrictionBatch(selected_enzymes)
+                    self.current_enzyme_names = selected_enzymes  # Store the names
                     self.update_view()
                     
                     # Update sequence view highlighting
@@ -784,7 +756,9 @@ class SequenceViewer(QWidget):
         if hasattr(self.record, 'features'):
             feature_index = 0
             for i, feature in enumerate(self.record.features):
-                if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature"]:
+                if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
+                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
+                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
                     start = int(feature.location.start)
                     end = int(feature.location.end)
                     
@@ -903,7 +877,9 @@ class SequenceViewer(QWidget):
             feature_index = 0
             y_offset = 0
             for i, feature in enumerate(self.record.features):
-                if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature"]:
+                if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
+                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
+                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
                     start = int(feature.location.start) * scale_factor
                     end = int(feature.location.end) * scale_factor
                     width = end - start
@@ -995,7 +971,9 @@ class SequenceViewer(QWidget):
                 # Find the corresponding feature
                 feature_index = 0
                 for j, feature in enumerate(self.record.features):
-                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature"]:
+                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
+                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
+                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
                         if feature_index == i:
                             color = self.get_feature_color(feature.type)
                             item.setBrush(QBrush(color))
@@ -1006,7 +984,9 @@ class SequenceViewer(QWidget):
                 # Find the corresponding feature for arcs
                 feature_index = 0
                 for j, feature in enumerate(self.record.features):
-                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature"]:
+                    if feature.type in ["gene", "promoter", "CDS", "terminator", "rep_origin", "misc_feature", 
+                           "regulatory", "enhancer", "primer_bind", "protein_bind", "RBS", 
+                           "5'UTR", "3'UTR", "signal_peptide", "stem_loop", "polyA_signal"]:
                         if feature_index == i:
                             pen = item.pen()
                             pen.setColor(self.get_feature_color(feature.type))
@@ -1092,7 +1072,13 @@ class SequenceViewer(QWidget):
             "regulatory": QColor("#e67e22"),   # Dark orange
             "enhancer": QColor("#f1c40f"),     # Yellow
             "primer_bind": QColor("#1abc9c"),  # Turquoise
-            "protein_bind": QColor("#34495e") # Dark gray
+            "protein_bind": QColor("#34495e"), # Dark gray
+            "RBS": QColor("#16a085"),          # Dark turquoise
+            "5'UTR": QColor("#27ae60"),        # Dark green
+            "3'UTR": QColor("#2980b9"),        # Dark blue
+            "signal_peptide": QColor("#8e44ad"), # Dark purple
+            "stem_loop": QColor("#d35400"),     # Dark orange
+            "polyA_signal": QColor("#c0392b")   # Dark red
         }
         return colors.get(feature_type, QColor("#bdc3c7"))  # Light gray for others
     
