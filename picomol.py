@@ -22,12 +22,17 @@ from src.gui.theme_manager import apply_theme
 from src.core.bioinformatics_tools import create_bioinformatics_tab
 from src.gui.welcome_dialog import WelcomeDialog
 
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QFileDialog, QMessageBox,
-    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox, QAction,
+    QComboBox, QCheckBox, QGroupBox, QTextEdit, QDialog, QDialogButtonBox,
     QTabWidget, QSizePolicy, QColorDialog, QFormLayout, QScrollArea
 )
+# QAction may be provided from QtWidgets or QtGui depending on PyQt6 build
+try:
+    from PyQt6.QtWidgets import QAction
+except ImportError:
+    from PyQt6.QtGui import QAction
 
 
 class AboutDialog(QDialog):
@@ -54,9 +59,9 @@ class AboutDialog(QDialog):
                 pixmap = QPixmap(logo_path)
                 if not pixmap.isNull():
                     # Scale the logo to a reasonable size for the dialog
-                    scaled_pixmap = pixmap.scaled(120, 120, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    scaled_pixmap = pixmap.scaled(120, 120, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
                     logo_label.setPixmap(scaled_pixmap)
-                    logo_label.setAlignment(Qt.AlignCenter)
+                    logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     layout.addWidget(logo_label)
         except Exception as e:
             print(f"Error adding logo to About dialog: {e}")
@@ -178,8 +183,7 @@ class AboutDialog(QDialog):
             
             <p><b>ramachandraw:</b></p>
             <div class="citation">
-            Alexandre Cirilo. (2024). ramachandraw: A Ramachandran plotting tool (v1.0.1). Zenodo. 
-            <a href='https://doi.org/10.5281/zenodo.10585423'>doi:10.5281/zenodo.10585423</a>
+            Alexandre Cirilo. (2024). ramachandraw: A Ramachandran plotting tool (v1.0.1).
             </div>
             
             
@@ -187,8 +191,8 @@ class AboutDialog(QDialog):
         )
         about_text.setWordWrap(True)
         about_text.setOpenExternalLinks(True)
-        about_text.setTextFormat(Qt.RichText)
-        about_text.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        about_text.setTextFormat(Qt.TextFormat.RichText)
+        about_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         
         layout.addWidget(about_text)
         
@@ -200,14 +204,14 @@ class AboutDialog(QDialog):
         main_layout.addWidget(scroll)
         
         # Add OK button at the bottom
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(self.accept)
         main_layout.addWidget(button_box)
 
-from PyQt5.QtCore import QSettings
-from PyQt5.QtWebEngineWidgets import QWebEngineView, QWebEngineSettings
-from PyQt5.QtCore import QUrl, Qt
-from PyQt5.QtGui import QFont, QPixmap, QIcon
+from PyQt6.QtCore import QSettings
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCore import QUrl, Qt
+from PyQt6.QtGui import QFont, QPixmap, QIcon
 
 from Bio.PDB import PDBList, PDBParser, PDBIO
 from Bio.SeqIO.PdbIO import BiopythonParserWarning
@@ -337,13 +341,16 @@ class ProteinViewerApp(QMainWindow):
     
     def setup_responsive_window(self):
         """Set up responsive window sizing based on screen dimensions."""
-        from PyQt5.QtWidgets import QDesktopWidget
-        
-        # Get screen geometry
-        desktop = QDesktopWidget()
-        screen_rect = desktop.screenGeometry()
-        screen_width = screen_rect.width()
-        screen_height = screen_rect.height()
+        from PyQt6.QtWidgets import QApplication
+        # Get screen geometry via primary screen
+        screen = QApplication.primaryScreen()
+        if screen is not None:
+            screen_rect = screen.availableGeometry()
+            screen_width = screen_rect.width()
+            screen_height = screen_rect.height()
+        else:
+            # Fallback defaults
+            screen_width, screen_height = (1366, 768)
         
         # Calculate responsive window size (80% of screen, with reasonable limits)
         min_width = 900
@@ -433,10 +440,10 @@ class ProteinViewerApp(QMainWindow):
             toggle_btn.clicked.connect(toggle)
             layout.addWidget(toggle_btn)
             layout.addWidget(details_box)
-        btn_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(dlg.accept)
         layout.addWidget(btn_box)
-        dlg.exec_()
+        dlg.exec()
 
 
 
@@ -528,7 +535,7 @@ class ProteinViewerApp(QMainWindow):
     def init_ui(self):
         # Create the web view first
         self.web_view = QWebEngineView()
-        self.web_view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.web_view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         
         # Menu bar with File, Edit, Recent Files
         menubar = self.menuBar()
@@ -605,7 +612,7 @@ class ProteinViewerApp(QMainWindow):
 
         # Drag-and-drop overlay label (hidden by default)
         self.drag_overlay = QLabel("\n\nDrop PDB or ENT files here to open", self)
-        self.drag_overlay.setAlignment(Qt.AlignCenter)
+        self.drag_overlay.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.drag_overlay.setStyleSheet("""
             background: rgba(30, 144, 255, 0.7); 
             color: white; 
@@ -616,7 +623,7 @@ class ProteinViewerApp(QMainWindow):
             padding: 20px;
         """)
         self.drag_overlay.setVisible(False)
-        self.drag_overlay.setAttribute(Qt.WA_TransparentForMouseEvents)
+        self.drag_overlay.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
         self.drag_overlay.setGeometry(0, 0, self.width(), self.height())
 
         # Ensure overlay resizes with window
@@ -639,13 +646,20 @@ class ProteinViewerApp(QMainWindow):
         self.sequence_display.setPlaceholderText("Sequence will appear here when a structure is loaded...")
         self.sequence_display.setStyleSheet("""
             QTextEdit {
-                font-family: monospace;
+                font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
-                padding: 8px;
+                padding: 10px;
                 margin: 5px;
-                font-size: 12px;
+                font-size: 13px;
+                line-height: 1.4;
+                color: #333;
+                selection-background-color: #007acc;
+            }
+            QTextEdit:focus {
+                border: 2px solid #007acc;
+                outline: none;
             }
         """)
         visualization_layout.addWidget(self.sequence_display)
@@ -663,7 +677,22 @@ class ProteinViewerApp(QMainWindow):
         
         # PDB Input Section
         pdb_group = QGroupBox("PDB Input")
+        pdb_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         pdb_layout = QVBoxLayout()
+        pdb_layout.setContentsMargins(10, 15, 10, 10)
+        pdb_layout.setSpacing(8)
         
         # PDB ID Input
         pdb_id_layout = QHBoxLayout()
@@ -702,7 +731,22 @@ class ProteinViewerApp(QMainWindow):
         
         # Visualization Options
         vis_group = QGroupBox("Visualization Options")
+        vis_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         vis_layout = QVBoxLayout()
+        vis_layout.setContentsMargins(10, 15, 10, 10)  # Add extra top margin
+        vis_layout.setSpacing(8)
         
         # Representation
         rep_layout = QHBoxLayout()
@@ -778,6 +822,16 @@ class ProteinViewerApp(QMainWindow):
         
         # Add bioinformatics tab to main tabs
         self.main_tabs.addTab(bioinformatics_tab, "Bioinformatics")
+
+        # Create Plasmid Viewer tab - REMOVED
+        # from src.gui.plasmid_viewer import create_plasmid_viewer_tab
+        # plasmid_viewer_tab = create_plasmid_viewer_tab(self)
+        # self.main_tabs.addTab(plasmid_viewer_tab, "Plasmid Viewer")
+
+        # Create Picomol Plasmid Viewer tab
+        from src.gui.sequence_viewer import SequenceViewer
+        snapgene_tab = SequenceViewer(self)
+        self.main_tabs.addTab(snapgene_tab, "Picomol Plasmid Viewer (Beta)")
         
         # Create BLAST tab
         blast_tab = QWidget()
@@ -844,9 +898,30 @@ class ProteinViewerApp(QMainWindow):
             layout = QVBoxLayout(self)
             label = QLabel("<b>We value your feedback!</b><br>Describe any issues or suggestions below:")
             label.setWordWrap(True)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    color: #333;
+                    padding: 10px 0;
+                    line-height: 1.4;
+                }
+            """)
             layout.addWidget(label)
             self.text_edit = QTextEdit()
             self.text_edit.setPlaceholderText("Describe your bug, suggestion, or general feedback here...")
+            self.text_edit.setStyleSheet("""
+                QTextEdit {
+                    font-family: Arial, sans-serif;
+                    font-size: 13px;
+                    padding: 8px;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    background-color: #fff;
+                }
+                QTextEdit:focus {
+                    border: 2px solid #007acc;
+                }
+            """)
             layout.addWidget(self.text_edit)
 
             # GitHub Issues Button
@@ -855,7 +930,7 @@ class ProteinViewerApp(QMainWindow):
             github_button.clicked.connect(self.open_github_issues)
             layout.addWidget(github_button)
 
-            btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
             btn_box.accepted.connect(self.accept)
             btn_box.rejected.connect(self.reject)
             layout.addWidget(btn_box)
@@ -868,7 +943,7 @@ class ProteinViewerApp(QMainWindow):
     def show_feedback_dialog(self):
         import urllib.parse
         dlg = self.FeedbackDialog(self)
-        if dlg.exec_() == QDialog.Accepted:
+        if dlg.exec() == QDialog.DialogCode.Accepted:
             feedback = dlg.get_feedback()
             if feedback:
                 # Prepare GitHub new issue URL
@@ -883,18 +958,18 @@ class ProteinViewerApp(QMainWindow):
 
     def show_about_dialog(self):
         dlg = AboutDialog(self)
-        dlg.exec_()
+        dlg.exec()
     
     def show_welcome_dialog(self):
         """Show the welcome dialog."""
         dlg = WelcomeDialog(self)
-        dlg.exec_()
+        dlg.exec()
     
     def show_preferences_dialog(self):
         """Show the preferences dialog."""
         dlg = PreferencesDialog(self)
         dlg.preferences_applied.connect(self.apply_preferences)
-        dlg.exec_()
+        dlg.exec()
     
     def notify_structure_loaded(self, structure_id, structure_path):
         """Notify components that a new structure has been loaded.
@@ -918,7 +993,7 @@ class ProteinViewerApp(QMainWindow):
                     bio_tab = self.main_tabs.widget(i)
                     if hasattr(bio_tab, 'findChild'):
                         # Look for the structural analysis tab within the bioinformatics tab
-                        from PyQt5.QtWidgets import QTabWidget
+                        from PyQt6.QtWidgets import QTabWidget
                         bio_tabs = bio_tab.findChild(QTabWidget)
                         if bio_tabs:
                             for j in range(bio_tabs.count()):
@@ -1144,7 +1219,7 @@ class ProteinViewerApp(QMainWindow):
                 self.notify_structure_loaded(pdb_id, pdb_path)
                 
                 # Show summary of fetched data (non-blocking)
-                from PyQt5.QtCore import QTimer
+                from PyQt6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: self.show_fetch_summary(comprehensive_data))
                 
             except Exception as e:
@@ -1348,13 +1423,13 @@ class ProteinViewerApp(QMainWindow):
         summary_text += "\n\n✨ This comprehensive dataset includes experimental details, refinement statistics, crystal parameters, entity information, and much more!"
         
         # Show in a message box
-        from PyQt5.QtWidgets import QMessageBox, QTextEdit
+        from PyQt6.QtWidgets import QMessageBox, QTextEdit
         msg = QMessageBox(self)
         msg.setWindowTitle("🎉 Advanced Metadata Fetched Successfully")
         msg.setText(f"Successfully fetched comprehensive PDB data for {pdb_id}")
         msg.setDetailedText(summary_text)
-        msg.setIcon(QMessageBox.Information)
-        msg.exec_()
+        msg.setIcon(QMessageBox.Icon.Information)
+        msg.exec()
     
     def show_pdb_information(self):
         """Show comprehensive PDB information dialog."""
@@ -1387,7 +1462,7 @@ class ProteinViewerApp(QMainWindow):
     
     def show_comprehensive_pdb_dialog(self, comprehensive_data):
         """Show comprehensive PDB information in a dialog."""
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QDialogButtonBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QDialogButtonBox
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"PDB Information: {comprehensive_data['pdb_id']}")
@@ -1426,11 +1501,11 @@ class ProteinViewerApp(QMainWindow):
         layout.addWidget(tabs)
         
         # Button box
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
-        dialog.exec_()
+        dialog.exec()
     
     def format_pdb_summary(self, comprehensive_data):
         """Format PDB summary for display with comprehensive metadata."""
@@ -1687,7 +1762,7 @@ class ProteinViewerApp(QMainWindow):
     
     def show_basic_pdb_info_dialog(self, info):
         """Show basic PDB information dialog."""
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"PDB Information: {info['pdb_id']}")
@@ -1717,11 +1792,11 @@ class ProteinViewerApp(QMainWindow):
         browser.setHtml(html)
         layout.addWidget(browser)
         
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
-        dialog.exec_()
+        dialog.exec()
     
     def open_local_pdb(self, file_path=None):
         if not file_path:
@@ -1859,6 +1934,8 @@ class ProteinViewerApp(QMainWindow):
             font-family: Arial, sans-serif;
             font-size: 18px;
             color: #666;
+            text-align: center;
+            z-index: 1000;
         }}
     </style>
 </head>
@@ -2076,10 +2153,9 @@ class ProteinViewerApp(QMainWindow):
                         if representation != 'cartoon':  # Only change if different from default
                             self.web_view.page().runJavaScript(f"if (typeof setRepresentation === 'function') setRepresentation('{representation}');")
                 
-                # Use QTimer to delay the application of settings
-                from PyQt5.QtCore import QTimer
-                QTimer.singleShot(1000, apply_initial_settings)  # 1 second delay
-        
+                        # Use QTimer to delay the application of settings
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(1000, apply_initial_settings)  # 1 second delay        
         # Disconnect any existing signal handler first
         try:
             self.web_view.page().loadFinished.disconnect()
@@ -2205,14 +2281,22 @@ class ProteinViewerApp(QMainWindow):
 
 
 def main():
-    os.environ["QTWEBENGINE_REMOTE_DEBUGGING"] = "9222"
+    # Use dynamic DevTools port by default to avoid conflicts; override by setting QTWEBENGINE_REMOTE_DEBUGGING.
+    os.environ.setdefault("QTWEBENGINE_REMOTE_DEBUGGING", "0")
 
     # Suppress BiopythonParserWarning about missing HEADER line
     warnings.filterwarnings("ignore", message="'HEADER' line not found; can't determine PDB ID.", category=BiopythonParserWarning)
 
     app = QApplication(sys.argv)
 
-    settings = QWebEngineSettings.defaultSettings()
+    # Obtain web engine settings via a temporary web view's profile (PyQt6 exposes settings via page().settings())
+    try:
+        tmp_view = QWebEngineView()
+        settings = tmp_view.page().settings()
+        # no need to keep tmp_view
+        del tmp_view
+    except Exception:
+        settings = None
 
     # Use the project root directory for serving files
     project_root = os.path.dirname(os.path.abspath(__file__))
@@ -2227,7 +2311,7 @@ def main():
     viewer._server_thread = server_thread
     viewer.show()
 
-    exit_code = app.exec_()
+    exit_code = app.exec()
     server_thread.shutdown()
     sys.exit(exit_code)
 

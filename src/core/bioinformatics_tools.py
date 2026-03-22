@@ -14,15 +14,15 @@ This module provides various bioinformatics analysis tools including:
 import os
 import re
 from io import StringIO
-from PyQt5.QtWidgets import (
+from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QTabWidget, QGroupBox, QFormLayout,
     QTextEdit, QLineEdit, QPushButton, QLabel, QComboBox, QSpinBox,
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QMessageBox, QFileDialog, QProgressBar, QSplitter, QDialog, QDialogButtonBox,
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal
-from PyQt5.QtGui import QFont
+from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtGui import QFont
 
 # Import motif analysis module
 from .motif_analysis import create_motif_analysis_tab
@@ -79,10 +79,23 @@ class FastaSequence:
         header_parts = self.header.split('|')
         if len(header_parts) > 1:
             # Handle common formats like >gi|123456|ref|NP_123456.1|
-            return header_parts[-2] if header_parts[-1] == '' else header_parts[-1]
+            name = header_parts[-2] if header_parts[-1] == '' else header_parts[-1]
         else:
             # Simple header
-            return self.header[:50] + '...' if len(self.header) > 50 else self.header
+            name = self.header[:50] + '...' if len(self.header) > 50 else self.header
+        
+        # Clean up the display name
+        if len(name) > 50:
+            name = name[:47] + "..."  # Truncate long names
+        # Clean up common formatting issues
+        name = name.replace("_", " ").replace("-", " - ")
+        # Remove common prefixes like NP_, XP_, etc.
+        if '.' in name and any(prefix in name for prefix in ['NP_', 'XP_', 'YP_', 'ZP_']):
+            name = name.split('.')[0]
+        # Capitalize properly
+        name = ' '.join(word.capitalize() for word in name.split())
+        
+        return name
     
     def __str__(self):
         return f"{self.get_display_name()} ({self.sequence_type}, {self.length} residues)"
@@ -108,7 +121,7 @@ class SequenceSelectionDialog(QDialog):
         layout.addWidget(info_label)
         
         # Create splitter for list and preview
-        splitter = QSplitterWidget(Qt.Horizontal)
+        splitter = QSplitterWidget(Qt.Orientation.Horizontal)
         
         # Sequence list
         self.sequence_list = QListWidget()
@@ -116,7 +129,7 @@ class SequenceSelectionDialog(QDialog):
         
         for i, seq in enumerate(self.sequences):
             item = QListWidgetItem(str(seq))
-            item.setData(Qt.UserRole, i)  # Store index
+            item.setData(Qt.ItemDataRole.UserRole, i)  # Store index
             self.sequence_list.addItem(item)
         
         self.sequence_list.currentItemChanged.connect(self.on_selection_changed)
@@ -145,7 +158,7 @@ class SequenceSelectionDialog(QDialog):
         layout.addWidget(splitter)
         
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)
@@ -159,7 +172,7 @@ class SequenceSelectionDialog(QDialog):
         if current is None:
             return
         
-        index = current.data(Qt.UserRole)
+        index = current.data(Qt.ItemDataRole.UserRole)
         sequence = self.sequences[index]
         
         # Update preview
@@ -581,7 +594,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Input section
         input_group = QGroupBox("Sequence Input")
+        input_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         input_layout = QVBoxLayout(input_group)
+        input_layout.setContentsMargins(10, 15, 10, 10)
+        input_layout.setSpacing(8)
         
         # Sequence type selection
         type_layout = QHBoxLayout()
@@ -657,7 +685,7 @@ class SequenceAnalysisTab(QWidget):
             "</ul>"
             "<p><i>Tip: You can load sequences from the current structure or from FASTA files.</i></p>"
         )
-        placeholder.setAlignment(Qt.AlignTop)
+        placeholder.setAlignment(Qt.AlignmentFlag.AlignTop)
         placeholder.setWordWrap(True)
         placeholder.setStyleSheet("color: #666; padding: 20px;")
         
@@ -718,7 +746,7 @@ class SequenceAnalysisTab(QWidget):
                 else:
                     # Multiple sequences - show selection dialog
                     dialog = SequenceSelectionDialog(sequences, self)
-                    if dialog.exec_() != QDialog.Accepted:
+                    if dialog.exec() != QDialog.DialogCode.Accepted:
                         return
                     
                     selected_sequence = dialog.get_selected_sequence()
@@ -813,7 +841,7 @@ class SequenceAnalysisTab(QWidget):
                     else:
                         # Multiple sequences - show selection dialog
                         dialog = SequenceSelectionDialog(sequences, self)
-                        if dialog.exec_() == QDialog.Accepted:
+                        if dialog.exec() == QDialog.DialogCode.Accepted:
                             selected_seq = dialog.get_selected_sequence()
                             if selected_seq:
                                 return selected_seq.sequence, selected_seq.sequence_type
@@ -955,7 +983,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Basic properties
         basic_group = QGroupBox("Basic Properties")
+        basic_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         basic_layout = QFormLayout(basic_group)
+        basic_layout.setContentsMargins(10, 15, 10, 10)
+        basic_layout.setSpacing(8)
         
         basic_layout.addRow("Length:", QLabel(f"{results['length']} amino acids"))
         basic_layout.addRow("Molecular Weight:", QLabel(f"{results['molecular_weight']:.2f} Da"))
@@ -975,7 +1018,22 @@ class SequenceAnalysisTab(QWidget):
         # Charge at different pH (only if available)
         if 'charge_at_pH' in results:
             charge_group = QGroupBox("Charge at Different pH")
+            charge_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             charge_layout = QFormLayout(charge_group)
+            charge_layout.setContentsMargins(10, 15, 10, 10)
+            charge_layout.setSpacing(8)
             
             for ph, charge in results['charge_at_pH'].items():
                 charge_layout.addRow(f"{ph.replace('_', ' ')}:", QLabel(f"{charge:.2f}"))
@@ -985,7 +1043,22 @@ class SequenceAnalysisTab(QWidget):
         # Secondary structure (only if available)
         if 'secondary_structure' in results:
             ss_group = QGroupBox("Secondary Structure Prediction")
+            ss_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             ss_layout = QFormLayout(ss_group)
+            ss_layout.setContentsMargins(10, 15, 10, 10)
+            ss_layout.setSpacing(8)
             
             ss_fractions = results['secondary_structure']
             ss_layout.addRow("Helix:", QLabel(f"{ss_fractions[0]:.1%}"))
@@ -996,7 +1069,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Amino acid composition
         aa_group = QGroupBox("Amino Acid Composition")
+        aa_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         aa_layout = QVBoxLayout(aa_group)
+        aa_layout.setContentsMargins(10, 15, 10, 10)
+        aa_layout.setSpacing(8)
         
         aa_table = QTableWidget()
         aa_table.setColumnCount(3)
@@ -1029,7 +1117,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Basic properties
         basic_group = QGroupBox("Basic Properties")
+        basic_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         basic_layout = QFormLayout(basic_group)
+        basic_layout.setContentsMargins(10, 15, 10, 10)
+        basic_layout.setSpacing(8)
         
         basic_layout.addRow("Length:", QLabel(f"{results['length']} nucleotides"))
         if 'molecular_weight' in results:
@@ -1040,7 +1143,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Nucleotide composition
         comp_group = QGroupBox("Nucleotide Composition")
+        comp_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         comp_layout = QVBoxLayout(comp_group)
+        comp_layout.setContentsMargins(10, 15, 10, 10)
+        comp_layout.setSpacing(8)
         
         comp_table = QTableWidget()
         comp_table.setColumnCount(3)
@@ -1073,7 +1191,22 @@ class SequenceAnalysisTab(QWidget):
         
         # Complement sequences
         comp_seq_group = QGroupBox("Complement Sequences")
+        comp_seq_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         comp_seq_layout = QVBoxLayout(comp_seq_group)
+        comp_seq_layout.setContentsMargins(10, 15, 10, 10)
+        comp_seq_layout.setSpacing(8)
         
         complement_text = QTextEdit()
         complement_text.setMaximumHeight(100)
@@ -1089,7 +1222,22 @@ class SequenceAnalysisTab(QWidget):
         # Translation (for DNA/RNA)
         if sequence_type == "dna":
             trans_group = QGroupBox("Translation (All 6 Reading Frames)")
+            trans_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             trans_layout = QVBoxLayout(trans_group)
+            trans_layout.setContentsMargins(10, 15, 10, 10)
+            trans_layout.setSpacing(8)
             
             # Add translation note if present
             if 'translation_note' in results:
@@ -1114,7 +1262,22 @@ class SequenceAnalysisTab(QWidget):
         
         elif sequence_type == "rna":
             trans_group = QGroupBox("Translation")
+            trans_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             trans_layout = QVBoxLayout(trans_group)
+            trans_layout.setContentsMargins(10, 15, 10, 10)
+            trans_layout.setSpacing(8)
             
             # Add translation note if present
             if 'translation_note' in results:
@@ -1167,7 +1330,7 @@ def create_bioinformatics_tab(parent=None):
 if __name__ == "__main__":
     # Test the bioinformatics tools
     import sys
-    from PyQt5.QtWidgets import QApplication
+    from PyQt6.QtWidgets import QApplication
     
     app = QApplication(sys.argv)
     
@@ -1176,4 +1339,4 @@ if __name__ == "__main__":
     widget.resize(800, 600)
     widget.show()
     
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
