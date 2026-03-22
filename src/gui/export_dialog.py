@@ -78,7 +78,22 @@ class ExportDialog(QDialog):
         
         # Format selection
         format_group = QGroupBox("Export Format")
+        format_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         format_layout = QFormLayout(format_group)
+        format_layout.setContentsMargins(10, 15, 10, 10)
+        format_layout.setSpacing(8)
         
         self.format_combo = QComboBox()
         self.format_combo.addItems(["PNG (Raster)", "SVG (Vector)", "PDF (Vector)"])
@@ -88,7 +103,22 @@ class ExportDialog(QDialog):
         
         # View selection
         view_group = QGroupBox("View Type")
+        view_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         view_layout = QFormLayout(view_group)
+        view_layout.setContentsMargins(10, 15, 10, 10)
+        view_layout.setSpacing(8)
         
         self.view_combo = QComboBox()
         self.view_combo.addItems(["Circular Map", "Linear Map", "Both Views"])
@@ -98,7 +128,22 @@ class ExportDialog(QDialog):
         
         # Size and quality
         size_group = QGroupBox("Size and Quality")
+        size_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         size_layout = QFormLayout(size_group)
+        size_layout.setContentsMargins(10, 15, 10, 10)
+        size_layout.setSpacing(8)
         
         self.width_spin = QSpinBox()
         self.width_spin.setRange(400, 4000)
@@ -121,7 +166,22 @@ class ExportDialog(QDialog):
         
         # Elements to include
         elements_group = QGroupBox("Elements to Include")
+        elements_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         elements_layout = QVBoxLayout(elements_group)
+        elements_layout.setContentsMargins(10, 15, 10, 10)
+        elements_layout.setSpacing(8)
         
         self.include_features = QCheckBox("Features")
         self.include_features.setChecked(True)
@@ -155,7 +215,22 @@ class ExportDialog(QDialog):
         
         # Format selection
         format_group = QGroupBox("Sequence Format")
+        format_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         format_layout = QFormLayout(format_group)
+        format_layout.setContentsMargins(10, 15, 10, 10)
+        format_layout.setSpacing(8)
         
         self.seq_format_combo = QComboBox()
         self.seq_format_combo.addItems([
@@ -168,7 +243,22 @@ class ExportDialog(QDialog):
         
         # Sequence options
         seq_group = QGroupBox("Sequence Options")
+        seq_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         seq_layout = QVBoxLayout(seq_group)
+        seq_layout.setContentsMargins(10, 15, 10, 10)
+        seq_layout.setSpacing(8)
         
         self.include_complement_seq = QCheckBox("Include Complement Strand")
         seq_layout.addWidget(self.include_complement_seq)
@@ -187,7 +277,22 @@ class ExportDialog(QDialog):
         
         # Formatting options
         format_group = QGroupBox("Text Formatting")
+        format_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         format_layout = QFormLayout(format_group)
+        format_layout.setContentsMargins(10, 15, 10, 10)
+        format_layout.setSpacing(8)
         
         self.bases_per_line_spin = QSpinBox()
         self.bases_per_line_spin.setRange(20, 120)
@@ -210,7 +315,22 @@ class ExportDialog(QDialog):
         
         # Color customization
         color_group = QGroupBox("Color Customization")
+        color_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         color_layout = QFormLayout(color_group)
+        color_layout.setContentsMargins(10, 15, 10, 10)
+        color_layout.setSpacing(8)
         
         self.background_color = QColor(255, 255, 255)
         self.bg_color_button = QPushButton()
@@ -222,7 +342,22 @@ class ExportDialog(QDialog):
         
         # Font options
         font_group = QGroupBox("Font Options")
+        font_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         font_layout = QFormLayout(font_group)
+        font_layout.setContentsMargins(10, 15, 10, 10)
+        font_layout.setSpacing(8)
         
         self.font_size_spin = QSpinBox()
         self.font_size_spin.setRange(8, 24)
@@ -237,7 +372,22 @@ class ExportDialog(QDialog):
         
         # Metadata
         metadata_group = QGroupBox("Metadata")
+        metadata_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         metadata_layout = QVBoxLayout(metadata_group)
+        metadata_layout.setContentsMargins(10, 15, 10, 10)
+        metadata_layout.setSpacing(8)
         
         self.custom_title = QTextEdit()
         self.custom_title.setMaximumHeight(60)
@@ -357,7 +507,7 @@ class ExportDialog(QDialog):
         line_length = size.width() - 40
         
         # Draw backbone
-        painter.setPen(QPen(Qt.black, 2))
+        painter.setPen(QPen(Qt.GlobalColor.black, 2))
         painter.drawLine(20, y_center, 20 + line_length, y_center)
         
         # Draw features if enabled
@@ -419,7 +569,7 @@ class ExportDialog(QDialog):
         
         painter = QPainter(pixmap)
         painter.setFont(QFont("Consolas", 8))
-        painter.setPen(QPen(Qt.black))
+        painter.setPen(QPen(Qt.GlobalColor.black))
         
         # Show first few lines of sequence
         sequence = str(self.sequence_viewer.record.seq)
@@ -484,7 +634,7 @@ class ExportDialog(QDialog):
         
         # Show progress dialog
         progress = QProgressDialog("Exporting...", "Cancel", 0, 100, self)
-        progress.setWindowModality(Qt.WindowModal)
+        progress.setWindowModality(Qt.WindowModality.WindowModal)
         progress.show()
         
         try:

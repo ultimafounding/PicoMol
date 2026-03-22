@@ -39,7 +39,22 @@ class GibsonAssemblyDialog(QDialog):
         
         # Fragment list group
         fragment_group = QGroupBox("DNA Fragments")
+        fragment_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         fragment_layout = QVBoxLayout(fragment_group)
+        fragment_layout.setContentsMargins(10, 15, 10, 10)
+        fragment_layout.setSpacing(8)
         
         self.fragment_list = QListWidget()
         self.fragment_list.setToolTip("List of DNA fragments for assembly")
@@ -76,7 +91,22 @@ class GibsonAssemblyDialog(QDialog):
         
         # Assembly parameters
         params_group = QGroupBox("Assembly Parameters")
+        params_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         params_layout = QFormLayout(params_group)
+        params_layout.setContentsMargins(10, 15, 10, 10)
+        params_layout.setSpacing(8)
         
         self.overlap_length = QSpinBox()
         self.overlap_length.setRange(10, 100)
@@ -107,7 +137,22 @@ class GibsonAssemblyDialog(QDialog):
         
         # Fragment information
         info_group = QGroupBox("Fragment Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         info_layout = QVBoxLayout(info_group)
+        info_layout.setContentsMargins(10, 15, 10, 10)
+        info_layout.setSpacing(8)
         
         self.info_display = QTextEdit()
         self.info_display.setReadOnly(True)
@@ -119,7 +164,22 @@ class GibsonAssemblyDialog(QDialog):
         
         # Assembly preview
         preview_group = QGroupBox("Assembly Preview")
+        preview_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         preview_layout = QVBoxLayout(preview_group)
+        preview_layout.setContentsMargins(10, 15, 10, 10)
+        preview_layout.setSpacing(8)
         
         self.preview_display = QTextEdit()
         self.preview_display.setReadOnly(True)
@@ -163,11 +223,18 @@ class GibsonAssemblyDialog(QDialog):
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in ['.gb', '.gbk']:
                 record = SeqIO.read(file_path, "genbank")
+            elif file_ext in ['.fa', '.fasta', '.fas']:
+                record = SeqIO.read(file_path, "fasta")
             else:
+                # Try to auto-detect format
                 try:
                     record = SeqIO.read(file_path, "genbank")
                 except:
-                    record = SeqIO.read(file_path, "fasta")
+                    try:
+                        record = SeqIO.read(file_path, "fasta")
+                    except:
+                        QMessageBox.critical(self, "Error", f"Could not read file: {file_path}")
+                        return
             
             self.fragments.append(record)
             fragment_name = record.id or os.path.basename(file_path)

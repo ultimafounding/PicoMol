@@ -42,7 +42,22 @@ class RestrictionCloningDialog(QDialog):
         
         # File selection group
         file_group = QGroupBox("DNA Sequences")
+        file_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         form_layout = QFormLayout(file_group)
+        form_layout.setContentsMargins(10, 15, 10, 10)
+        form_layout.setSpacing(8)
 
         # Vector selection
         vector_layout = QHBoxLayout()
@@ -66,7 +81,22 @@ class RestrictionCloningDialog(QDialog):
         
         # Enzyme selection group
         enzyme_group = QGroupBox("Restriction Enzymes")
+        enzyme_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         enzyme_layout = QFormLayout(enzyme_group)
+        enzyme_layout.setContentsMargins(10, 15, 10, 10)
+        enzyme_layout.setSpacing(8)
         
         self.vector_enzyme_combo = QComboBox()
         self.vector_enzyme_combo.setToolTip("Choose enzyme to cut the vector")
@@ -83,7 +113,22 @@ class RestrictionCloningDialog(QDialog):
         
         # Fragment selection group
         fragment_group = QGroupBox("Fragment Selection")
+        fragment_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         fragment_layout = QVBoxLayout(fragment_group)
+        fragment_layout.setContentsMargins(10, 15, 10, 10)
+        fragment_layout.setSpacing(8)
         
         fragment_layout.addWidget(QLabel("Vector Fragments:"))
         self.vector_fragments_list = QListWidget()
@@ -112,7 +157,22 @@ class RestrictionCloningDialog(QDialog):
         
         # Results display
         results_group = QGroupBox("Cloning Information")
+        results_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         results_layout = QVBoxLayout(results_group)
+        results_layout.setContentsMargins(10, 15, 10, 10)
+        results_layout.setSpacing(8)
         
         self.info_display = QTextEdit()
         self.info_display.setReadOnly(True)
@@ -124,7 +184,22 @@ class RestrictionCloningDialog(QDialog):
         
         # Compatibility check
         compat_group = QGroupBox("Compatibility Analysis")
+        compat_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         compat_layout = QVBoxLayout(compat_group)
+        compat_layout.setContentsMargins(10, 15, 10, 10)
+        compat_layout.setSpacing(8)
         
         self.compatibility_display = QTextEdit()
         self.compatibility_display.setReadOnly(True)
@@ -165,14 +240,20 @@ class RestrictionCloningDialog(QDialog):
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in ['.gb', '.gbk']:
                 self.vector_record = SeqIO.read(file_path, "genbank")
+            elif file_ext in ['.fa', '.fasta', '.fas']:
+                self.vector_record = SeqIO.read(file_path, "fasta")
             else:
+                # Try to auto-detect format
                 try:
                     self.vector_record = SeqIO.read(file_path, "genbank")
                 except:
-                    self.vector_record = SeqIO.read(file_path, "fasta")
+                    try:
+                        self.vector_record = SeqIO.read(file_path, "fasta")
+                    except:
+                        QMessageBox.critical(self, "Error", f"Could not read vector file: {file_path}")
+                        return
             
-            vector_name = self.vector_record.id or os.path.basename(file_path)
-            self.vector_label.setText(f"Vector: {vector_name} ({len(self.vector_record.seq)} bp)")
+            self.vector_label.setText(f"Vector: {os.path.basename(file_path)}")
             self.populate_enzyme_combos()
             self.update_info_display()
             
@@ -193,11 +274,18 @@ class RestrictionCloningDialog(QDialog):
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in ['.gb', '.gbk']:
                 self.insert_record = SeqIO.read(file_path, "genbank")
+            elif file_ext in ['.fa', '.fasta', '.fas']:
+                self.insert_record = SeqIO.read(file_path, "fasta")
             else:
+                # Try to auto-detect format
                 try:
                     self.insert_record = SeqIO.read(file_path, "genbank")
                 except:
-                    self.insert_record = SeqIO.read(file_path, "fasta")
+                    try:
+                        self.insert_record = SeqIO.read(file_path, "fasta")
+                    except:
+                        QMessageBox.critical(self, "Error", f"Could not read insert file: {file_path}")
+                        return
             
             insert_name = self.insert_record.id or os.path.basename(file_path)
             self.insert_label.setText(f"Insert: {insert_name} ({len(self.insert_record.seq)} bp)")

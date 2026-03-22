@@ -142,7 +142,22 @@ class SequenceViewer(QWidget):
         
         # Sequence info
         info_group = QGroupBox("Sequence Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         info_layout = QVBoxLayout(info_group)
+        info_layout.setContentsMargins(10, 15, 10, 10)
+        info_layout.setSpacing(8)
         self.info_label = QLabel("No sequence loaded")
         self.info_label.setWordWrap(True)
         info_layout.addWidget(self.info_label)
@@ -150,7 +165,22 @@ class SequenceViewer(QWidget):
         
         # Feature list
         feature_group = QGroupBox("Features")
+        feature_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         feature_layout = QVBoxLayout(feature_group)
+        feature_layout.setContentsMargins(10, 15, 10, 10)
+        feature_layout.setSpacing(8)
         self.feature_list = QListWidget()
         self.feature_list.itemSelectionChanged.connect(self.highlight_feature)
         feature_layout.addWidget(self.feature_list)
@@ -173,7 +203,22 @@ class SequenceViewer(QWidget):
 
         # Translation view
         translation_group = QGroupBox("Translation")
+        translation_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         translation_layout = QVBoxLayout(translation_group)
+        translation_layout.setContentsMargins(10, 15, 10, 10)
+        translation_layout.setSpacing(8)
         self.translation_view = QTextEdit()
         self.translation_view.setReadOnly(True)
         self.translation_view.setMaximumHeight(120)
@@ -215,11 +260,41 @@ class SequenceViewer(QWidget):
         
         # Analysis tools
         tools_group = QGroupBox("Analysis Tools")
+        tools_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         tools_layout = QVBoxLayout(tools_group)
+        tools_layout.setContentsMargins(10, 15, 10, 10)
+        tools_layout.setSpacing(8)
         
         # Restriction analysis
         restriction_group = QGroupBox("Restriction Analysis")
+        restriction_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         restriction_layout = QFormLayout(restriction_group)
+        restriction_layout.setContentsMargins(10, 15, 10, 10)
+        restriction_layout.setSpacing(8)
         
         self.min_cuts_spin = QSpinBox()
         self.min_cuts_spin.setMinimum(0)
@@ -255,7 +330,22 @@ class SequenceViewer(QWidget):
         
         # Cloning tools
         cloning_group = QGroupBox("Molecular Cloning Tools")
+        cloning_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         cloning_layout = QVBoxLayout(cloning_group)
+        cloning_layout.setContentsMargins(10, 15, 10, 10)
+        cloning_layout.setSpacing(8)
         
         # Restriction cloning
         self.cloning_button = QPushButton("✂️ Restriction Cloning")
@@ -283,10 +373,25 @@ class SequenceViewer(QWidget):
         
         layout.addWidget(cloning_group)
         
-        # Enhanced tools if available
+            # Enhanced tools if available
         if ENHANCED_FEATURES_AVAILABLE:
             enhanced_group = QGroupBox("Enhanced Tools")
+            enhanced_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             enhanced_layout = QVBoxLayout(enhanced_group)
+            enhanced_layout.setContentsMargins(10, 15, 10, 10)
+            enhanced_layout.setSpacing(8)
             
             # Export tools
             export_button = QPushButton("📤 Export Maps & Sequences")
@@ -552,7 +657,7 @@ class SequenceViewer(QWidget):
         """Load a sequence file with improved error handling"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, "Open Sequence File", "", 
-            "GenBank Files (*.gb *.gbk);;FASTA Files (*.fa *.fasta);;SnapGene Files (*.dna);;All Files (*)"
+            "GenBank Files (*.gb *.gbk);;FASTA Files (*.fa *.fasta);;All Files (*)"
         )
         if not file_path:
             return
@@ -565,14 +670,6 @@ class SequenceViewer(QWidget):
                 record = SeqIO.read(file_path, "genbank")
             elif file_ext in ['.fa', '.fasta', '.fas']:
                 record = SeqIO.read(file_path, "fasta")
-            elif file_ext == '.dna':
-                # SnapGene files - try to read as GenBank first
-                try:
-                    record = SeqIO.read(file_path, "genbank")
-                except:
-                    QMessageBox.warning(self, "Unsupported Format", 
-                                       "SnapGene .dna files are not fully supported. Please export as GenBank or FASTA format.")
-                    return
             else:
                 # Try to auto-detect format
                 try:
@@ -746,7 +843,7 @@ class SequenceViewer(QWidget):
                         x2 = center_x + (radius + 8) * math.cos(rad_angle)
                         y2 = center_y + (radius + 8) * math.sin(rad_angle)
                         
-                        self.scene.addLine(x1, y1, x2, y2, QPen(Qt.darkRed, 2))
+                        self.scene.addLine(x1, y1, x2, y2, QPen(Qt.GlobalColor.darkRed, 2))
                         
                         # Add restriction cut arrow
                         self.add_circular_restriction_arrow(site, enzyme)
@@ -770,7 +867,7 @@ class SequenceViewer(QWidget):
                             
                             label_text = f"{str(enzyme)}{cut_info}"
                             label = self.scene.addText(label_text, QFont("Arial", 6))
-                            label.setDefaultTextColor(Qt.darkRed)
+                            label.setDefaultTextColor(Qt.GlobalColor.darkRed)
                             label_x = center_x + (radius + 20) * math.cos(rad_angle)
                             label_y = center_y + (radius + 20) * math.sin(rad_angle)
                             label.setPos(label_x - 15, label_y - 8)
@@ -798,7 +895,7 @@ class SequenceViewer(QWidget):
         scaled_len = plasmid_len * scale_factor
         
         # Draw main sequence line
-        self.scene.addLine(0, 0, scaled_len, 0, QPen(Qt.black, 4))
+        self.scene.addLine(0, 0, scaled_len, 0, QPen(Qt.GlobalColor.black, 4))
 
         # Draw features
         self.feature_items.clear()
@@ -844,7 +941,7 @@ class SequenceViewer(QWidget):
                 for enzyme, sites in analysis.items():
                     for site in sites:
                         scaled_site = site * scale_factor
-                        self.scene.addLine(scaled_site, -30, scaled_site, 30, QPen(Qt.darkRed, 2))
+                        self.scene.addLine(scaled_site, -30, scaled_site, 30, QPen(Qt.GlobalColor.darkRed, 2))
                         
                         # Add restriction cut arrow
                         self.add_linear_restriction_arrow(site, enzyme)
@@ -868,7 +965,7 @@ class SequenceViewer(QWidget):
                             label_text = str(enzyme)
                         
                         label = self.scene.addText(label_text, QFont("Arial", 6))
-                        label.setDefaultTextColor(Qt.darkRed)
+                        label.setDefaultTextColor(Qt.GlobalColor.darkRed)
                         label.setPos(scaled_site - 20, 35)
             except Exception as e:
                 print(f"Error drawing restriction sites: {e}")
@@ -1187,7 +1284,7 @@ class SequenceViewer(QWidget):
             
             arrow_polygon = QPolygonF(arrow_points)
             arrow_item = self.scene.addPolygon(arrow_polygon, 
-                                             QPen(Qt.darkRed, 1), 
+                                             QPen(Qt.GlobalColor.darkRed, 1), 
                                              QBrush(QColor(200, 50, 50, 120)))  # More transparent
             
         except Exception as e:
@@ -1214,7 +1311,7 @@ class SequenceViewer(QWidget):
             
             arrow_polygon = QPolygonF(arrow_points)
             arrow_item = self.scene.addPolygon(arrow_polygon, 
-                                             QPen(Qt.darkRed, 1), 
+                                             QPen(Qt.GlobalColor.darkRed, 1), 
                                              QBrush(QColor(200, 50, 50, 120)))  # More transparent
             
         except Exception as e:

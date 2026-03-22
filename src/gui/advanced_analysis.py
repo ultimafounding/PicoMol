@@ -2,7 +2,8 @@ from PyQt6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QLabel, QPushBut
                              QComboBox, QSpinBox, QCheckBox, QGroupBox, QFormLayout,
                              QTabWidget, QWidget, QTextEdit, QTableWidget, QTableWidgetItem,
                              QHeaderView, QProgressDialog, QMessageBox, QSlider,
-                             QSplitter, QListWidget, QListWidgetItem, QLineEdit)
+                             QSplitter, QListWidget, QListWidgetItem, QLineEdit,
+                             QAbstractItemView)
 from PyQt6.QtGui import QFont, QColor, QPainter, QPen, QBrush
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer
 from Bio.Seq import Seq
@@ -58,7 +59,22 @@ class ORFAnalysisWidget(QWidget):
         
         # Parameters
         params_group = QGroupBox("ORF Parameters")
+        params_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         params_layout = QFormLayout(params_group)
+        params_layout.setContentsMargins(10, 15, 10, 10)
+        params_layout.setSpacing(8)
         
         self.min_length_spin = QSpinBox()
         self.min_length_spin.setRange(30, 3000)
@@ -242,7 +258,22 @@ class PrimerDesignWidget(QWidget):
         
         # Target region
         target_group = QGroupBox("Target Region")
+        target_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         target_layout = QFormLayout(target_group)
+        target_layout.setContentsMargins(10, 15, 10, 10)
+        target_layout.setSpacing(8)
         
         self.start_spin = QSpinBox()
         self.start_spin.setRange(1, 10000)
@@ -266,7 +297,22 @@ class PrimerDesignWidget(QWidget):
         
         # Primer parameters
         params_group = QGroupBox("Primer Parameters")
+        params_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         params_layout = QFormLayout(params_group)
+        params_layout.setContentsMargins(10, 15, 10, 10)
+        params_layout.setSpacing(8)
         
         self.primer_length_spin = QSpinBox()
         self.primer_length_spin.setRange(15, 35)
@@ -320,7 +366,22 @@ class PrimerDesignWidget(QWidget):
         
         # Results
         results_group = QGroupBox("Primer Results")
+        results_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         results_layout = QVBoxLayout(results_group)
+        results_layout.setContentsMargins(10, 15, 10, 10)
+        results_layout.setSpacing(8)
         
         self.results_table = QTableWidget()
         self.results_table.setColumnCount(7)
@@ -329,7 +390,7 @@ class PrimerDesignWidget(QWidget):
         ])
         self.results_table.horizontalHeader().setStretchLastSection(True)
         self.results_table.setAlternatingRowColors(True)
-        self.results_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.results_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         results_layout.addWidget(self.results_table)
         
         # Add primer pair analysis
@@ -982,7 +1043,22 @@ class SequenceComparisonWidget(QWidget):
         
         # Sequence inputs
         input_group = QGroupBox("Sequences to Compare")
+        input_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         input_layout = QVBoxLayout(input_group)
+        input_layout.setContentsMargins(10, 15, 10, 10)
+        input_layout.setSpacing(8)
         
         # Sequence 1
         seq1_layout = QHBoxLayout()
@@ -1010,7 +1086,22 @@ class SequenceComparisonWidget(QWidget):
         
         # Comparison options
         options_group = QGroupBox("Comparison Options")
+        options_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         options_layout = QFormLayout(options_group)
+        options_layout.setContentsMargins(10, 15, 10, 10)
+        options_layout.setSpacing(8)
         
         self.comparison_type = QComboBox()
         self.comparison_type.addItems(["Global Alignment", "Local Alignment", "Dot Plot", "Identity Analysis"])

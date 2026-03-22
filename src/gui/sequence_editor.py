@@ -34,7 +34,22 @@ class FeatureEditor(QDialog):
         
         # Basic information
         basic_group = QGroupBox("Basic Information")
+        basic_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         basic_layout = QFormLayout(basic_group)
+        basic_layout.setContentsMargins(10, 15, 10, 10)
+        basic_layout.setSpacing(8)
         
         self.type_combo = QComboBox()
         self.type_combo.addItems([
@@ -56,7 +71,22 @@ class FeatureEditor(QDialog):
         
         # Location
         location_group = QGroupBox("Location")
+        location_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         location_layout = QFormLayout(location_group)
+        location_layout.setContentsMargins(10, 15, 10, 10)
+        location_layout.setSpacing(8)
         
         self.start_spin = QSpinBox()
         self.start_spin.setRange(1, self.sequence_length or 10000)
@@ -74,7 +104,22 @@ class FeatureEditor(QDialog):
         
         # Additional qualifiers
         qualifiers_group = QGroupBox("Additional Qualifiers")
+        qualifiers_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         qualifiers_layout = QVBoxLayout(qualifiers_group)
+        qualifiers_layout.setContentsMargins(10, 15, 10, 10)
+        qualifiers_layout.setSpacing(8)
         
         self.qualifiers_table = QTableWidget(0, 2)
         self.qualifiers_table.setHorizontalHeaderLabels(["Qualifier", "Value"])
@@ -266,7 +311,22 @@ class SequenceEditor(QDialog):
         
         # Sequence info
         info_group = QGroupBox("Sequence Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         info_layout = QFormLayout(info_group)
+        info_layout.setContentsMargins(10, 15, 10, 10)
+        info_layout.setSpacing(8)
         
         self.name_edit = QLineEdit()
         info_layout.addRow("Name:", self.name_edit)
@@ -281,7 +341,22 @@ class SequenceEditor(QDialog):
         
         # Sequence editor
         seq_group = QGroupBox("Sequence")
+        seq_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         seq_layout = QVBoxLayout(seq_group)
+        seq_layout.setContentsMargins(10, 15, 10, 10)
+        seq_layout.setSpacing(8)
         
         self.sequence_edit = QTextEdit()
         self.sequence_edit.setFont(QFont("Consolas", 11))
@@ -313,7 +388,22 @@ class SequenceEditor(QDialog):
         right_layout = QVBoxLayout(right_panel)
         
         features_group = QGroupBox("Features")
+        features_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         features_layout = QVBoxLayout(features_group)
+        features_layout.setContentsMargins(10, 15, 10, 10)
+        features_layout.setSpacing(8)
         
         self.features_list = QListWidget()
         self.features_list.itemDoubleClicked.connect(self.edit_selected_feature)
@@ -341,7 +431,22 @@ class SequenceEditor(QDialog):
         
         # Feature details
         details_group = QGroupBox("Feature Details")
+        details_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         details_layout = QVBoxLayout(details_group)
+        details_layout.setContentsMargins(10, 15, 10, 10)
+        details_layout.setSpacing(8)
         
         self.feature_details = QTextEdit()
         self.feature_details.setReadOnly(True)
@@ -403,7 +508,7 @@ class SequenceEditor(QDialog):
             display_text = f"{feature.type}: {label} [{location_str}] ({strand_str})"
             
             item = QListWidgetItem(display_text)
-            item.setData(Qt.UserRole, i)  # Store feature index
+            item.setData(Qt.ItemDataRole.UserRole, i)  # Store feature index
             self.features_list.addItem(item)
     
     def on_sequence_changed(self):
@@ -487,12 +592,12 @@ class SequenceEditor(QDialog):
         document = self.sequence_edit.document()
         
         # Clear previous highlights
-        cursor.select(QTextCursor.Document)
+        cursor.select(QTextCursor.SelectionType.Document)
         format = QTextCharFormat()
         cursor.setCharFormat(format)
         
         # Find and highlight
-        cursor.movePosition(QTextCursor.Start)
+        cursor.movePosition(QTextCursor.MoveOperation.Start)
         color = QColor(255, 255, 0)  # Yellow highlight
         
         while True:
@@ -525,7 +630,7 @@ class SequenceEditor(QDialog):
         if not current_item or not self.record:
             return
         
-        feature_index = current_item.data(Qt.UserRole)
+        feature_index = current_item.data(Qt.ItemDataRole.UserRole)
         if feature_index is None or feature_index >= len(self.record.features):
             return
         
@@ -545,7 +650,7 @@ class SequenceEditor(QDialog):
         if not current_item or not self.record:
             return
         
-        feature_index = current_item.data(Qt.UserRole)
+        feature_index = current_item.data(Qt.ItemDataRole.UserRole)
         if feature_index is None or feature_index >= len(self.record.features):
             return
         
@@ -567,7 +672,7 @@ class SequenceEditor(QDialog):
             self.feature_details.clear()
             return
         
-        feature_index = current_item.data(Qt.UserRole)
+        feature_index = current_item.data(Qt.ItemDataRole.UserRole)
         if feature_index is None or feature_index >= len(self.record.features):
             return
         

@@ -106,7 +106,7 @@ class SequenceTextView(QPlainTextEdit):
                 char_format = self.create_char_format(color)
                 
                 cursor.setPosition(feature.location.start)
-                cursor.setPosition(feature.location.end, QTextCursor.KeepAnchor)
+                cursor.setPosition(feature.location.end, QTextCursor.MoveMode.KeepAnchor)
                 cursor.setCharFormat(char_format)
 
     def create_char_format(self, color):
@@ -307,7 +307,7 @@ class SequenceTextView(QPlainTextEdit):
                         end_pos = current_pos + match.end()
                         
                         cursor.setPosition(start_pos)
-                        cursor.setPosition(end_pos, QTextCursor.KeepAnchor)
+                        cursor.setPosition(end_pos, QTextCursor.MoveMode.KeepAnchor)
                         cursor.setCharFormat(enzyme_format)
                 
                 elif any(c in 'ATCG' for c in line):  # This is a sequence line
@@ -329,7 +329,7 @@ class SequenceTextView(QPlainTextEdit):
                             base_format.setFontWeight(QFont.Weight.Bold)
                             
                             cursor.setPosition(char_pos)
-                            cursor.setPosition(char_pos + 1, QTextCursor.KeepAnchor)
+                            cursor.setPosition(char_pos + 1, QTextCursor.MoveMode.KeepAnchor)
                             cursor.setCharFormat(base_format)
                 
                 current_pos += len(line) + 1  # +1 for newline

@@ -119,7 +119,22 @@ class SnapGeneSequenceView(QWidget):
         
         # Sequence info
         info_group = QGroupBox("Sequence Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         info_form = QFormLayout(info_group)
+        info_form.setContentsMargins(10, 15, 10, 10)
+        info_form.setSpacing(8)
         
         self.name_label = QLabel("-")
         self.length_label = QLabel("-")
@@ -135,7 +150,22 @@ class SnapGeneSequenceView(QWidget):
         
         # Position info
         pos_group = QGroupBox("Current Position")
+        pos_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         pos_form = QFormLayout(pos_group)
+        pos_form.setContentsMargins(10, 15, 10, 10)
+        pos_form.setSpacing(8)
         
         self.position_label = QLabel("0")
         self.base_label = QLabel("-")
@@ -147,6 +177,19 @@ class SnapGeneSequenceView(QWidget):
         
         # Enzyme info (only show if enzymes are enabled)
         self.enzyme_group = QGroupBox("Restriction Enzymes")
+        self.enzyme_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         self.enzyme_list = QLabel("Enable enzymes to see cut sites")
         self.enzyme_list.setWordWrap(True)
         self.enzyme_list.setStyleSheet("font-size: 10px;")

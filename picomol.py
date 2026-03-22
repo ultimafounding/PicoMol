@@ -192,8 +192,8 @@ class AboutDialog(QDialog):
         )
         about_text.setWordWrap(True)
         about_text.setOpenExternalLinks(True)
-        about_text.setTextFormat(Qt.RichText)
-        about_text.setTextInteractionFlags(Qt.TextBrowserInteraction)
+        about_text.setTextFormat(Qt.TextFormat.RichText)
+        about_text.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         
         layout.addWidget(about_text)
         
@@ -205,7 +205,7 @@ class AboutDialog(QDialog):
         main_layout.addWidget(scroll)
         
         # Add OK button at the bottom
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(self.accept)
         main_layout.addWidget(button_box)
 
@@ -441,7 +441,7 @@ class ProteinViewerApp(QMainWindow):
             toggle_btn.clicked.connect(toggle)
             layout.addWidget(toggle_btn)
             layout.addWidget(details_box)
-        btn_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         btn_box.accepted.connect(dlg.accept)
         layout.addWidget(btn_box)
         dlg.exec()
@@ -647,13 +647,20 @@ class ProteinViewerApp(QMainWindow):
         self.sequence_display.setPlaceholderText("Sequence will appear here when a structure is loaded...")
         self.sequence_display.setStyleSheet("""
             QTextEdit {
-                font-family: monospace;
+                font-family: 'Courier New', 'Monaco', 'Menlo', monospace;
                 background-color: #f8f9fa;
                 border: 1px solid #dee2e6;
                 border-radius: 4px;
-                padding: 8px;
+                padding: 10px;
                 margin: 5px;
-                font-size: 12px;
+                font-size: 13px;
+                line-height: 1.4;
+                color: #333;
+                selection-background-color: #007acc;
+            }
+            QTextEdit:focus {
+                border: 2px solid #007acc;
+                outline: none;
             }
         """)
         visualization_layout.addWidget(self.sequence_display)
@@ -671,7 +678,22 @@ class ProteinViewerApp(QMainWindow):
         
         # PDB Input Section
         pdb_group = QGroupBox("PDB Input")
+        pdb_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         pdb_layout = QVBoxLayout()
+        pdb_layout.setContentsMargins(10, 15, 10, 10)
+        pdb_layout.setSpacing(8)
         
         # PDB ID Input
         pdb_id_layout = QHBoxLayout()
@@ -710,7 +732,22 @@ class ProteinViewerApp(QMainWindow):
         
         # Visualization Options
         vis_group = QGroupBox("Visualization Options")
+        vis_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         vis_layout = QVBoxLayout()
+        vis_layout.setContentsMargins(10, 15, 10, 10)  # Add extra top margin
+        vis_layout.setSpacing(8)
         
         # Representation
         rep_layout = QHBoxLayout()
@@ -862,9 +899,30 @@ class ProteinViewerApp(QMainWindow):
             layout = QVBoxLayout(self)
             label = QLabel("<b>We value your feedback!</b><br>Describe any issues or suggestions below:")
             label.setWordWrap(True)
+            label.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    color: #333;
+                    padding: 10px 0;
+                    line-height: 1.4;
+                }
+            """)
             layout.addWidget(label)
             self.text_edit = QTextEdit()
             self.text_edit.setPlaceholderText("Describe your bug, suggestion, or general feedback here...")
+            self.text_edit.setStyleSheet("""
+                QTextEdit {
+                    font-family: Arial, sans-serif;
+                    font-size: 13px;
+                    padding: 8px;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    background-color: #fff;
+                }
+                QTextEdit:focus {
+                    border: 2px solid #007acc;
+                }
+            """)
             layout.addWidget(self.text_edit)
 
             # GitHub Issues Button
@@ -873,7 +931,7 @@ class ProteinViewerApp(QMainWindow):
             github_button.clicked.connect(self.open_github_issues)
             layout.addWidget(github_button)
 
-            btn_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            btn_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
             btn_box.accepted.connect(self.accept)
             btn_box.rejected.connect(self.reject)
             layout.addWidget(btn_box)
@@ -936,7 +994,7 @@ class ProteinViewerApp(QMainWindow):
                     bio_tab = self.main_tabs.widget(i)
                     if hasattr(bio_tab, 'findChild'):
                         # Look for the structural analysis tab within the bioinformatics tab
-                        from PyQt5.QtWidgets import QTabWidget
+                        from PyQt6.QtWidgets import QTabWidget
                         bio_tabs = bio_tab.findChild(QTabWidget)
                         if bio_tabs:
                             for j in range(bio_tabs.count()):
@@ -1162,7 +1220,7 @@ class ProteinViewerApp(QMainWindow):
                 self.notify_structure_loaded(pdb_id, pdb_path)
                 
                 # Show summary of fetched data (non-blocking)
-                from PyQt5.QtCore import QTimer
+                from PyQt6.QtCore import QTimer
                 QTimer.singleShot(100, lambda: self.show_fetch_summary(comprehensive_data))
                 
             except Exception as e:
@@ -1366,12 +1424,12 @@ class ProteinViewerApp(QMainWindow):
         summary_text += "\n\n✨ This comprehensive dataset includes experimental details, refinement statistics, crystal parameters, entity information, and much more!"
         
         # Show in a message box
-        from PyQt5.QtWidgets import QMessageBox, QTextEdit
+        from PyQt6.QtWidgets import QMessageBox, QTextEdit
         msg = QMessageBox(self)
         msg.setWindowTitle("🎉 Advanced Metadata Fetched Successfully")
         msg.setText(f"Successfully fetched comprehensive PDB data for {pdb_id}")
         msg.setDetailedText(summary_text)
-        msg.setIcon(QMessageBox.Information)
+        msg.setIcon(QMessageBox.Icon.Information)
         msg.exec()
     
     def show_pdb_information(self):
@@ -1405,7 +1463,7 @@ class ProteinViewerApp(QMainWindow):
     
     def show_comprehensive_pdb_dialog(self, comprehensive_data):
         """Show comprehensive PDB information in a dialog."""
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QDialogButtonBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTabWidget, QTextBrowser, QDialogButtonBox
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"PDB Information: {comprehensive_data['pdb_id']}")
@@ -1444,7 +1502,7 @@ class ProteinViewerApp(QMainWindow):
         layout.addWidget(tabs)
         
         # Button box
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
@@ -1705,7 +1763,7 @@ class ProteinViewerApp(QMainWindow):
     
     def show_basic_pdb_info_dialog(self, info):
         """Show basic PDB information dialog."""
-        from PyQt5.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
+        from PyQt6.QtWidgets import QDialog, QVBoxLayout, QTextBrowser, QDialogButtonBox
         
         dialog = QDialog(self)
         dialog.setWindowTitle(f"PDB Information: {info['pdb_id']}")
@@ -1735,7 +1793,7 @@ class ProteinViewerApp(QMainWindow):
         browser.setHtml(html)
         layout.addWidget(browser)
         
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
         button_box.accepted.connect(dialog.accept)
         layout.addWidget(button_box)
         
@@ -1877,6 +1935,8 @@ class ProteinViewerApp(QMainWindow):
             font-family: Arial, sans-serif;
             font-size: 18px;
             color: #666;
+            text-align: center;
+            z-index: 1000;
         }}
     </style>
 </head>
@@ -2094,10 +2154,9 @@ class ProteinViewerApp(QMainWindow):
                         if representation != 'cartoon':  # Only change if different from default
                             self.web_view.page().runJavaScript(f"if (typeof setRepresentation === 'function') setRepresentation('{representation}');")
                 
-                # Use QTimer to delay the application of settings
-                from PyQt5.QtCore import QTimer
-                QTimer.singleShot(1000, apply_initial_settings)  # 1 second delay
-        
+                        # Use QTimer to delay the application of settings
+                        from PyQt6.QtCore import QTimer
+                        QTimer.singleShot(1000, apply_initial_settings)  # 1 second delay        
         # Disconnect any existing signal handler first
         try:
             self.web_view.page().loadFinished.disconnect()

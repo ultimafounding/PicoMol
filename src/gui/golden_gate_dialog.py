@@ -41,7 +41,22 @@ class GoldenGateDialog(QDialog):
         
         # Destination vector group
         vector_group = QGroupBox("Destination Vector")
+        vector_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         vector_layout = QVBoxLayout(vector_group)
+        vector_layout.setContentsMargins(10, 15, 10, 10)
+        vector_layout.setSpacing(8)
         
         self.vector_label = QLabel("Destination Vector: None selected")
         self.vector_label.setWordWrap(True)
@@ -58,7 +73,22 @@ class GoldenGateDialog(QDialog):
         
         # Assembly parameters
         params_group = QGroupBox("Assembly Parameters")
+        params_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         params_layout = QFormLayout(params_group)
+        params_layout.setContentsMargins(10, 15, 10, 10)
+        params_layout.setSpacing(8)
         
         # Type IIS enzyme selection
         self.enzyme_combo = QComboBox()
@@ -76,7 +106,22 @@ class GoldenGateDialog(QDialog):
         
         # Fragment list group
         fragment_group = QGroupBox("DNA Fragments")
+        fragment_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         fragment_layout = QVBoxLayout(fragment_group)
+        fragment_layout.setContentsMargins(10, 15, 10, 10)
+        fragment_layout.setSpacing(8)
         
         self.fragment_list = QListWidget()
         self.fragment_list.setToolTip("List of DNA fragments for Golden Gate assembly")
@@ -114,7 +159,22 @@ class GoldenGateDialog(QDialog):
         
         # Vector information
         vector_info_group = QGroupBox("Vector Information")
+        vector_info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         vector_info_layout = QVBoxLayout(vector_info_group)
+        vector_info_layout.setContentsMargins(10, 15, 10, 10)
+        vector_info_layout.setSpacing(8)
         
         self.vector_info_display = QTextEdit()
         self.vector_info_display.setReadOnly(True)
@@ -126,7 +186,22 @@ class GoldenGateDialog(QDialog):
         
         # Fragment information
         fragment_info_group = QGroupBox("Fragment Information")
+        fragment_info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         fragment_info_layout = QVBoxLayout(fragment_info_group)
+        fragment_info_layout.setContentsMargins(10, 15, 10, 10)
+        fragment_info_layout.setSpacing(8)
         
         self.fragment_info_display = QTextEdit()
         self.fragment_info_display.setReadOnly(True)
@@ -138,7 +213,22 @@ class GoldenGateDialog(QDialog):
         
         # Assembly preview
         preview_group = QGroupBox("Assembly Preview")
+        preview_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         preview_layout = QVBoxLayout(preview_group)
+        preview_layout.setContentsMargins(10, 15, 10, 10)
+        preview_layout.setSpacing(8)
         
         self.preview_display = QTextEdit()
         self.preview_display.setReadOnly(True)
@@ -167,12 +257,11 @@ class GoldenGateDialog(QDialog):
         
         # Connect selection change
         self.fragment_list.itemSelectionChanged.connect(self.update_button_states)
-        self.enzyme_combo.currentTextChanged.connect(self.update_preview)
 
     def select_vector(self):
         """Select destination vector file"""
         file_path, _ = QFileDialog.getOpenFileName(
-            self, "Select Destination Vector File", "", 
+            self, "Select Destination Vector", "", 
             "GenBank Files (*.gb *.gbk);;FASTA Files (*.fa *.fasta);;All Files (*)"
         )
         if not file_path:
@@ -183,21 +272,27 @@ class GoldenGateDialog(QDialog):
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in ['.gb', '.gbk']:
                 self.destination_vector = SeqIO.read(file_path, "genbank")
+            elif file_ext in ['.fa', '.fasta', '.fas']:
+                self.destination_vector = SeqIO.read(file_path, "fasta")
             else:
+                # Try to auto-detect format
                 try:
                     self.destination_vector = SeqIO.read(file_path, "genbank")
                 except:
-                    self.destination_vector = SeqIO.read(file_path, "fasta")
+                    try:
+                        self.destination_vector = SeqIO.read(file_path, "fasta")
+                    except:
+                        QMessageBox.critical(self, "Error", f"Could not read vector file: {file_path}")
+                        return
             
             vector_name = self.destination_vector.id or os.path.basename(file_path)
             self.vector_label.setText(f"Destination Vector: {vector_name} ({len(self.destination_vector.seq)} bp)")
-            
             self.update_vector_info()
-            self.update_assembly_status()
             self.update_preview()
+            self.assemble_button.setEnabled(True)
             
         except Exception as e:
-            QMessageBox.critical(self, "Error", f"Error loading destination vector: {str(e)}")
+            QMessageBox.critical(self, "Error", f"Error loading vector file: {str(e)}")
 
     def add_fragment(self):
         """Add a DNA fragment from file"""
@@ -213,11 +308,18 @@ class GoldenGateDialog(QDialog):
             file_ext = os.path.splitext(file_path)[1].lower()
             if file_ext in ['.gb', '.gbk']:
                 record = SeqIO.read(file_path, "genbank")
+            elif file_ext in ['.fa', '.fasta', '.fas']:
+                record = SeqIO.read(file_path, "fasta")
             else:
+                # Try to auto-detect format
                 try:
                     record = SeqIO.read(file_path, "genbank")
                 except:
-                    record = SeqIO.read(file_path, "fasta")
+                    try:
+                        record = SeqIO.read(file_path, "fasta")
+                    except:
+                        QMessageBox.critical(self, "Error", f"Could not read fragment file: {file_path}")
+                        return
             
             self.fragments.append(record)
             fragment_name = record.id or os.path.basename(file_path)

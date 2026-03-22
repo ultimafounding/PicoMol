@@ -23,7 +23,7 @@ from PyQt6.QtWidgets import (
     QCheckBox, QTableWidget, QTableWidgetItem, QHeaderView, QScrollArea,
     QMessageBox, QFileDialog, QProgressBar, QSplitter, QDialog, QDialogButtonBox,
     QListWidget, QListWidgetItem, QSplitter as QSplitterWidget, QFrame,
-    QGridLayout, QTextBrowser, QApplication
+    QGridLayout, QTextBrowser, QApplication, QAbstractItemView
 )
 from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QUrl
 from PyQt6.QtGui import QFont, QPixmap, QPainter, QPen, QBrush, QColor, QDesktopServices
@@ -1193,7 +1193,7 @@ class DomainVisualizationWidget(QWidget):
         
         # Draw title
         painter.setPen(QPen(QColor(0, 0, 0)))
-        painter.setFont(QFont("Arial", 14, QFont.Bold))
+        painter.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         title_text = f"Protein Sequence Visualization ({self.sequence_length} amino acids)"
         painter.drawText(margin, margin - 25, title_text)
         
@@ -1427,7 +1427,7 @@ class DomainVisualizationWidget(QWidget):
         domain_name = domain.get('name', 'Domain')
         
         # Use large, readable font
-        painter.setFont(QFont("Arial", 12, QFont.Bold))
+        painter.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         
         # Get EXACT text dimensions
         metrics = painter.fontMetrics()
@@ -1485,7 +1485,7 @@ class DomainVisualizationWidget(QWidget):
         domain_name = domain.get('name', 'Domain')
         
         # Use large, readable font
-        painter.setFont(QFont("Arial", 12, QFont.Bold))
+        painter.setFont(QFont("Arial", 12, QFont.Weight.Bold))
         
         # Get EXACT text dimensions
         metrics = painter.fontMetrics()
@@ -1554,7 +1554,7 @@ class DomainVisualizationWidget(QWidget):
         motif_name = motif.get('name', 'Motif')
         
         # Use large, readable font
-        painter.setFont(QFont("Arial", 11, QFont.Bold))
+        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         
         # Get EXACT text dimensions
         metrics = painter.fontMetrics()
@@ -1612,7 +1612,7 @@ class DomainVisualizationWidget(QWidget):
         motif_name = motif.get('name', 'Motif')
         
         # Use large, readable font
-        painter.setFont(QFont("Arial", 11, QFont.Bold))
+        painter.setFont(QFont("Arial", 11, QFont.Weight.Bold))
         
         # Get EXACT text dimensions
         metrics = painter.fontMetrics()
@@ -1851,7 +1851,22 @@ class MotifAnalysisTab(QWidget):
         
         # Input section
         input_group = QGroupBox("Sequence Input")
+        input_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         input_layout = QVBoxLayout(input_group)
+        input_layout.setContentsMargins(10, 15, 10, 10)
+        input_layout.setSpacing(8)
         
         # Sequence input controls
         controls_layout = QHBoxLayout()
@@ -2228,14 +2243,14 @@ class MotifAnalysisTab(QWidget):
                 preview = sequence
             
             item = QListWidgetItem(f"{item_text}\n{preview}")
-            item.setData(Qt.UserRole, (seq_id, sequence))  # Store sequence data
+            item.setData(Qt.ItemDataRole.UserRole, (seq_id, sequence))  # Store sequence data
             sequence_list.addItem(item)
         
         sequence_list.setCurrentRow(0)  # Select first item by default
         layout.addWidget(sequence_list)
         
         # Buttons
-        button_box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(dialog.accept)
         button_box.rejected.connect(dialog.reject)
         layout.addWidget(button_box)
@@ -2244,7 +2259,7 @@ class MotifAnalysisTab(QWidget):
         if dialog.exec() == QDialog.DialogCode.Accepted:
             current_item = sequence_list.currentItem()
             if current_item:
-                return current_item.data(Qt.UserRole)
+                return current_item.data(Qt.ItemDataRole.UserRole)
         
         return None
     
@@ -2547,7 +2562,22 @@ class MotifAnalysisTab(QWidget):
     def create_sequence_overview(self, results):
         """Create sequence overview with basic information."""
         overview_group = QGroupBox("Sequence Overview")
+        overview_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         overview_layout = QVBoxLayout(overview_group)
+        overview_layout.setContentsMargins(10, 15, 10, 10)
+        overview_layout.setSpacing(8)
         
         # Sequence length info
         seq_length = len(self.current_sequence) if hasattr(self, 'current_sequence') else 'Unknown'
@@ -2580,7 +2610,22 @@ class MotifAnalysisTab(QWidget):
         
         if interpro_groups:
             entries_group = QGroupBox(f"InterPro Entries ({len(interpro_groups)})")
+            entries_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             entries_layout = QVBoxLayout(entries_group)
+            entries_layout.setContentsMargins(10, 15, 10, 10)
+            entries_layout.setSpacing(8)
             
             for acc, group_data in sorted(interpro_groups.items()):
                 entry_widget = self.create_interpro_entry_widget(acc, group_data)
@@ -2896,7 +2941,7 @@ class MotifAnalysisTab(QWidget):
         # Set table properties
         motifs_table.horizontalHeader().setStretchLastSection(True)
         motifs_table.setAlternatingRowColors(True)
-        motifs_table.setSelectionBehavior(QTableWidget.SelectRows)
+        motifs_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         motifs_table.setSortingEnabled(True)
         
         # Populate table

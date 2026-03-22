@@ -476,7 +476,22 @@ def create_blastp_tab(parent):
     
     # Query sequence section
     query_group = QGroupBox("Query Sequence")
+    query_group.setStyleSheet("""
+        QGroupBox {
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+        }
+    """)
     query_layout = QVBoxLayout(query_group)
+    query_layout.setContentsMargins(10, 15, 10, 10)
+    query_layout.setSpacing(8)
     
     # File input
     file_layout = QHBoxLayout()
@@ -517,7 +532,22 @@ def create_blastp_tab(parent):
     
     # Algorithm parameters
     algo_group = QGroupBox("Search Parameters")
+    algo_group.setStyleSheet("""
+        QGroupBox {
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+        }
+    """)
     algo_layout = QFormLayout(algo_group)
+    algo_layout.setContentsMargins(10, 15, 10, 10)
+    algo_layout.setSpacing(8)
     
     # Max target sequences
     parent.blastp_max_targets = QComboBox()
@@ -663,14 +693,29 @@ def create_blastp_tab(parent):
     scroll_area = QScrollArea()
     scroll_area.setWidget(input_widget)
     scroll_area.setWidgetResizable(True)
-    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     splitter.addWidget(scroll_area)
     
     # Results section
     results_group = QGroupBox("BLAST Results")
+    results_group.setStyleSheet("""
+        QGroupBox {
+            font-weight: bold;
+            font-size: 13px;
+            margin-top: 10px;
+            padding-top: 10px;
+        }
+        QGroupBox::title {
+            subcontrol-origin: margin;
+            left: 10px;
+            padding: 0 5px 0 5px;
+        }
+    """)
     results_layout = QVBoxLayout(results_group)
+    results_layout.setContentsMargins(10, 15, 10, 10)
+    results_layout.setSpacing(8)
     
     # Results toolbar
     results_toolbar = QHBoxLayout()
@@ -1145,7 +1190,7 @@ def show_blast_help(parent):
     """)
     layout.addWidget(help_text)
     
-    button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     
@@ -1376,8 +1421,8 @@ def create_blastn_tab(parent):
     scroll_area = QScrollArea()
     scroll_area.setWidget(input_widget)
     scroll_area.setWidgetResizable(True)
-    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+    scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+    scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
     
     splitter.addWidget(scroll_area)
     
@@ -1822,7 +1867,7 @@ def show_blast_help_generic(parent, program_type):
     """)
     layout.addWidget(help_text)
     
-    button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     
@@ -1840,7 +1885,7 @@ def create_placeholder_tab(name, description):
                         f"• Online NCBI integration\n"
                         f"• Parameter customization\n"
                         f"• Results visualization")
-    placeholder.setAlignment(Qt.AlignCenter)
+    placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
     placeholder.setStyleSheet("font-size: 14px; color: #666; margin: 50px;")
     layout.addWidget(placeholder)
     
@@ -2058,7 +2103,7 @@ def show_blast_help(parent):
     """)
     layout.addWidget(help_text)
     
-    button_box = QDialogButtonBox(QDialogButtonBox.Ok)
+    button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok)
     button_box.accepted.connect(help_dialog.accept)
     layout.addWidget(button_box)
     

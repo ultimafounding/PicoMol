@@ -75,7 +75,22 @@ class PreferencesDialog(QDialog):
         
         # Startup group
         startup_group = QGroupBox("Startup")
+        startup_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         startup_layout = QFormLayout(startup_group)
+        startup_layout.setContentsMargins(10, 15, 10, 10)
+        startup_layout.setSpacing(8)
         
         self.show_welcome_cb = QCheckBox("Show welcome dialog on startup")
         self.show_welcome_cb.setToolTip("Display the welcome screen when PicoMol starts")
@@ -85,7 +100,22 @@ class PreferencesDialog(QDialog):
         
         # File handling group
         file_group = QGroupBox("File Handling")
+        file_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         file_layout = QFormLayout(file_group)
+        file_layout.setContentsMargins(10, 15, 10, 10)
+        file_layout.setSpacing(8)
         
         self.max_recent_files = QSpinBox()
         self.max_recent_files.setRange(5, 50)
@@ -107,7 +137,22 @@ class PreferencesDialog(QDialog):
         
         # Default visualization settings
         viz_group = QGroupBox("Default Visualization Settings")
+        viz_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         viz_layout = QFormLayout(viz_group)
+        viz_layout.setContentsMargins(10, 15, 10, 10)
+        viz_layout.setSpacing(8)
         
         self.default_representation = QComboBox()
         self.default_representation.addItems([
@@ -150,7 +195,22 @@ class PreferencesDialog(QDialog):
         
         # Appearance
         appearance_group = QGroupBox("Appearance")
+        appearance_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         appearance_layout = QFormLayout(appearance_group)
+        appearance_layout.setContentsMargins(10, 15, 10, 10)
+        appearance_layout.setSpacing(8)
         
         # Theme selection
         self.theme_combo = QComboBox()
@@ -168,7 +228,22 @@ class PreferencesDialog(QDialog):
         
         # Behavior
         behavior_group = QGroupBox("Interface Behavior")
+        behavior_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         behavior_layout = QFormLayout(behavior_group)
+        behavior_layout.setContentsMargins(10, 15, 10, 10)
+        behavior_layout.setSpacing(8)
         
         self.tooltips_cb = QCheckBox("Show tooltips")
         self.tooltips_cb.setChecked(True)

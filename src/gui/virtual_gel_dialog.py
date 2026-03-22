@@ -19,7 +19,22 @@ class VirtualGelDialog(QDialog):
         
         # Left panel for controls
         controls_panel = QGroupBox("Gel Parameters")
+        controls_panel.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         controls_layout = QFormLayout(controls_panel)
+        controls_layout.setContentsMargins(10, 15, 10, 10)
+        controls_layout.setSpacing(8)
         
         # Gel concentration
         self.gel_concentration = QComboBox()
@@ -121,7 +136,22 @@ class VirtualGelDialog(QDialog):
         
         # Fragment information
         info_group = QGroupBox("Fragment Information")
+        info_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         info_layout = QVBoxLayout(info_group)
+        info_layout.setContentsMargins(10, 15, 10, 10)
+        info_layout.setSpacing(8)
         self.fragment_info = QTextEdit()
         self.fragment_info.setReadOnly(True)
         self.fragment_info.setMaximumHeight(150)
@@ -352,7 +382,7 @@ class VirtualGelDialog(QDialog):
                 band_height = int((2 if fragment_size > 5000 else 3) * image_scale_factor)
                 
                 band = self.scene.addRect(lane_x - band_width/2, band_y, band_width, band_height,
-                                        QPen(Qt.darkBlue), QBrush(QColor(0, 100, 255)))
+                                        QPen(Qt.GlobalColor.darkBlue), QBrush(QColor(0, 100, 255)))
                 
                 # Add clean marker labels
                 if self.show_labels.isChecked() and self.should_show_marker_label(fragment_size):

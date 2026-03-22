@@ -286,7 +286,7 @@ class CustomSequenceWidget(QWidget):
             if base in self.colors:
                 painter.setPen(QPen(self.colors[base]))
             else:
-                painter.setPen(QPen(Qt.black))
+                painter.setPen(QPen(Qt.GlobalColor.black))
             
             painter.drawText(x, y_pos, base)
     

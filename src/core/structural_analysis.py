@@ -690,7 +690,22 @@ class StructuralAnalysisTab(QWidget):
         
         # Control section
         control_group = QGroupBox("Structure Analysis")
+        control_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         control_layout = QVBoxLayout(control_group)
+        control_layout.setContentsMargins(10, 15, 10, 10)
+        control_layout.setSpacing(8)
         
         # PDB ID Input Section
         pdb_id_layout = QHBoxLayout()
@@ -1188,7 +1203,7 @@ class StructuralAnalysisTab(QWidget):
             if not filtered_data:
                 # Return a simple label if no valid data
                 label = QLabel(f"<i>No data available for {title}</i>")
-                label.setAlignment(Qt.AlignCenter)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 label.setStyleSheet("color: #666; padding: 20px;")
                 return label
             
@@ -1196,7 +1211,7 @@ class StructuralAnalysisTab(QWidget):
             total_value = sum(filtered_data.values())
             if total_value <= 0:
                 label = QLabel(f"<i>No valid data for {title}</i>")
-                label.setAlignment(Qt.AlignCenter)
+                label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                 label.setStyleSheet("color: #666; padding: 20px;")
                 return label
             
@@ -1221,7 +1236,7 @@ class StructuralAnalysisTab(QWidget):
                               if isinstance(v, (int, float)) and v > 0 and not (math.isnan(v) or math.isinf(v))]
                 if not valid_items:
                     label = QLabel(f"<i>No valid data for {title}</i>")
-                    label.setAlignment(Qt.AlignCenter)
+                    label.setAlignment(Qt.AlignmentFlag.AlignCenter)
                     label.setStyleSheet("color: #666; padding: 20px;")
                     return label
                 labels, values = zip(*valid_items)
@@ -1287,7 +1302,7 @@ class StructuralAnalysisTab(QWidget):
             print(f"[DEBUG] Error creating pie chart '{title}': {e}")
             # Return error message widget
             label = QLabel(f"<i>Error creating chart: {title}</i>")
-            label.setAlignment(Qt.AlignCenter)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setStyleSheet("color: #cc0000; padding: 20px;")
             return label
     
@@ -1457,7 +1472,7 @@ class StructuralAnalysisTab(QWidget):
             print(f"[DEBUG] Error creating manual Ramachandran plot: {e}")
             # Return error message widget
             label = QLabel(f"<i>Error creating Ramachandran plot: {str(e)}</i>")
-            label.setAlignment(Qt.AlignCenter)
+            label.setAlignment(Qt.AlignmentFlag.AlignCenter)
             label.setStyleSheet("color: #cc0000; padding: 20px;")
             return label, {}
     
@@ -1663,7 +1678,22 @@ class StructuralAnalysisTab(QWidget):
         # Simplified Structure Information with metadata source indicator
         metadata_source = "📊 Comprehensive Metadata" if metadata.get('entry') else "📄 Basic PDB Header"
         enhanced_basic_group = QGroupBox(f"Structure Information ({metadata_source})")
+        enhanced_basic_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         enhanced_basic_layout = QVBoxLayout(enhanced_basic_group)
+        enhanced_basic_layout.setContentsMargins(10, 15, 10, 10)
+        enhanced_basic_layout.setSpacing(8)
         
         # Create simplified tabs with only essential information
         metadata_tabs = QTabWidget()
@@ -1683,7 +1713,22 @@ class StructuralAnalysisTab(QWidget):
         # Add chain comparison charts if multiple chains
         if basic_results.get('chains') and len(basic_results['chains']) > 1:
             chain_charts_group = QGroupBox("Chain Size Comparison")
+            chain_charts_group.setStyleSheet("""
+                QGroupBox {
+                    font-weight: bold;
+                    font-size: 13px;
+                    margin-top: 10px;
+                    padding-top: 10px;
+                }
+                QGroupBox::title {
+                    subcontrol-origin: margin;
+                    left: 10px;
+                    padding: 0 5px 0 5px;
+                }
+            """)
             chain_charts_layout = QHBoxLayout(chain_charts_group)
+            chain_charts_layout.setContentsMargins(10, 15, 10, 10)
+            chain_charts_layout.setSpacing(8)
             
             # Create bar charts for chain comparison
             chain_residues = {f"Chain {chain['id']}": chain['residues'] for chain in basic_results['chains']}
@@ -2407,8 +2452,8 @@ class StructuralAnalysisTab(QWidget):
             chain_table.horizontalHeader().setStretchLastSection(True)
             
             # Enable horizontal scrolling for long sequences
-            chain_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-            chain_table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            chain_table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            chain_table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             table_layout.addWidget(chain_table)
             
             chain_layout.addWidget(table_group)
@@ -4313,7 +4358,7 @@ class ExportDialog(QDialog):
         
         # Title
         title = QLabel("<h3>Export Analysis Results</h3>")
-        title.setAlignment(Qt.AlignCenter)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
         
         # Format selection

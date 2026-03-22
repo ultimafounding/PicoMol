@@ -29,7 +29,22 @@ class EnzymeSelectionDialog(QDialog):
         
         # Quick selection buttons
         quick_select_group = QGroupBox("Quick Selection")
+        quick_select_group.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                font-size: 13px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px 0 5px;
+            }
+        """)
         quick_layout = QHBoxLayout(quick_select_group)
+        quick_layout.setContentsMargins(10, 15, 10, 10)
+        quick_layout.setSpacing(8)
         
         common_button = QPushButton("Common Enzymes")
         common_button.setToolTip("Select commonly used restriction enzymes")
